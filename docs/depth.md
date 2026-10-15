@@ -43,12 +43,12 @@ gets `cfg` itself; each level below it (`depthOf`) scales:
 | Setting | Per level down |
 | --- | --- |
 | iron, ice and clay vein percent | `depth-ore-percent` more (25) |
-| uranium vein percent | `depth-uranium-percent` more (100: double one level down, triple two down) |
+| uranium per mille | `depth-uranium-percent` more (100: double one level down, triple two down) |
 | cavern size (min and max) | `depth-cavern-percent` bigger (20) |
 | nest chance | `depth-nest-percent` points added (10) |
 | nest size (min and max) | `depth-nest-size` aliens added (1) |
 
-Percentages are capped at 100. A level's generator is built from its own
+Shares are capped at the whole map (100 percent, or 1000 per mille for uranium). A level's generator is built from its own
 `depthConfig` (`newWorldGenLanding`), so every vein, cavern, passage and
 preview on that level is the scaled one; `rollNests` and `spawnNest` read
 the cavern's level's settings. Uranium is the reward with the sharpest

@@ -303,10 +303,11 @@ a chest — puts a colonist under a cumulative **dose**. Every
 `-uranium-exposure-ticks` (2000) of it is one roll at `-mutation-chance` (1%) to
 **mutate**: grow a body part nobody is born with (a third arm, an extra eye, a
 tail, a vestigial twin) and carry the **Mutant** trait from then on, drawn as 🧟
-on the map. Uranium is scarce (`-uranium-rock-percent`, 1% of rock) and a dose
-is slow, so mutation lands on about **1% of colonists** in a typical run (a few
-percent in a very long one, since the dose never fades): an event the colony
-remembers, not a rite of passage.
+on the map. Uranium is rare (`-uranium-rock-permille`, 3 tiles in a thousand,
+though every world holds at least one full vein, its mother lode) and a dose is
+slow, so mutation lands on about 1% of colonists in a typical run (a few percent in a
+very long one, since the dose never fades): an event the colony remembers, not a
+rite of passage.
 
 A mutation also **resizes** the colonist: every one of them stretches or
 shrinks them by `-mutation-stature-percent` (15%), between `-stature-min-cm`

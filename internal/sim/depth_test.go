@@ -10,12 +10,12 @@ import (
 func TestDepthConfigScalesBelowTheLandingLevel(t *testing.T) {
 	cfg := DefaultConfig()
 	if got := depthConfig(cfg, LandingLevel); got.IronRockPercent != cfg.IronRockPercent ||
-		got.UraniumRockPercent != cfg.UraniumRockPercent || got.CavernNestPercent != cfg.CavernNestPercent {
+		got.UraniumRockPermille != cfg.UraniumRockPermille || got.CavernNestPercent != cfg.CavernNestPercent {
 		t.Fatal("depthConfig changed the landing level's settings")
 	}
 	d3 := depthConfig(cfg, LandingLevel+2)
-	if want := cfg.UraniumRockPercent * (100 + 2*cfg.DepthUraniumPercent) / 100; d3.UraniumRockPercent != want {
-		t.Errorf("uranium two levels down = %d%%, want %d%%", d3.UraniumRockPercent, want)
+	if want := cfg.UraniumRockPermille * (100 + 2*cfg.DepthUraniumPercent) / 100; d3.UraniumRockPermille != want {
+		t.Errorf("uranium two levels down = %d per mille, want %d", d3.UraniumRockPermille, want)
 	}
 	if want := cfg.IronRockPercent * (100 + 2*cfg.DepthOrePercent) / 100; d3.IronRockPercent != want {
 		t.Errorf("iron two levels down = %d%%, want %d%%", d3.IronRockPercent, want)
@@ -25,9 +25,9 @@ func TestDepthConfigScalesBelowTheLandingLevel(t *testing.T) {
 		t.Errorf("nests and caverns two levels down: %d%%, min %d, cavern max %d",
 			d3.CavernNestPercent, d3.CavernNestMin, d3.CavernMax)
 	}
-	cfg.UraniumRockPercent = 90
-	if got := depthConfig(cfg, LandingLevel+5).UraniumRockPercent; got != 100 {
-		t.Errorf("uranium capped at %d%%, want 100", got)
+	cfg.UraniumRockPermille = 900
+	if got := depthConfig(cfg, LandingLevel+5).UraniumRockPermille; got != 1000 {
+		t.Errorf("uranium capped at %d per mille, want 1000", got)
 	}
 }
 

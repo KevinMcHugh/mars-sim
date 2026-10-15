@@ -24,7 +24,8 @@ var abundanceNames = [len(veinLevels) + 3]string{"iron", "ice", "uranium", "clay
 func abundanceTargets(cfg Config) abundance {
 	var a abundance
 	for l := range veinLevels {
-		a[l] = float64(veinPercent(&cfg, l))
+		share, per := veinShare(&cfg, l)
+		a[l] = float64(share) * 100 / float64(per)
 	}
 	a[len(veinLevels)] = float64(cfg.CavernPercent)
 	a[len(veinLevels)+1] = float64(cfg.ScumPercent)
@@ -33,11 +34,15 @@ func abundanceTargets(cfg Config) abundance {
 }
 
 // measureAbundance generates every chunk of a cfg-sized map (no World, no
-// landing-site carving) and returns its percentages. The landing exclusion box
-// still applies, as it does in a real world.
+// landing-site carving, no mother lode) and returns its percentages. The
+// landing exclusion box still applies, as it does in a real world.
 func measureAbundance(cfg Config) abundance {
 	g := newWorldGen(cfg, LandingLevel)
 	g.withCacheSize(2 * g.chunkCols() * (2*genHorizon + 1))
+	// The mother lode is a promise on top of the configured share, not part
+	// of it: a full vein a world, whatever its size. It has its own test
+	// (TestEveryWorldHasAMotherLode); this measures the ordinary veins.
+	g.hasMotherLode = false
 	var counts [len(veinLevels) + 3]int
 	for cy := 0; cy < g.chunkRows(); cy++ {
 		for cx := 0; cx < g.chunkCols(); cx++ {
@@ -129,7 +134,7 @@ func TestAbundanceDriftReport(t *testing.T) {
 	} {
 		stats := driftSweep(run.size, run.seeds)
 		for i, s := range stats {
-			fmt.Fprintf(&b, "| %dx%d | %d | %s | %.0f | %.2f | %+.1f%% | %.2f | %.2f | %.2f |\n",
+			fmt.Fprintf(&b, "| %dx%d | %d | %s | %.1f | %.2f | %+.1f%% | %.2f | %.2f | %.2f |\n",
 				run.size[0], run.size[1], run.seeds, abundanceNames[i], targets[i],
 				s.mean, 100*(s.mean-targets[i])/targets[i], s.sd, s.lo, s.hi)
 		}
@@ -144,13 +149,24 @@ func TestAbundanceDriftWithinTolerance(t *testing.T) {
 	targets := abundanceTargets(DefaultConfig())
 	stats := driftSweep([2]int{256, 256}, 40)
 	for i, s := range stats {
-		if rel := math.Abs(s.mean-targets[i]) / targets[i]; rel > abundanceTolerance {
-			t.Errorf("%s: mean %.2f%% over 40 seeds on 256x256, target %.0f%% (off by %.1f%%, tolerance %.0f%%)",
-				abundanceNames[i], s.mean, targets[i], 100*rel, 100*abundanceTolerance)
+		// A rare feature (uranium, a few veins a seed) varies so much from
+		// seed to seed that 40 seeds can't pin its mean to 5%; allow three
+		// standard errors of the mean as well, which still catches a bias.
+		tol := max(abundanceTolerance, 3*s.sd/math.Sqrt(40)/targets[i])
+		if rel := math.Abs(s.mean-targets[i]) / targets[i]; rel > tol {
+			t.Errorf("%s: mean %.2f%% over 40 seeds on 256x256, target %.2f%% (off by %.1f%%, tolerance %.1f%%)",
+				abundanceNames[i], s.mean, targets[i], 100*rel, 100*tol)
 		}
 	}
 	small := driftSweep([2]int{80, 40}, 200)
 	for i, s := range small {
+		// Uranium is deliberately too rare for every small map to hold
+		// some: at 3 per mille an 80x40 landing level is short of one
+		// vein's worth, and about half the seeds generate none. Finding it
+		// is meant to take digging. See docs/power.md.
+		if i < len(veinLevels) && veinLevels[i] == UraniumBearingRock {
+			continue
+		}
 		if s.lo == 0 {
 			t.Errorf("%s: some seed generated none on the default 80x40 map", abundanceNames[i])
 		}

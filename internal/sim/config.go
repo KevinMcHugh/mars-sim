@@ -57,13 +57,15 @@ type Config struct {
 	DepthHostility      int `cfg:"depth-hostility" doc:"percent more likely a nest is of a hostile species, per level below the landing level"`
 	NaturalShaftPercent int `cfg:"natural-shaft-percent" doc:"chance (percent) that a cavern the colony breaks into holds a natural shaft down into a cavern below it"`
 	SinkholePercent     int `cfg:"sinkhole-percent" doc:"chance (percent) that a cavern the colony breaks into has a sinkhole to the level below"`
-	// Rock composition percentages. The remainder is ordinary rock.
-	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
-	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
-	UraniumRockPercent int `cfg:"uranium-rock-percent" doc:"percent of the map's tiles bearing uranium"`
-	ClayRockPercent    int `cfg:"clay-rock-percent" doc:"percent of the map's tiles bearing clay"`
-	RockVeinMin        int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
-	RockVeinMax        int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
+	// Rock composition shares. The remainder is ordinary rock. Uranium is
+	// per mille, not percent: it is rarer than a whole percent can say (see
+	// docs/power.md).
+	IronRockPercent     int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
+	IceRockPercent      int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
+	UraniumRockPermille int `cfg:"uranium-rock-permille" doc:"tiles per thousand of the map bearing uranium"`
+	ClayRockPercent     int `cfg:"clay-rock-percent" doc:"percent of the map's tiles bearing clay"`
+	RockVeinMin         int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
+	RockVeinMax         int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
 	// Salt rides on the rock like cave scum, never on a tile that carries
 	// scum, and never comes back once taken or built over. See docs/salt.md.
 	SaltPercent int `cfg:"salt-percent" doc:"percent of the map's tiles carrying a deposit of salt"`
@@ -770,7 +772,7 @@ func DefaultConfig() Config {
 		SinkholePercent:      10,
 		IronRockPercent:      10,
 		IceRockPercent:       5,
-		UraniumRockPercent:   1,
+		UraniumRockPermille:  3,
 		ClayRockPercent:      5,
 		RockVeinMin:          8,
 		RockVeinMax:          24,

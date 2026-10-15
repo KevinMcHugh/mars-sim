@@ -379,13 +379,15 @@ var RenamedSettings = map[string]string{
 // what to use instead. The colony ship's armory became each crash pod's, and
 // then each pod's one rare item: a gun is now one of three things a colonist
 // may land with, so neither a colony-wide total nor a per-pod gun count means
-// what it used to.
+// what it used to. Uranium moved from percent to per mille, so it could go
+// below 1%: the old key's number would mean something ten times different.
 var RetiredSettings = map[string]string{
 	"pistols":                  "every colonist now lands with one rare item; set crash-pod-gun-weight instead",
 	"shotguns":                 "every colonist now lands with one rare item; set crash-pod-gun-weight and crash-pod-shotgun-percent instead",
 	"crash-pod-pistols":        "every colonist now lands with one rare item; set crash-pod-gun-weight instead",
 	"crash-pod-shotguns":       "every colonist now lands with one rare item; set crash-pod-gun-weight and crash-pod-shotgun-percent instead",
 	"crash-pod-pistol-percent": "every colonist now lands with one rare item; set crash-pod-gun-weight instead",
+	"uranium-rock-percent":     "uranium is now set per mille, to go below 1%; set uranium-rock-permille instead (1% is 10)",
 }
 
 func unknownKeyError(name string, node *yaml.Node, path string) error {

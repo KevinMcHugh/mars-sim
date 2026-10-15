@@ -11,7 +11,7 @@ func mutationWorld(t *testing.T) *World {
 	t.Helper()
 	cfg := testConfig()
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
-	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent = 0, 0, 0, 0
+	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPermille, cfg.ClayRockPercent = 0, 0, 0, 0
 	return newTestWorld(t, cfg)
 }
 
@@ -36,7 +36,7 @@ func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 	cfg := testConfig()
 	cfg.Width, cfg.Height = 40, 30
 	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
-	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent = 10, 5, 3, 0
+	cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPermille, cfg.ClayRockPercent = 10, 5, 30, 0
 	cfg.Seed = 161803
 	w := NewEngine(cfg).world
 
@@ -48,7 +48,7 @@ func TestWorldgenGrowsUraniumVeins(t *testing.T) {
 	}
 	// Abundance is an expected value under chunked generation; see
 	// TestAbundanceDriftWithinTolerance for the tight check.
-	if want := w.Width * w.Height * cfg.UraniumRockPercent / 100; count < want/2 || count > want*3/2 {
+	if want := w.Width * w.Height * cfg.UraniumRockPermille / 1000; count < want/2 || count > want*3/2 {
 		t.Fatalf("uranium-bearing tiles = %d, want about %d", count, want)
 	}
 }
@@ -268,7 +268,7 @@ func TestMutationIsDeterministicForASeed(t *testing.T) {
 	run := func() []string {
 		cfg := testConfig()
 		cfg.Width, cfg.Height = 40, 30
-		cfg.UraniumRockPercent = 20 // plenty of uranium, so mutations actually happen
+		cfg.UraniumRockPermille = 200 // plenty of uranium, so mutations actually happen
 		cfg.UraniumExposureTicks = 1
 		cfg.MutationChance = 100
 		cfg.Seed = 999
