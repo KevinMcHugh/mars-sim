@@ -68,8 +68,10 @@ other three hundred without reading Go.
 
 ## Extending it
 
-- A new scalar knob needs nothing here. A new knob *type* (a float, a
-  string) needs a case in `knobValue` as well as in `bindConfigFlags` and
+- A new scalar knob needs nothing here, and neither does a new named choice
+  (like `power-policy`): `knobValue` sends any `fmt.Stringer` as its name,
+  and the page prints a string as it is. A new knob *type* (a float, say)
+  needs a case in `knobValue` as well as in `bindConfigFlags` and
   `sim.assign`.
 - Making a setting editable belongs in the new-game form (`NewGamePanel`),
   which sends `mars-sim.yaml` keys to `start`; this list will show it as set.

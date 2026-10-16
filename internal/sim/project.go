@@ -526,6 +526,7 @@ func (w *World) planRooms() {
 	if w.podsFeed() || w.plannedFacilities(Scumhouse) > 0 {
 		w.commissionHouses()
 		w.commissionKitchens()
+		w.commissionReactors()
 	}
 	if w.roomProjects() >= w.maxConcurrentProjects() {
 		return

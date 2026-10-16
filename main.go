@@ -331,7 +331,7 @@ func startCPUProfile(path string) (stop func(), err error) {
 // hand: the tag already has to exist for the settings file, and a hand-written
 // list of ~80 flags beside it is a list that drifts. sim.Knobs hands back a
 // pointer into this cfg, so binding is a type switch over the three scalar
-// kinds a tunable can be.
+// kinds a tunable can be, and a named choice (a flag.Value, like PowerPolicy).
 func bindConfigFlags(fs *flag.FlagSet, cfg *sim.Config) {
 	for _, k := range sim.Knobs(cfg) {
 		switch p := k.Ptr.(type) {
@@ -341,6 +341,8 @@ func bindConfigFlags(fs *flag.FlagSet, cfg *sim.Config) {
 			fs.Int64Var(p, k.Name, *p, k.Doc)
 		case *bool:
 			fs.BoolVar(p, k.Name, *p, k.Doc)
+		case flag.Value:
+			fs.Var(p, k.Name, k.Doc) // a named choice, like power-policy
 		default:
 			// A new field kind needs a case here and in sim.assign; failing
 			// loudly at startup beats a tunable that silently has no flag.

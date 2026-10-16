@@ -1202,6 +1202,10 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.batteriesWanted() && w.tryAssignReactor(e) {
 		return
 	}
+	// A reactor of its own, stocked: work it, as the colony's operator would.
+	if w.tryAssignOwnReactor(e) {
+		return
+	}
 	// Surplus locker meals go to market for someone hungrier to buy.
 	if w.tryAssignSellMeals(e) {
 		return

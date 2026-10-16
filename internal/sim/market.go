@@ -472,6 +472,9 @@ func (w *World) runMarket() {
 	w.refreshSiloStock()
 	w.refreshKitchenBatteries()
 	w.refreshReactorFuel()
+	w.refreshColonyBatteryBids()
+	w.refreshOwnerReactorBids()
+	w.notePowerShortage()
 	w.refreshColonyMealAsks()
 }
 
