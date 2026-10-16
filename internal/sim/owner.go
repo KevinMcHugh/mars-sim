@@ -27,8 +27,13 @@ const (
 	// by its OrderID in Owner.ID. Unexported like ownerOrder. See
 	// workorder.go.
 	ownerWork
-	// TODO: OwnerOrganization — an organization could own property. Undefined
-	// for now; see docs/economy.md.
+	// OwnerCorporation is a company back home that holds property and money
+	// in the colony: today only the power charter's company (see power.go
+	// and docs/power.md), named by its index in the world's corporation
+	// roster in Owner.ID. It is the first organization the economy has: the
+	// slot docs/economy.md left as OwnerOrganization. Families and the
+	// colony's own guilds would be kinds of their own.
+	OwnerCorporation
 )
 
 // Owner names who holds money or property. ID is meaningful only for
@@ -79,6 +84,8 @@ func (o Owner) String() string {
 		return fmt.Sprintf("order #%d", o.ID)
 	case ownerWork:
 		return fmt.Sprintf("work order #%d", o.ID)
+	case OwnerCorporation:
+		return "the charter company"
 	default:
 		return "unknown"
 	}

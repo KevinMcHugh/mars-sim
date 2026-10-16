@@ -724,6 +724,9 @@ type World struct {
 	// while it has some). See power.go.
 	publicReactor bool
 	powerDrySince int
+	// charter is the power charter, under power-policy charter: which
+	// corporation holds it and its money in the colony. See power.go.
+	charter charterState
 	// colonyMealAsk is the price the colony's meal asks were last posted at,
 	// so they're reposted only when colonyMealPrice moves (see scumhouse.go).
 	colonyMealAsk       Money

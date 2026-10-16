@@ -165,10 +165,19 @@ type Config struct {
 	// at PriceBattery, and a colonist with ReactorSavings may commission a
 	// reactor of its own; under the public option the colony also builds
 	// one of its own once it has gone PublicOptionDays without a battery.
-	PowerPolicy      PowerPolicy `cfg:"power-policy" doc:"who runs the reactors: monopoly (the colony), market (colonists who can afford one), or public-option (a market, and a colony reactor of last resort)"`
+	PowerPolicy      PowerPolicy `cfg:"power-policy" doc:"who runs the reactors: monopoly (the colony), market (colonists who can afford one), public-option (a market, and a colony reactor of last resort), or charter (one corporation from back home)"`
 	PriceBattery     int64       `cfg:"price-battery" doc:"what the colony bids for a battery at its stoves, under the market and the public option"`
 	ReactorSavings   int64       `cfg:"reactor-savings" doc:"dollars a colonist needs to commission a reactor of its own, under the market and the public option (0 disables)"`
 	PublicOptionDays int         `cfg:"public-option-days" doc:"days the colony goes without a battery before it builds a reactor of its own, under the public option"`
+	// The charter (P4): a corporation from the roster holds the only right
+	// to make power. It lands CharterCapital from off-world, builds and runs
+	// the reactor, sells batteries at CharterPrice, pays the colony
+	// CharterRoyalty percent of every sale, and sends home whatever it holds
+	// above its capital once a day.
+	CharterCorporation int   `cfg:"charter-corporation" doc:"which of the seed's corporations holds the power charter, by its place in the roster (0 is the first)"`
+	CharterCapital     int64 `cfg:"charter-capital" doc:"dollars the charter company brings from off-world, and keeps; what it holds above this goes home once a day"`
+	CharterPrice       int64 `cfg:"charter-price" doc:"what the charter company asks for a battery, and the colony bids for its stoves"`
+	CharterRoyalty     int   `cfg:"charter-royalty" doc:"percent of every battery the charter company sells that it pays the colony"`
 	// ZoningAuto is who decides where the colony builds. Off (the game's
 	// default), the player draws zones and colonists build a structure only
 	// inside a zone of its kind; with no such zone they build nothing. On,
@@ -901,19 +910,23 @@ func DefaultConfig() Config {
 		// Scarcity is on (economy phase E8): food is made, not conjured, and
 		// building costs materials. The safety net stays a setting, for tests
 		// and for balancing. See docs/economy.md.
-		InfiniteFood:     false,
-		Power:            true,
-		PowerTariff:      3,
-		WageReactor:      2,
-		BatteryReserve:   60,
-		UraniumReserve:   2,
-		ReactorIceStock:  8,
-		ReactorExposure:  true,
-		PowerPolicy:      PolicyMonopoly,
-		PriceBattery:     4,
-		ReactorSavings:   300,
-		PublicOptionDays: 3,
-		CrashPodPurse:    100,
+		InfiniteFood:       false,
+		Power:              true,
+		PowerTariff:        3,
+		WageReactor:        2,
+		BatteryReserve:     60,
+		UraniumReserve:     2,
+		ReactorIceStock:    8,
+		ReactorExposure:    true,
+		PowerPolicy:        PolicyMonopoly,
+		PriceBattery:       4,
+		ReactorSavings:     300,
+		PublicOptionDays:   3,
+		CharterCorporation: 0,
+		CharterCapital:     1000,
+		CharterPrice:       6,
+		CharterRoyalty:     10,
+		CrashPodPurse:      100,
 		// Scum is tuned so a small colony that keeps digging can feed itself
 		// once its crash-pod meals run out: see the sustain test in
 		// scumhouse_test.go before changing these.
