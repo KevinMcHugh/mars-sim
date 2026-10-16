@@ -1250,7 +1250,7 @@ siting-auto: true
 # heal-floor: 50
 
 ## a bad open wound bleeds until it is dressed, and a colonist that loses too much collapses
-# bleeding: false
+# bleeding: true
 
 ## an open wound bleeds while its part is below this percent of its HP
 # bleed-threshold: 50

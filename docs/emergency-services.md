@@ -23,8 +23,8 @@ Neither one is a new rung on a ladder.
 
 All five phases are built. Colonists help each other (A1, A2), wounds are
 dressed and heal (A3), the player can keep EMTs on call (A4, off until the
-player sets a detail), and bad wounds can bleed (A5, behind the `bleeding`
-setting, off by default). *As built* at the end of this doc records where the
+player sets a detail), and bad wounds can bleed (A5, the `bleeding`
+setting, on by default). *As built* at the end of this doc records where the
 code departed from the plan, and what each phase did in measured runs. Issue:
 [KevinMcHugh/mars-sim#154](https://github.com/KevinMcHugh/mars-sim/issues/154).
 
@@ -34,8 +34,8 @@ code departed from the plan, and what each phase did in measured runs. Issue:
 | A2 | Aid: `FocusAid` and `JobAid`. A bystander rouses a passed-out colonist and may give it a meal. The `Caring`/`Callous` traits. Aid leaves memories, affinity and guilt behind. Hunting aliens go for the helpless first. | Shipped |
 | A3 | Wound care: first aid dresses wounds (a colonist can dress its own, slowly), dressed wounds heal lying down, the infirmary cot, and `SkillMedicine`. | Shipped |
 | A4 | EMTs: an on-call detail paid by the hour from the treasury. EMTs keep working while on call and drop it for a casualty anywhere in the colony. Dragging a casualty down from blood loss to an infirmary cot. | Shipped (detail 0 until the player sets one) |
-| A5 | Bleeding: bad open wounds drain HP until dressed, and a colonist that loses too much collapses. | Shipped, off by default |
-| Later | Prey preference as a per-species field. Medicine and prosthetics (limbs ordered on the next resupply), medkits as a supply chain, paying EMTs per call on the order book. | Not designed |
+| A5 | Bleeding: bad open wounds drain HP until dressed, and a colonist that loses too much collapses. | Shipped, on by default |
+| Later | Prey preference as a per-species field ([#217](https://github.com/KevinMcHugh/mars-sim/issues/217)). Medicine and prosthetics (limbs ordered on the next resupply), medkits as a supply chain, paying EMTs per call on the order book. | Not designed |
 
 ## Decisions already made
 
@@ -44,7 +44,7 @@ code departed from the plan, and what each phase did in measured runs. Issue:
 | Traits | Yes: a new `compassion` trait group holding `Caring` and `Callous`. |
 | EMTs between calls | They work elsewhere. Being on call is a status the colonist carries, not a job it stands at. |
 | Aliens and the helpless | Hunters prefer prey that cannot flee or fight back. All hostile species do this at first; it becomes a per-species setting later. |
-| Guilt | Yes, but only for colonists the arbiter actually offered the rescue to and who chose something they did not need. See *Guilt: who could have helped*. |
+| Guilt | Yes, but only for colonists the arbiter actually offered the rescue to and who chose something they did not need, at most 16 per death (`aid-passed-by-max`). See *Guilt: who could have helped*. |
 
 ## Source
 
@@ -562,7 +562,9 @@ harmless forever, and aid has nothing to race. With `bleeding` on:
   goes hungry on the floor, unless an EMT drags it to a cot.
 - A death from blood loss is "bled to death", in the log and the graveyard.
 
-It stays off by default: see the measurements under *As built*.
+It is on by default. Over 32 seeds it added no deaths (see the measurements
+under *As built*); turning it on was a call about how fights should feel:
+a wound left undressed now matters. Set `bleeding: false` to go back.
 
 ## Why it is this way
 
@@ -850,17 +852,13 @@ EMTs' work ethic.
    adding one.
 2. **Which existing species traits imply `PreyHelpless`?** This only matters
    if the per-species field is derived rather than set in Creature Lab.
-3. **Is guilt lopsided in big colonies?** With 2000 colonists, a death in a
-   busy corridor could add up to 16 guilty memories. The cap bounds it, but
-   whether 16 is the right number should come from a run.
-4. **Bleeding on by default?** It met the bar this doc set (no more deaths
-   over 32 seeds); turning it on is a call about how fights should feel.
-5. **What is an EMT worth?** Wages are now the player's offer and the
+   Tracked in [#217](https://github.com/KevinMcHugh/mars-sim/issues/217).
+3. **What is an EMT worth?** Wages are now the player's offer and the
    colonists' asks (*Market wages*). In alien-heavy colonies without
    bleeding or with it, a detail barely changes survival from $1 an hour
    up, and a detail priced too low to stay staffed does worse than none,
    perhaps because its infirmary is built either way.
-6. **Cost at scale.** Walking wounded make the casualty index bigger in a
+4. **Cost at scale.** Walking wounded make the casualty index bigger in a
    big fight, and `noticeCasualty` walks it for every colonist each turn
    while it is not empty. Fine at tens of casualties; worth a benchmark
    with a 2000-colonist battle before it is a problem.

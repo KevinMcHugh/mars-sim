@@ -1087,7 +1087,7 @@ func DefaultConfig() Config {
 		HealPerHour:          1,
 		HealCotPct:           300,
 		HealFloorPct:         50,
-		Bleeding:             false,
+		Bleeding:             true,
 		BleedThresholdPct:    50,
 		BleedPct:             40,
 		BleedCollapsePct:     30,
