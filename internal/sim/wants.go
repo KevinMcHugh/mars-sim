@@ -27,8 +27,23 @@ type wantRung struct {
 	value func(w *World, e *Entity) Money
 	// most is the percent of value it will pay at the drive's ceiling.
 	most func(w *World) int
-	// post puts an order on the book for it at limit, with lifetime ttl.
-	post func(w *World, e *Entity, limit Money, ttl int) *Order
+	// post puts an order for it at limit, with lifetime ttl: a bid on the
+	// book, or a work order (a bodyguard's contract).
+	post func(w *World, e *Entity, limit Money, ttl int) wantPosted
+	// afford, if set, says whether e could buy it at all at limit, beyond
+	// willingness being above zero (a bodyguard's budget rule).
+	afford func(w *World, e *Entity, limit Money) bool
+}
+
+// wantPosted is what a want put up: a market order or a work order.
+type wantPosted struct {
+	order *Order
+	work  *WorkOrder
+}
+
+// affordable reports whether e can buy r at limit.
+func (r *wantRung) affordable(w *World, e *Entity, limit Money) bool {
+	return limit > 0 && (r.afford == nil || r.afford(w, e, limit))
 }
 
 // wantSpec is one drive's ladder.
@@ -43,11 +58,13 @@ type wantSpec struct {
 // work (want-settle-ticks) before climbing past it.
 type wantState struct {
 	order    *Order
+	work     *WorkOrder // a bodyguard's contract, open
 	rung     int
 	lapses   int
-	heldRung int // how many rungs were held, from the bottom, when last looked
-	settle   int // tick before which it does not climb past heldRung
-	retry    int // tick before which it does not try to post again after failing to
+	heldRung int  // how many rungs were held, from the bottom, when last looked
+	looked   bool // heldRung is from an earlier look, not the zero value
+	settle   int  // tick before which it does not climb past heldRung
+	retry    int  // tick before which it does not try to post again after failing to
 }
 
 // wantRetryTicks is how long a colonist waits to try again when it could not
@@ -68,7 +85,7 @@ func (w *World) willingness(e *Entity, d DriveKind, value Money, most int) Money
 	if value <= 0 {
 		return 0
 	}
-	spendable := e.wallet - Money(w.cfg.WantReserveMeals)*w.valueOf(Meal)
+	spendable := w.spendable(e)
 	if spendable <= 0 {
 		return 0
 	}
@@ -111,6 +128,17 @@ func (w *World) runWant(e *Entity, spec *wantSpec) {
 			ws.lapses++
 		}
 	}
+	if o := ws.work; o != nil {
+		if w.workOrders[o.ID] == o && !w.lapseEscort(o) {
+			return // still open, or being served
+		}
+		ws.work = nil
+		if o.served > 0 {
+			ws.lapses = 0
+		} else {
+			ws.lapses++
+		}
+	}
 	if e.drives[spec.drive].phase < DrivePressing || e.drives[DriveFood].phase >= DrivePressing {
 		return // calm, or hungry: food comes first
 	}
@@ -119,8 +147,14 @@ func (w *World) runWant(e *Entity, spec *wantSpec) {
 	for held < len(spec.rungs) && spec.rungs[held].held(w, e) {
 		held++
 	}
+	if !ws.looked {
+		// What it arrived with (a gun from the ship) is not a purchase to
+		// give time to work.
+		ws.looked, ws.heldRung = true, held
+	}
 	if held != ws.heldRung {
 		if held > ws.heldRung {
+
 			ws.settle = w.tick + w.cfg.WantSettleTicks // give it a chance to work
 			ws.lapses = 0
 		}
@@ -137,24 +171,24 @@ func (w *World) runWant(e *Entity, spec *wantSpec) {
 	// past this one.
 	if ws.lapses >= w.cfg.WantPatience && rung+1 < len(spec.rungs) {
 		next := &spec.rungs[rung+1]
-		if v := next.value(w, e); v > 0 && w.willingness(e, spec.drive, v, next.most(w)) > 0 {
+		if v := next.value(w, e); v > 0 && next.affordable(w, e, w.willingness(e, spec.drive, v, next.most(w))) {
 			rung = rung + 1
 		}
 	}
 	r := &spec.rungs[rung]
 	v := r.value(w, e)
 	limit := w.willingness(e, spec.drive, v, r.most(w))
-	o := (*Order)(nil)
-	if limit > 0 {
-		o = r.post(w, e, limit, w.cfg.WantTTL)
+	var p wantPosted
+	if r.affordable(w, e, limit) {
+		p = r.post(w, e, limit, w.cfg.WantTTL)
 	}
-	if o == nil {
+	if p.order == nil && p.work == nil {
 		ws.retry = w.tick + wantRetryTicks
 		return
 	}
 	// Even an order filled on the spot is noted: the next look sees it gone
 	// with Filled set, and the ladder moves on.
-	ws.order = o
+	ws.order, ws.work = p.order, p.work
 }
 
 // wantLine is the inspector's sentence for e's wants: what it wants, what it
@@ -178,7 +212,7 @@ func (w *World) wantLine(e *Entity) string {
 			return fmt.Sprintf("Wants %s; nothing to buy it with yet.", r.name)
 		}
 		limit := w.willingness(e, spec.drive, v, r.most(w))
-		if limit <= 0 {
+		if !r.affordable(w, e, limit) {
 			return fmt.Sprintf("Wants %s; can't afford it (has %v).", r.name, e.wallet)
 		}
 		return fmt.Sprintf("Wants %s: will pay up to %v; has %v.", r.name, limit, e.wallet)
@@ -194,7 +228,9 @@ var safetyRungs = []wantRung{
 		held:  func(w *World, e *Entity) bool { return w.bestGunOwned(e) > 0 },
 		value: func(w *World, e *Entity) Money { return w.gunValue(Pistol) },
 		most:  func(w *World) int { return w.cfg.GunWillingness },
-		post:  func(w *World, e *Entity, limit Money, ttl int) *Order { return w.bidForGun(e, 0, limit, ttl) },
+		post: func(w *World, e *Entity, limit Money, ttl int) wantPosted {
+			return wantPosted{order: w.bidForGun(e, 0, limit, ttl)}
+		},
 	},
 	{
 		name: "a better gun",
@@ -210,9 +246,25 @@ var safetyRungs = []wantRung{
 			return 0
 		},
 		most: func(w *World) int { return w.cfg.GunWillingness },
-		post: func(w *World, e *Entity, limit Money, ttl int) *Order {
+		post: func(w *World, e *Entity, limit Money, ttl int) wantPosted {
 			own := w.bestGunOwned(e)
-			return w.bidForGun(e, own, limit+w.gunValue(gunOfRank(own)), ttl)
+			return wantPosted{order: w.bidForGun(e, own, limit+w.gunValue(gunOfRank(own)), ttl)}
+		},
+	},
+	{
+		// A bodyguard (escort.go): only the rich can afford one, by
+		// escort-budget-percent, and only after a rifle, or after
+		// want-patience days waiting for one.
+		name:  "a bodyguard",
+		held:  func(w *World, e *Entity) bool { return e.wants[DriveSafety].work != nil },
+		value: func(w *World, e *Entity) Money { return Money(w.cfg.EscortWage) },
+		most:  func(w *World) int { return w.cfg.EscortWillingness },
+		post: func(w *World, e *Entity, limit Money, ttl int) wantPosted {
+			return wantPosted{work: w.hireBodyguard(e, limit, ttl)}
+		},
+		afford: func(w *World, e *Entity, limit Money) bool {
+			_, ok := w.escortRate(e, limit)
+			return ok
 		},
 	},
 }
@@ -365,6 +417,7 @@ func (w *World) jobFetch(e *Entity) {
 		if old != ItemNone && c.Inventory.CanAdd(old, 1) && e.Inventory.Remove(old, 1) {
 			c.Inventory.Add(old, 1)
 			c.credit(me, old, 1)
+
 			if o, _ := w.post(Ask, old, 1, w.gunValue(old), me, c.Pos, w.cfg.OrderTTL); o != nil {
 				w.emitDone(e, ActionTrade, NounGoods, "Put %s old %s up for sale for %v.", e.possessive(), old, w.gunValue(old))
 			}

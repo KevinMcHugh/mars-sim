@@ -186,7 +186,7 @@ func (w *World) cancelDefense(id int) bool {
 // tryAssignGuard puts an armed colonist looking for work on the first defense
 // zone, by id, that is short of its detail and has a station it can reach.
 func (w *World) tryAssignGuard(e *Entity) bool {
-	if len(w.defensePosts) == 0 || bestWeapon(e.Inventory) == ItemNone {
+	if len(w.defensePosts) == 0 || bestWeapon(e.Inventory) == ItemNone || !calmEnoughToGuard(e) {
 		return false
 	}
 	for _, d := range w.defensePosts {
@@ -261,7 +261,9 @@ func (w *World) releaseGuard(e *Entity) {
 func (w *World) jobGuard(e *Entity) {
 	d := w.defensePost(e.guardPost)
 	weapon := bestWeapon(e.Inventory)
-	if d == nil || weapon == ItemNone {
+	// Calm to serve: a guard who comes to feel unsafe gives the post up, and
+	// the next calm, armed colonist takes it (see docs/safety.md).
+	if d == nil || weapon == ItemNone || !calmEnoughToGuard(e) {
 		w.clearJob(e)
 		return
 	}
@@ -318,7 +320,9 @@ func (w *World) serveGuard(e *Entity, d *defensePost) {
 	if !d.contains(e.Pos) {
 		return
 	}
+	w.practise(e, SkillGuarding, 1)
 	e.guardHour++
+
 	if e.guardHour < w.cfg.TicksPerHour() {
 		return
 	}
