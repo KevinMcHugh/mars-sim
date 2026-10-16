@@ -506,7 +506,7 @@ func (w *World) refreshOwnerReactorBids() {
 		me := w.fixtureOwner(p)
 		c := w.storageContainers[p]
 		bid := func(k ItemKind, want int) {
-			price := w.refPrice(k)
+			price := ownerFuelPrice(w.refPrice(k))
 			if price <= 0 {
 				return
 			}
@@ -526,6 +526,18 @@ func (w *World) refreshOwnerReactorBids() {
 			w.keepStockedFor(me, UraniumOre, []Point{p}, 1)
 		}
 	}
+}
+
+// ownerFuelPrice is what a reactor's owner bids at the silo for its fuel:
+// the reference price and a tenth, at least $2 over. The colony's prospecting
+// bids are at the reference price, so a miner holding ore offers it to a bid
+// only above that (planSupply); a baron at the reference price got none of
+// the uranium already lying on miners' lines at the silo.
+func ownerFuelPrice(ref Money) Money {
+	if ref <= 0 {
+		return 0
+	}
+	return ref + max(2, ref/10)
 }
 
 // tryAssignOwnReactor has e work a reactor of its own when it holds e's

@@ -35,8 +35,9 @@ days. Water ice is the dull bulk input that the reactor goes through steadily.
 P0 (rarer uranium), P1 (batteries and powered cooking) and P2 (the reactor,
 run by the colony) are built. The colony cooks on the batteries its ships
 landed, buys the first uranium anyone digs up, builds a reactor, and charges
-more. The policy choice is P3 onwards: for now the colony is always the power
-company. Today uranium and water ice
+more. P3 adds the choice of who runs the reactors (`power-policy`: monopoly,
+market or public option); the charter and changing the policy mid-game are
+still to come. Today uranium and water ice
 are mined and sold to the silo, and then nothing uses them. Power gives both a
 reason to exist.
 
@@ -45,12 +46,19 @@ reason to exist.
 | P0 | Rarer uranium: a per-mille setting, fewer veins of the same size, a mother lode in every world, mutation re-measured | **Shipped** |
 | P1 | Batteries and powered cooking: the `Battery` good, powered and cold recipe rows, batteries in the ships, battery supply drops | **Shipped** |
 | P2 | The reactor under a monopoly: fuel pellets, the reactor room, the operator's wage, the colony's uranium and ice bids, the tariff | **Shipped** |
-| P3 | The market and the public option: `power-policy`, reactor commissions, the colony buying batteries instead of making them, the colony's reactor of last resort | Proposed |
+| P3 | The market and the public option: `power-policy`, reactor commissions, the colony buying batteries instead of making them, the colony's reactor of last resort | **Shipped** |
 | P4 | The charter: the corporation as an owner, its capital, royalty and remittance | Proposed |
 | P5 | Changing policy mid-game: buyouts, sales, and the cooldown | Proposed |
 | P6 | The player's view: the policy on the new-game form and in game, the tariff in the Trade tab, power on the charts | Proposed |
 
 ## Source
+
+P3 is in `power.go` (`PowerPolicy`, `colonyRunsPower`,
+`colonyBuysBatteries`, `refreshColonyBatteryBids`, `commissionReactors`,
+`refreshOwnerReactorBids`, `keepStockedFor`, `tryAssignOwnReactor`,
+`notePowerShortage`), `Entity.reactorCommissioned`, the named-choice setting
+in `configfile.go`, `main.go` and `wire/config.go`, and
+`power_policy_test.go`.
 
 P2 is in `power.go` (`reactorRoom`, `wantsReactor`, `tryAssignReactor`,
 `batteriesWanted`, `refreshReactorFuel`, `fuelBid`, `keepStocked`,
@@ -260,8 +268,7 @@ and the skill tables for little gain.
 
 ### Policy: monopoly (P2, built)
 
-There is no `power-policy` setting yet. With `power` on, the colony is the
-power company.
+`power-policy: monopoly`, the default. The colony is the power company.
 
 - **The colony builds the reactor once it holds uranium** (`wantsReactor`:
   any uranium ore of the colony's, anywhere, and no reactor planned or built).
@@ -350,53 +357,96 @@ Mutation stays rare. On seeds 49–72 after 40,000 ticks there were 5 mutants
 among the living with power off, 8 with power and no reactor, and 6 with the
 reactor.
 
-### Policy: market
+### Policy: market (P3, built)
 
-`power-policy: market`.
+`power-policy: market`. The setting is a named choice (see
+[config-file.md](./config-file.md)), `PowerPolicy` in code, defaulting to
+`monopoly`.
 
-- **The colony builds no reactors.** That is what letting the market supply
-  power means.
-- **The colony buys batteries** for its kitchens with a standing bid at each
-  kitchen's stove at `price-battery`, the same way it buys biomatter, and
-  suspendable the same way.
-- **Colonists commission reactors.** Once per planning cycle,
-  `commissionReactors` has the first colonist (by ID, never by map order; see
-  [determinism.md](./determinism.md)) who holds `reactor-savings` dollars and
-  owns no reactor commission a reactor room, paid from its wallet, exactly as
-  `commissionHouses` does for a house. It fires only while some battery bid is
-  unfilled, which means only while there is real demand. The owner gets the
-  fixture, buys uranium and ice on the book through the producer planner,
-  works the reactor itself or posts work orders, and sells batteries at
-  whatever the book bears.
-- **No price is set for anyone.** A lone reactor owner faces only the cold
-  recipe's ceiling and the colony's bid, so the first owner gets rich. A second
-  colonist who reaches `reactor-savings` builds a competing reactor, and the
-  asks come down ([pricing.md](./pricing.md)).
+- **The colony builds no reactors and buys no fuel.** That is what letting
+  the market supply power means. `wantsReactor` and `refreshReactorFuel` ask
+  `colonyRunsPower`, which is false here.
+- **The colony buys batteries** for its stoves: a standing bid at each colony
+  stove for what it is short of `kitchen-battery-stock`, less what's already
+  being hauled there, at `price-battery` ($4), as far as the treasury stretches
+  (`refreshColonyBatteryBids`). It is allowed under
+  `standing-orders-build-only`, and a player can suspend it like any standing
+  order. The landing batteries in the lockers still go to the stoves first,
+  so for the first weeks the bids mostly sit there.
+- **Colonists commission reactors** (`commissionReactors`, each planning
+  cycle). The first colonist by ID (never by map order; see
+  [determinism.md](./determinism.md)) who holds `reactor-savings` ($300) and
+  hasn't commissioned one pays for a reactor room from its wallet, as
+  `commissionHouses` does for a house. It happens only while a colony stove's
+  battery bid is open (real demand), no reactor is still going up, and every
+  reactor already standing has fuel. So one would-be baron tries at a time,
+  and a second follows only when the first is running. The room is the
+  owner's, **communal** like a chef's kitchen so others can sell into it, but
+  only its owner works it (`mayCookAt`, and the colony's operator skips it).
+- **The owner fuels it as the colony would** (`refreshOwnerReactorBids`). It
+  bids at the silo, from its own wallet, for water ice up to
+  `reactor-ice-stock` and for one uranium ore whenever it has neither ore nor
+  pellets, at a little over the reference price (`ownerFuelPrice`: a tenth
+  more, at least $2, so uranium $55 and ice $4). Then it posts haul orders,
+  paid from its wallet, to carry what it bought to its reactor
+  (`keepStockedFor`, the colony's restocking with another payer).
+- **The owner works it** whenever it holds its own inputs and fewer than
+  `battery-reserve` batteries there (`tryAssignOwnReactor`, beside the
+  colony's operator in the work ladder; `cooksOn` stops it at the cap too).
+- **The owner sells** into the colony's battery bids by the producer
+  planner's existing "supply your own stock to a bid" (`planSupply`). A
+  battery is a reactor's output, so it counts as suppliable.
+
+Three dead ends on the way, all worth not repeating:
+
+- **Bidding for fuel at the reactor.** Miners take their ore to the silo and
+  offer it there at the reference price. A bid across the colony at that
+  same price pays no hauler to bring it. The first barons sat beside open
+  bids while dozens of uranium ore sat on sale at the silo.
+- **A premium on that bid** (half again over the reference price) got the
+  uranium moving but not the ice: barons sat on 40 pellets with no ice to
+  charge them. Buying at the silo, where the miners sell, and paying the haul
+  separately is what the monopoly does, and it works for both.
+- **Bidding at the silo at exactly the reference price.** Ice came, uranium
+  didn't. Miners' unsold ore sits on their own lines at the silo, or in their
+  lockers, after their asks expire. The planner offers a colonist's own stock
+  to a bid only above the reference price (`planSupply`: the reference price
+  is what the colony would pay anyway), so a $50 bid beside four ore of a
+  miner's at the silo went unfilled for 12,000 ticks. Hence the premium.
+
+**What isn't market yet.** The colony's bid is fixed at `price-battery`, so
+mostly a baron's price is the colony's, not whatever the book bears. A lone
+baron gets rich because nobody else sells, not because it can name its price.
+There is other demand, and it came for free: a cook planning a meal for a
+customer (`planCraft`) finds the powered row first, sees a battery is
+something a reactor makes, and posts a derived bid for one at its kitchen.
+Seen at $21 and $57 in the traces. So batteries do trade above the colony's
+price now and then. A ceiling the public option's tariff could set needs the
+colony to *sell* batteries, which it doesn't yet.
 
 The risk of this policy is the story it is meant to tell. If nobody can afford
 a reactor, the colony cooks cold until somebody can, or until the director's
-next supply ship. If one colonist owns all the power, everyone else pays that
-colonist's price.
+next supply ship.
 
-### Policy: public option
+### Policy: public option (P3, built)
 
 `power-policy: public-option`. Everything in the market policy holds, plus
-one thing: the colony keeps a reactor of its own in reserve.
+one thing: the colony runs a reactor of its own once the market has failed
+it.
 
-- **The colony builds one reactor, and only as a last resort.** The planner
-  plans it once the colony has gone `public-option-days` (default 3) without
-  filling a battery bid, which means private owners have let the colony go
-  without power. It never builds a second.
-- **It runs as the monopoly's reactor does**: the colony buys its fuel, pays
-  its operator `wage-reactor`, and sells at the tariff.
-- **The tariff becomes a ceiling.** Nobody pays a private owner more than the
-  colony's ask while the colony's reactor has stock, so a baron has to
-  undercut it to sell. A tariff set high leaves room for private profit; set
-  low, it crowds private owners out and the policy is a monopoly in all but
-  name.
+- **The trigger** (`notePowerShortage`): once the colony has held no battery
+  at all for `public-option-days` (3), `publicReactor` latches, for good, and
+  `colonyRunsPower` turns true. "No battery at all" means the lockers and
+  stoves are empty and nobody is selling.
+- **Then it is the monopoly's reactor**: the colony bids for uranium, builds
+  one reactor once it holds some (`wantsReactor` counts only the colony's own
+  reactors, so barons' reactors don't stop it), fuels it, and pays its
+  operator. It never builds a second. It keeps buying batteries too, so a
+  baron still sells to it.
+- **The tariff as a ceiling** isn't built: the colony doesn't sell batteries
+  yet, so its tariff can't cap a baron's price.
 
-This is the policy that answers the market's worst case, a colony with no
-power because nobody could afford a reactor, without taking the market away.
+PUBLIC_MEASURE
 
 ### Policy: charter
 

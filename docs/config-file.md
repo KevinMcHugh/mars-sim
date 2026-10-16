@@ -145,8 +145,15 @@ Adding a tunable is a two-step edit:
 `TestCommittedSettingsFileCoversEverySetting` fails until step 2 is done, and
 `TestTemplateRoundTrip` fails if a knob does not survive a write-and-read.
 
-Only `int`, `int64` and `bool` fields can be knobs. A new kind needs a case in
-`assign` (configfile.go), `bindConfigFlags` (main.go), and `formatValue`.
+Knobs are `int`, `int64` and `bool` fields, plus **named choices**: a field
+whose pointer has `String()` and `Set(string) error` (the `choiceSetting`
+interface, a `flag.Value`). `PowerPolicy` (`power-policy: monopoly`) is the
+first. In the file and on the command line it is written by name, and a bad
+name is an error that lists the good ones. It is stored as an enum, so code
+switches on it (design principle 1) and never compares strings. A new choice
+needs only the type, its `String`/`Set` and a perturbing case in
+`TestTemplateRoundTrip`. Any other new kind needs a case in `assign`
+(configfile.go), `bindConfigFlags` (main.go), and `formatValue`.
 
 ## Related
 
