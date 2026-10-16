@@ -36,8 +36,8 @@ P0 (rarer uranium), P1 (batteries and powered cooking) and P2 (the reactor,
 run by the colony) are built. The colony cooks on the batteries its ships
 landed, buys the first uranium anyone digs up, builds a reactor, and charges
 more. P3 and P4 add the choice of who runs the reactors (`power-policy`: monopoly,
-market, public option or charter); changing the policy mid-game (P5) is still
-to come. Today uranium and water ice
+market, public option or charter), and P5 lets the player change it in a
+running game, with reactors changing hands at their buyout price. Today uranium and water ice
 are mined and sold to the silo, and then nothing uses them. Power gives both a
 reason to exist.
 
@@ -48,10 +48,16 @@ reason to exist.
 | P2 | The reactor under a monopoly: fuel pellets, the reactor room, the operator's wage, the colony's uranium and ice bids, the tariff | **Shipped** |
 | P3 | The market and the public option: `power-policy`, reactor commissions, the colony buying batteries instead of making them, the colony's reactor of last resort | **Shipped** |
 | P4 | The charter: the corporation as an owner, its capital, royalty and remittance | **Shipped** |
-| P5 | Changing policy mid-game: buyouts, sales, and the cooldown | Proposed |
-| P6 | The player's view: the policy on the new-game form and in game, the tariff in the Trade tab, power on the charts | Proposed |
+| P5 | Changing policy mid-game: buyouts, sales, and the cooldown, from the browser's Trade tab | **Shipped** |
+| P6 | The player's view: the policy on the new-game form, the tariff in the Trade tab, power on the charts, a TUI control (the in-game policy control shipped with P5) | Proposed |
 
 ## Source
+
+P5 is in `power.go` (`SetPowerPolicy`, `setPowerPolicy`, `reactorPrice`,
+`sellReactor`, `reactorsForSale`, `buyColonyReactor`, `endCharter`,
+`powerView`), `World.powerPolicy`, `PowerView` in `snapshot.go`, `PowerDesk`
+in `wire/boards.go`, the `power-policy` command in `cmd/mars-sim-wasm`,
+`web/src/ui/PowerDesk.svelte` on the Trade tab, and `power_change_test.go`.
 
 P4 is in `power.go` (`charterState`, `grantCharter`,
 `commissionCharterReactor`, `refreshCharterSales`, `chargeRoyalty`,
@@ -111,7 +117,7 @@ These came out of the conversation that started this doc and the review of it
 | --- | --- |
 | Fuel | Uranium and water. Uranium is the rare input, needed in tiny amounts; water ice is the bulk input. |
 | The policies | Four: an electricity **monopoly** run by the colony, a **market** where colonists supply it, a **charter** granted to a corporation, and a **public option** (a market with a colony reactor of last resort). |
-| Changing policy | The player can change the policy during the game, not just at the start. See [Changing policy](#changing-policy). |
+| Changing policy | The player can change the policy during the game, not just at the start. See [Changing policy](#changing-policy-p5-built). |
 | Build-out | Ships arrive with batteries, so the colony can cook before it has a reactor. |
 | Batteries | Single-use for now. Rechargeable batteries with empties are a possible later step, not part of this plan. |
 | No power | Cooking without a battery is slower and leaner (cold cooking), never impossible. |
@@ -531,9 +537,8 @@ default). The player picks it with that setting.
   ([recruiting.md](./recruiting.md)). Over a long game the charter drains the
   colony's money, and that's the price of a company town.
 
-Buying out reactors that already exist when a charter is granted mid-game is
-P5 ([Changing policy](#changing-policy)). In P4 the charter is chosen at the
-start.
+Granting a charter mid-game, and taking it back, is P5 ([Changing
+policy](#changing-policy-p5-built)).
 
 **What P4 measured.** The same eight seeds and map as P3, to 80,000 ticks:
 
@@ -553,32 +558,48 @@ squeeze. That's the intended story, but it's a real risk: a colony can go
 broke paying for its power. The levers are `charter-price`, `charter-royalty`,
 and (in P5) taking the charter back.
 
-### Changing policy
+### Changing policy (P5, built)
 
-The player can change `power-policy` at any time with a command
-(`SetPowerPolicy`). The rules for who may build and who sets the price change
-at once. Reactors that already exist change hands at **build cost**: what the
-room would cost to build today at current wages, plus the goods in its depot at
-reference prices. A change is all or nothing, as funding a room is
-([labor.md](./labor.md)). If the new owner can't pay for everything, the change
-is refused and the log says why.
+The player changes the policy in a running game from the **Power** section
+of the Trade tab (`PowerDesk.svelte`). It shows the policy now, every reactor
+with its owner, its batteries and what it would change hands for, the
+charter company's account, and before the player commits, what the change
+will do. The command is `SetPowerPolicy` (`power-policy` on the wire, by
+name). The setting `power-policy` is only where a game starts: the policy
+now is `World.powerPolicy`, saved with the game.
+
+The rules for who builds and who sets the price change at once. Reactors
+that already stand change hands at their **buyout price** (`reactorPrice`):
+`reactor-buyout` ($150, about what a reactor room costs to build) plus the
+seller's goods in its depot at their value, which go with it. The proposal
+said "build cost at today's wages". A finished room keeps no record of what
+it cost, and recomputing it would mean re-planning a room that already
+stands, so it's a setting instead. A change is all or nothing, as funding a
+room is ([labor.md](./labor.md)). If the colony can't pay for everything, the
+change is refused, nothing moves, and the log says what it would have cost.
 
 | From → to | What happens to the reactors |
 | --- | --- |
-| anything → monopoly | The colony buys every private and charter reactor from the treasury. This is nationalization. A charter ends, and its remaining money goes off-world. |
-| anything → charter | The corporation buys every reactor, the colony's included, with the capital it arrives with. |
-| monopoly or charter → market | The colony offers its reactors for sale at build cost. `commissionReactors` buys an existing reactor before commissioning a new one. Until one sells, the colony runs it at market prices. A charter's reactors are bought back by the colony first, then offered. |
-| anything → public option | As the market, except that the colony keeps one reactor and offers only the rest. |
+| anything → monopoly | The colony buys every baron's and charter reactor from the treasury: nationalization. A baron's fuel bids and hauls are withdrawn. A charter ends (below). |
+| anything → charter | The company is granted the charter with its capital, plus newly minted money from its backers for the buyout, and buys every reactor, the colony's included. The treasury is paid. |
+| charter → market or public option | The colony buys the company out: its reactors at their price, and its goods everywhere else (batteries at the stoves, fuel at the silo) at their value. The company's orders and work are withdrawn, and its remaining money goes home (`export`). |
+| monopoly → market | Nothing changes hands at once. The colony's reactors are **for sale** (`reactorsForSale`): `commissionReactors` sells one, at its price, to the first colonist with `reactor-savings` before anyone builds a new one. Until it sells, the colony keeps fuelling and running it. |
+| anything → public option | As the market, except that the colony keeps its first reactor as its reactor of last resort (`publicReactor` latches) and sells only the rest. |
 | market ↔ public option | Nothing changes hands. |
 
-Owners can't refuse. A buyout at build cost is a compulsory purchase at a fair
-price, so it needs no enforcement: nobody has to be made to leave anything
-(see [economy.md](./economy.md), *Deliberately not doing*). An owner bought
-out gets a memory of it, with a grip that depends on whether it sold at a profit.
+Owners can't refuse. A buyout at a fair price is a compulsory purchase, so it
+needs no enforcement: nobody has to be made to leave anything (see
+[economy.md](./economy.md), *Deliberately not doing*). The proposal also gave
+a bought-out owner a memory of it. That isn't built (see
+[Open questions](#open-questions)).
 
-`power-policy-cooldown` (default 2 days) has to pass between changes. Without
-it a player can flip back and forth faster than anyone can respond, and the
-log fills with buyouts.
+`power-policy-cooldown` (2 days) has to pass between changes
+(`policyCooldownLeft`). Without it a player could flip back and forth faster
+than anyone can respond, and the log would fill with buyouts. The desk shows
+the hours left.
+
+The terminal frontend has no control for it yet: in the TUI, the policy is
+the one `power-policy` set at the start.
 
 ### Reactor exposure
 

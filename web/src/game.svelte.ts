@@ -577,6 +577,13 @@ export function setDefenseDetail(id: number, qty: number): void {
 }
 
 /** Change how many colonists the colony keeps on call as EMTs. */
+// setPowerPolicy changes who runs the colony's reactors (docs/power.md):
+// monopoly, market, public-option or charter. Reactors change hands at once,
+// all or nothing; the log says why a change was refused.
+export function setPowerPolicy(kind: string): void {
+  ctl?.command({ type: 'power-policy', kind });
+}
+
 export function setEMTDetail(qty: number): void {
   ctl?.command({ type: 'emt-detail', qty });
 }

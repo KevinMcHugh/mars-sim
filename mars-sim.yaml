@@ -209,6 +209,12 @@
 ## percent of every battery the charter company sells that it pays the colony
 # charter-royalty: 10
 
+## what a reactor changes hands for when the power policy changes or the colony sells one, before the goods in it: about what its room costs
+# reactor-buyout: 150
+
+## days the colony must wait after changing its power policy before changing it again
+# power-policy-cooldown: 2
+
 ## colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)
 ## Set here because the terminal and headless runs have no way to draw a
 ## zone: with it off, their colonies would never build. The browser game

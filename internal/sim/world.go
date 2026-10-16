@@ -727,6 +727,11 @@ type World struct {
 	// charter is the power charter, under power-policy charter: which
 	// corporation holds it and its money in the colony. See power.go.
 	charter charterState
+	// powerPolicy is the power policy now: power-policy at the start, then
+	// whatever the player changed it to (setPowerPolicy). lastPolicyChange
+	// is the tick of the last change (-1: never), for the cooldown.
+	powerPolicy      PowerPolicy
+	lastPolicyChange int
 	// colonyMealAsk is the price the colony's meal asks were last posted at,
 	// so they're reposted only when colonyMealPrice moves (see scumhouse.go).
 	colonyMealAsk       Money
@@ -1232,6 +1237,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.hungryTick = -1
 	w.batteriesTick = -1
 	w.powerDrySince = -1
+	w.powerPolicy = w.cfg.PowerPolicy
+	w.lastPolicyChange = -1
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			w.refreshScumExposure(tc.Pos)

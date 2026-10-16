@@ -198,6 +198,42 @@ type ColonyDesk struct {
 	Suspended []Suspended `json:"suspended"`
 	// Wide is every colony-wide order, bids first, then in item order.
 	Wide []WideOrder `json:"wide"`
+	// Power is who runs the reactors, and what changing it would mean
+	// (docs/power.md).
+	Power PowerDesk `json:"power"`
+}
+
+// PowerDesk is the power policy on the order desk: the policy now, the ones
+// the player may pick, how long until it may change again, the reactors and
+// who owns them, and the charter if one is granted.
+type PowerDesk struct {
+	On            bool           `json:"on"`
+	Policy        string         `json:"policy"`
+	Policies      []string       `json:"policies"`
+	CooldownHours int            `json:"cooldownHours"`
+	Reactors      []PowerReactor `json:"reactors"`
+	Charter       *PowerCharter  `json:"charter,omitempty"`
+	Batteries     int            `json:"batteries"` // the colony's
+}
+
+// PowerReactor is one reactor: where, whose, what it would change hands for,
+// whether the colony is selling it, and its owner's batteries there.
+type PowerReactor struct {
+	X         int    `json:"x"`
+	Y         int    `json:"y"`
+	Owner     string `json:"owner"`
+	Price     int64  `json:"price"`
+	ForSale   bool   `json:"forSale"`
+	Batteries int    `json:"batteries"`
+}
+
+// PowerCharter is the charter company's account.
+type PowerCharter struct {
+	Name      string `json:"name"`
+	Wallet    int64  `json:"wallet"`
+	Sold      int    `json:"sold"`
+	Royalties int64  `json:"royalties"`
+	Remitted  int64  `json:"remitted"`
 }
 
 // WideOrder is a colony-wide order: a standing order by side and item, with
@@ -557,6 +593,7 @@ func colonyDesk(s *sim.Snapshot) ColonyDesk {
 	for _, su := range econ.Suspended {
 		d.Suspended = append(d.Suspended, Suspended{Side: su.Side.String(), Item: su.Item.String()})
 	}
+	d.Power = powerDesk(s)
 	for _, wo := range econ.Wide {
 		d.Wide = append(d.Wide, WideOrder{Side: wo.Side.String(), Item: wo.Item.String(), Qty: wo.Qty,
 			Price: int64(wo.Price), Open: wo.Open, Depots: wo.Depots})
@@ -606,4 +643,27 @@ func digHas(p sim.ProjectView, pos sim.Point) bool {
 		}
 	}
 	return false
+}
+
+// powerDesk is the order desk's power section.
+func powerDesk(s *sim.Snapshot) PowerDesk {
+	pv := s.Economy.Power
+	d := PowerDesk{On: pv.On, Policy: pv.Policy.String(), Policies: sim.PowerPolicies(), Reactors: []PowerReactor{},
+		Batteries: pv.ColonyBatteries}
+	if pv.TicksPerDay > 0 && pv.CooldownTicks > 0 {
+		d.CooldownHours = (pv.CooldownTicks*24 + pv.TicksPerDay - 1) / pv.TicksPerDay
+	}
+	for _, r := range pv.Reactors {
+		owner := ownerLabel(s, r.Owner)
+		if r.Owner.Kind == sim.OwnerCorporation && pv.Charter.Granted {
+			owner = pv.Charter.Name
+		}
+		d.Reactors = append(d.Reactors, PowerReactor{X: r.Pos.X, Y: r.Pos.Y, Owner: owner, Price: int64(r.Price),
+			ForSale: r.ForSale, Batteries: r.Batteries})
+	}
+	if c := pv.Charter; c.Granted {
+		d.Charter = &PowerCharter{Name: c.Name, Wallet: int64(c.Wallet), Sold: c.Sold, Royalties: int64(c.Royalties),
+			Remitted: int64(c.Remitted)}
+	}
+	return d
 }
