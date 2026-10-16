@@ -6,10 +6,18 @@ import (
 )
 
 // aidWorld is a small open floor with a colonist about to be a casualty and a
-// bystander three tiles off, both fed, rested and without traits.
+// bystander three tiles off, both fed, rested, without traits and unrelated.
+// Family is off because driveWorld's seed is the clock's: on some runs the
+// bystander would otherwise arrive as the casualty's cousin, already warm
+// toward it.
 func aidWorld(t *testing.T, edit func(*Config)) (w *World, casualty, bystander *Entity) {
 	t.Helper()
-	w, casualty = driveWorld(t, edit)
+	w, casualty = driveWorld(t, func(c *Config) {
+		c.FamilyChance = 0
+		if edit != nil {
+			edit(c)
+		}
+	})
 	bystander = w.spawn(Colonist, casualty.Pos.Add(3, 0))
 	for _, e := range []*Entity{casualty, bystander} {
 		e.Profile.Traits = nil
