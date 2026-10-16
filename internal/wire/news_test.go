@@ -62,4 +62,9 @@ func TestMarketTopicListsEscorts(t *testing.T) {
 	if !reflect.DeepEqual(m.Escorts, want) {
 		t.Fatalf("escorts %+v", m.Escorts)
 	}
+	// The zones topic pairs a guard on station with its client for the map;
+	// a contract nobody has taken draws nothing.
+	if z := zonesTopic(snap); !reflect.DeepEqual(z.Escorts, [][2]uint64{{902, 901}}) {
+		t.Fatalf("zones escorts %v", z.Escorts)
+	}
 }

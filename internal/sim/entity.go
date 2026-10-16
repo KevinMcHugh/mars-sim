@@ -412,6 +412,9 @@ type Entity struct {
 	// escortedBy the bodyguard on a client's contract now (escort.go).
 	escortWork OrderID
 	escortedBy EntityID
+	// feltGuarded is whether its bodyguard was beside it at its last turn:
+	// the edge the guarded percept enters and exits on (escort.go).
+	feltGuarded bool
 	// nerveRank is the guarding rank its safety rate was last composed for.
 	nerveRank int
 

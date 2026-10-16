@@ -570,6 +570,13 @@ func DefaultCognitionConfig() CognitionConfig {
 	guardedClient := reaction("guarded-client", directMatch(ActionGuard, NounColonist, NounColonist, RoleActor), 15, MoodVector{2, 6, 2}, MoodVector{0, 2, 0})
 	hiredBodyguard := reaction("hired-bodyguard", directMatch(ActionGuard, NounColonist, NounColonist, RoleTarget), 20, MoodVector{0, 10, 4}, MoodVector{0, 4, 1})
 	safety(&hiredBodyguard, -60, -30)
+	// Walking with one's bodyguard (escort.go, noteGuarded): felt each time
+	// it comes alongside, wearing in as the habit sets in.
+	guarded := reaction("guarded", PerceptPattern{
+		OccurrencePattern: OccurrencePattern{ActorNoun: NounColonist, Action: ActionGuard, ObjectNoun: NounColonist},
+		Channel:           ChannelProximity, Role: RoleTarget, Phase: PhaseEnter,
+	}, 10, MoodVector{0, 6, 3}, MoodVector{0, 2, 1})
+	safety(&guarded, -20, -5)
 	newsArrival := broadcast("news-arrival", ActionArrive, "", "", "", 15, MoodVector{5, 5, 10}, MoodVector{2, 2, 5}, -30, -10)
 
 	c.Reactions = []ReactionSpec{
@@ -586,7 +593,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		couldntSave, guilt, guiltLight,
 		heardKilled, heardFriendKilled, heardAttacked, heardSighting,
 		heardDied, heardFriendDied, newsDied, newsFriendDied, newsArrival,
-		guardedClient, hiredBodyguard,
+		guardedClient, hiredBodyguard, guarded,
 	}
 
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {

@@ -102,5 +102,5 @@ func (w *World) syncDriveActivity(e *Entity) {
 		e.driveActivity, e.place, e.weaponRank, e.nerveRank = a, place, rank, nerve
 		w.refreshDrives(e)
 	}
-
+	w.noteGuarded(e)
 }
