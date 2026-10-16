@@ -395,7 +395,11 @@ func (w *World) driveRate(e *Entity, d DriveKind) int {
 		if e.weaponRank > 0 {
 			rate = rate * (100 + w.cfg.Drives[d].Armed[e.weaponRank-1]) / 100
 		}
+		if d == DriveSafety && rate > 0 {
+			rate = rate * w.nervePercent(e) / 100 // a veteran guard is slow to fear
+		}
 	}
+
 	rate = rate * e.driveTrait[d] / 100
 	for src := DriveKind(0); src < numDrives; src++ {
 		for _, c := range w.driveTables[src].rates[e.drives[src].band] {

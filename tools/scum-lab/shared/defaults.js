@@ -61,7 +61,8 @@ const DEFAULT_CONFIG = {
       "abandon",
       "fail",
       "die",
-      "arrive"
+      "arrive",
+      "guard"
     ],
     "channels": [
       "direct",
@@ -2081,6 +2082,64 @@ const DEFAULT_CONFIG = {
           "worn": -10
         }
       }
+    },
+    "guarded-client": {
+      "id": "guarded-client",
+      "match": {
+        "actor_noun": "colonist",
+        "action": "guard",
+        "object_noun": "colonist",
+        "channel": "direct",
+        "role": "actor",
+        "phase": "instant"
+      },
+      "memory": {
+        "record": true
+      },
+      "impact": 15,
+      "fresh": {
+        "charge": 2,
+        "grip": 6,
+        "valence": 2
+      },
+      "worn": {
+        "charge": 0,
+        "grip": 2,
+        "valence": 0
+      },
+      "wear_policy": "memory-occasions"
+    },
+    "hired-bodyguard": {
+      "id": "hired-bodyguard",
+      "match": {
+        "actor_noun": "colonist",
+        "action": "guard",
+        "object_noun": "colonist",
+        "channel": "direct",
+        "role": "target",
+        "phase": "instant"
+      },
+      "memory": {
+        "record": true
+      },
+      "impact": 20,
+      "fresh": {
+        "charge": 0,
+        "grip": 10,
+        "valence": 4
+      },
+      "worn": {
+        "charge": 0,
+        "grip": 4,
+        "valence": 1
+      },
+      "wear_policy": "memory-occasions",
+      "drives": {
+        "safety": {
+          "fresh": -60,
+          "worn": -30
+        }
+      }
     }
   },
   "trait_rules": [
@@ -2736,7 +2795,8 @@ const DEFAULT_VOCABULARY = {
     "abandon",
     "fail",
     "die",
-    "arrive"
+    "arrive",
+    "guard"
   ],
   "channels": [
     "direct",

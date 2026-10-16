@@ -22,7 +22,8 @@ const (
 	// PlaceFrontier is everywhere else: dug passages, caverns, rock faces, and
 	// every level but the landing level, which has no zones.
 	PlaceFrontier
-	// PlaceGuarded is inside a defense zone with someone else on station.
+	// PlaceGuarded is inside a defense zone with someone else on station, or
+	// beside its own bodyguard (escort.go).
 	PlaceGuarded
 
 	placeEnd // keep last
@@ -70,7 +71,7 @@ func (w *World) placePercent(e *Entity, d DriveKind) int {
 // placeOf works out e's place class from where it stands now.
 func (w *World) placeOf(e *Entity) PlaceClass {
 	p := e.Pos
-	if w.guardedAt(e, p) {
+	if w.escortedNow(e) || w.guardedAt(e, p) {
 		return PlaceGuarded
 	}
 	if w.atHome(e, p) {

@@ -170,7 +170,10 @@ type MarketTopic struct {
 	Plans      []PlanLine  `json:"plans"`
 	ChainDepth int         `json:"chainDepth"`
 	Work       []WorkLine  `json:"work"`
-	Trades     []TradeLine `json:"trades"` // newest first
+	// Escorts are the open bodyguards' contracts, oldest first
+	// (docs/safety.md).
+	Escorts []EscortLine `json:"escorts"`
+	Trades  []TradeLine  `json:"trades"` // newest first
 	// Dig is what the dig tool needs to price an excavation order before it
 	// is sent: the wage a tile pays and the most tiles one order may cover.
 	Dig DigTerms `json:"dig"`
@@ -312,6 +315,18 @@ type PlanLine struct {
 	Waiting bool   `json:"waiting"` // on inputs from its own bids
 }
 
+// EscortLine is one open escort contract: who posted it, who is on station
+// now (none while it waits for a calm, armed colonist), the hourly rate, the
+// hours served and left, and what its escrow still holds.
+type EscortLine struct {
+	Client Person  `json:"client"`
+	Escort *Person `json:"escort,omitempty"`
+	Rate   int64   `json:"rate"`
+	Served int     `json:"served"`
+	Left   int     `json:"left"`
+	Held   int64   `json:"held"`
+}
+
 // WorkLine totals the open work orders of one issuer and kind.
 type WorkLine struct {
 	Issuer string `json:"issuer"`
@@ -345,6 +360,7 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 		Plans:      make([]PlanLine, 0, len(econ.Plans)),
 		ChainDepth: econ.ChainDepth,
 		Work:       []WorkLine{},
+		Escorts:    []EscortLine{},
 		Trades:     []TradeLine{},
 		Dig:        DigTerms{Wage: int64(econ.DigWage), MaxTiles: econ.DigMax},
 		Digs:       []Dig{},
@@ -410,7 +426,16 @@ func marketTopic(s *sim.Snapshot) MarketTopic {
 		}
 		t.Work[i].Units += o.Units
 		t.Work[i].Held += int64(o.Pay) * int64(o.Units)
+		if o.Kind == sim.WorkEscort {
+			e := EscortLine{Client: Person{ID: uint64(o.Issuer.ID), Name: names[o.Issuer.ID]}, Rate: int64(o.Pay),
+				Served: o.Served, Left: o.Units, Held: int64(o.Pay) * int64(o.Units)}
+			if o.Escort != 0 {
+				e.Escort = &Person{ID: uint64(o.Escort), Name: names[o.Escort]}
+			}
+			t.Escorts = append(t.Escorts, e)
+		}
 	}
+
 	for i := len(econ.Trades) - 1; i >= 0 && len(t.Trades) < maxTradeLines; i-- {
 		tr := econ.Trades[i]
 		t.Trades = append(t.Trades, TradeLine{Tick: tr.Tick, When: sim.Clock(tr.Tick, s.TicksPerDay), Seller: ownerLabel(s, tr.Seller), Buyer: ownerLabel(s, tr.Buyer),

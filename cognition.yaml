@@ -4,7 +4,7 @@ schema_version: 1
 # Stable content vocabulary used by editor dropdowns and rule validation.
 vocabulary:
   nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness, danger, ship]
-  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil, rescue, lose, abandon, fail, die, arrive]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil, rescue, lose, abandon, fail, die, arrive, guard]
 
 attractors:
   driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
@@ -401,6 +401,18 @@ reactions:
     affect: { impact: 15, fresh: { charge: 5, grip: 5, valence: 10 }, worn: { charge: 2, grip: 2, valence: 5 } }
     wear_policy: memory-occasions
     drives: { safety: { fresh: -30, worn: -10 } }
+  # A bodyguard taking on a client (escort.go).
+  - id: guarded-client
+    match: { actor_noun: colonist, action: guard, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 15, fresh: { charge: 2, grip: 6, valence: 2 }, worn: { charge: 0, grip: 2, valence: 0 } }
+    wear_policy: memory-occasions
+  - id: hired-bodyguard
+    match: { actor_noun: colonist, action: guard, object_noun: colonist, channel: direct, role: target, phase: instant }
+    memory: { record: true }
+    affect: { impact: 20, fresh: { charge: 0, grip: 10, valence: 4 }, worn: { charge: 0, grip: 4, valence: 1 } }
+    wear_policy: memory-occasions
+    drives: { safety: { fresh: -60, worn: -30 } }
 
 # Trait rules compose in declaration order. Scales are percentages.
 trait_rules:

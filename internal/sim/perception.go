@@ -82,6 +82,8 @@ const (
 	// The news (news.go): a colonist died; someone new arrived.
 	ActionDie    ActionID = "die"
 	ActionArrive ActionID = "arrive"
+	// A bodyguard taking on a client (escort.go).
+	ActionGuard ActionID = "guard"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is

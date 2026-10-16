@@ -18,7 +18,7 @@ func TestDefaultCognitionRulesCompileAndCoverShippedContent(t *testing.T) {
 			t.Errorf("attractor %d mismatch: got %+v, want %+v", i, got, a)
 		}
 	}
-	if got, want := len(def.Reactions), 54; got != want {
+	if got, want := len(def.Reactions), 56; got != want {
 		t.Fatalf("reaction count = %d, want %d migrated reactions", got, want)
 	}
 	for _, id := range []RuleID{

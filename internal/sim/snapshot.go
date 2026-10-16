@@ -224,6 +224,10 @@ type WorkOrderView struct {
 	Pay    Money // per unit
 	Units  int
 	Pos    Point
+	// WorkEscort only: the bodyguard on station (0: none) and the hours
+	// served so far.
+	Escort EntityID
+	Served int
 }
 
 // OrderView is an immutable copy of one open order.
@@ -281,7 +285,8 @@ func (w *World) economyView() EconomyView {
 	v.DigWage, v.DigMax = w.wageFor(Floor), maxExcavationTiles
 	for _, o := range w.sortedWork(nil) {
 		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,
-			Pay: o.Pay, Units: o.Units, Pos: o.Pos})
+			Pay: o.Pay, Units: o.Units, Pos: o.Pos, Escort: o.escort, Served: o.served})
+
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,

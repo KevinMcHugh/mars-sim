@@ -780,6 +780,8 @@ func (w *World) clearJob(e *Entity) {
 		w.releaseTend(e)
 	case JobGuard:
 		w.releaseGuard(e)
+	case JobEscort:
+		w.releaseEscort(e)
 	case JobAid:
 		w.releaseAid(e)
 	}
@@ -827,6 +829,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobGuard(e)
 	case JobFetch:
 		w.jobFetch(e)
+	case JobEscort:
+		w.jobEscort(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1118,7 +1122,11 @@ func (w *World) assignWorkJob(e *Entity) {
 	// an alien out of a shaft into the colony. Behind the trough and goods
 	// already sold, which are a few ticks' work and starve or stall
 	// somebody if left.
+	if w.tryAssignEscort(e) { // a contract pays more than a defense post
+		return
+	}
 	if w.tryAssignGuard(e) {
+
 		return
 	}
 	// Collaborate on planned construction (facility rooms, etc.): claim the

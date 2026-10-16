@@ -321,6 +321,10 @@ func (w *World) applyDriveBumps(e *Entity, reaction *ReactionSpec, wear, impactS
 			points = b.Fresh + roundedDiv((b.Worn-b.Fresh)*wear, 100)
 		}
 		points = percent(points, impactScale)
+		if b.Drive == DriveSafety && points > 0 {
+			points = percent(points, w.nervePercent(e)) // a veteran guard has seen worse
+		}
+
 		if points != 0 {
 			w.refreshDrive(e, b.Drive, points*driveUnit)
 		}

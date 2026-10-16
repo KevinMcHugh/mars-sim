@@ -28,6 +28,10 @@ const (
 	SkillCooking
 	SkillConstruction
 	SkillSmithing
+	// SkillGuarding is nerve learned on duty: practised by every tick on
+	// station as a guard or a bodyguard. It makes no work faster; each rank
+	// makes the colonist slower to feel unsafe (see docs/safety.md).
+	SkillGuarding
 	numSkills
 )
 
@@ -96,6 +100,11 @@ var skillSpecs = [numSkills]skillSpec{
 		Name: "smithing", Unit: 80, Base: 6, // rank 1 at two ingots
 		Labels:  []string{"", "apprentice smith", "journeyman smith", "smith", "master smith"},
 		Effects: []rankEffect{{100, 100}, {100, 100}, {75, 110}, {55, 125}, {40, 140}},
+	},
+	SkillGuarding: {
+		Name: "guarding", Unit: 360, Base: 4, // rank 1 at a shift (8 hours) on station
+		Labels:  []string{"", "lookout", "guard", "sentinel", "veteran guard"},
+		Effects: []rankEffect{{100, 100}, {100, 100}, {100, 100}, {100, 100}, {100, 100}},
 	},
 }
 
@@ -259,6 +268,9 @@ var backgroundRolls = []backgroundRoll{
 // one colonist in 450.
 var backgroundWeights = [numSkills]int{
 	SkillMining: 2, SkillForaging: 2, SkillCooking: 2, SkillConstruction: 2, SkillSmithing: 1,
+	// SkillGuarding is learned on duty, never brought: 0 keeps every arrival's
+	// background draw where it was before the skill existed.
+	SkillGuarding: 0,
 }
 
 // rollBackground gives an arriving colonist the skills of its past, from the

@@ -149,6 +149,7 @@ func TestTradingUpPutsTheOldGunOnSale(t *testing.T) {
 	if c := w.storageContainers[silo]; !c.ledgerBalanced() || c.Inventory.Count(Pistol) != 1 {
 		t.Fatalf("silo holds %d pistols, ledger %+v", c.Inventory.Count(Pistol), c.Ledger)
 	}
+
 }
 
 // A colonist never sells the gun in its hand to a bid, however good.

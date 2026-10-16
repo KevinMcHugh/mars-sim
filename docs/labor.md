@@ -106,6 +106,11 @@ A guard on a defense zone's detail is paid `wage-guard` for every hour it
 spends inside the area, straight from the treasury as far as it goes, like the
 cook below: a detail has no end to escrow for. See [defense.md](./defense.md).
 
+A bodyguard's contract is the other way round: a `WorkEscort` work order
+posted by a colonist who wants protection, escrowing `escort-hours` hours at
+its rate, and paid out an hour at a time to whoever is on station beside the
+client. A contract has an end, so it escrows. See [safety.md](./safety.md).
+
 ### Cooking for the colony
 
 A cook working a recipe on the colony's stock is paid `wage-cook` per recipe,

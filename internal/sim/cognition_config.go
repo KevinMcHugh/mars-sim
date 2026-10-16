@@ -353,7 +353,7 @@ func DefaultCognitionConfig() CognitionConfig {
 		ActionDeliver, ActionTrade, ActionBuy, ActionHaul, ActionLearn,
 		ActionFeel, ActionSocialize, ActionCollapse, ActionSoil,
 		ActionRescue, ActionLose, ActionAbandon, ActionFail,
-		ActionDie, ActionArrive,
+		ActionDie, ActionArrive, ActionGuard,
 	}
 	c.Perceptions = []PerceptionRule{
 		{ID: "direct-actor", Channel: ChannelDirect, Role: RoleActor, Cadence: CadenceInstant},
@@ -565,6 +565,11 @@ func DefaultCognitionConfig() CognitionConfig {
 	}
 	newsDied := broadcast("news-colonist-died", ActionDie, "", NounColonist, "", 35, MoodVector{5, -15, -25}, MoodVector{0, -20, -25}, 120, 80)
 	newsFriendDied := broadcast("news-friend-died", ActionDie, "", NounColonist, ObjectRelationFriend, 60, MoodVector{5, -30, -45}, MoodVector{0, -35, -50}, 200, 150)
+	// A bodyguard taking on a client (escort.go): a little pride for the
+	// guard, and for the client a felt relief, safety included.
+	guardedClient := reaction("guarded-client", directMatch(ActionGuard, NounColonist, NounColonist, RoleActor), 15, MoodVector{2, 6, 2}, MoodVector{0, 2, 0})
+	hiredBodyguard := reaction("hired-bodyguard", directMatch(ActionGuard, NounColonist, NounColonist, RoleTarget), 20, MoodVector{0, 10, 4}, MoodVector{0, 4, 1})
+	safety(&hiredBodyguard, -60, -30)
 	newsArrival := broadcast("news-arrival", ActionArrive, "", "", "", 15, MoodVector{5, 5, 10}, MoodVector{2, 2, 5}, -30, -10)
 
 	c.Reactions = []ReactionSpec{
@@ -581,7 +586,9 @@ func DefaultCognitionConfig() CognitionConfig {
 		couldntSave, guilt, guiltLight,
 		heardKilled, heardFriendKilled, heardAttacked, heardSighting,
 		heardDied, heardFriendDied, newsDied, newsFriendDied, newsArrival,
+		guardedClient, hiredBodyguard,
 	}
+
 	scaled := func(id RuleID, trait Trait, match PerceptPattern, impact, charge, grip, valence, wear int) TraitRule {
 		return TraitRule{ID: id, Trait: trait, Match: match, Impact: impact, Charge: charge, Grip: grip, Valence: valence, WearRate: wear}
 	}

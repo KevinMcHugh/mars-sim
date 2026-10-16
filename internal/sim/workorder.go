@@ -23,10 +23,11 @@ import (
 type WorkKind uint8
 
 const (
-	WorkBuild WorkKind = iota // raise one build task's tile
-	WorkHaul                  // move a unit of the issuer's goods from one depot to another
-	WorkDig                   // dig out one rock tile of an excavation order (see excavation.go)
-	WorkClear                 // clear one structure tile of a clearing order (see zones.go)
+	WorkBuild  WorkKind = iota // raise one build task's tile
+	WorkHaul                   // move a unit of the issuer's goods from one depot to another
+	WorkDig                    // dig out one rock tile of an excavation order (see excavation.go)
+	WorkClear                  // clear one structure tile of a clearing order (see zones.go)
+	WorkEscort                 // walk with the issuer as its bodyguard for an hour (see escort.go)
 )
 
 func (k WorkKind) String() string {
@@ -37,6 +38,8 @@ func (k WorkKind) String() string {
 		return "dig"
 	case WorkClear:
 		return "clear"
+	case WorkEscort:
+		return "escort"
 	}
 	return "haul"
 }
@@ -56,6 +59,12 @@ type WorkOrder struct {
 	Item ItemKind
 
 	escrow Money // Pay × Units at rest
+
+	// WorkEscort only (escort.go): the colonist on station now (0: none),
+	// the hours served, and the tick an untaken contract lapses at.
+	escort  EntityID
+	served  int
+	lapseAt int
 }
 
 // owner is the work order as a money holder: where its escrow lives.
