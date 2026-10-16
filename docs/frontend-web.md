@@ -62,7 +62,7 @@ The rest of the TUI's tabs are planned in
   `TopBar`, `SpeedControl`, `SidePanel`, `FloatingPanels` and `PanelHead`
   (popped-out tabs, see [floating-panels.md](./floating-panels.md)), `tabs.ts`
   (the tab list both share), `Bar` (a gauge), and one component
-  per tab (`InspectPanel`, `FollowChip` (see [follow.md](./follow.md)), `RosterPanel`, `LogPanel`, `JobsPanel`,
+  per tab (`InspectPanel`, `FollowChip` (see [follow.md](./follow.md)), `RosterPanel`, `LogPanel`, `NewsPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail`, `TradePanel` with `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `PerfPanel`, `ShipsPanel`,
   `RecruitPanel`, `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `Help` (a (?) that shows an explanation), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
@@ -340,6 +340,9 @@ says `reset`, and the page starts over. `main.ts` subscribes to it for the
 page's whole life, like `names`, because the ticker needs it with the tab
 closed.
 
+- **The News tab** lists the colony's evening broadcasts, newest first,
+  each story with its kind (colored as in the log) and, for one about a
+  place, a click that takes the map there. See [safety.md](./safety.md).
 - **The Log tab** shows each line with its type (colored), its tick, and the
   sentence, wrapped, never cut: the TUI found a cut sentence reads as a
   finished one. It follows the tail while scrolled to the bottom; scrolled
@@ -476,7 +479,11 @@ ticker's), until they are opened again.
   `setMarks` draws the player's standing marks from the same topic over
   every tint and under the sprites: each defense zone's outline, and the
   tiles dig orders have marked and nobody has dug yet, hatched (see
-  [excavation.md](./excavation.md), "On the map").
+  [excavation.md](./excavation.md), "On the map"). `setTethers` ties each
+  bodyguard on contract to its client with a dashed red line over the marks,
+  from the topic's `escorts` pairs and each frame's positions; a pair shows
+  only when both stand on the level shown and outside the fog (see
+  [safety.md](./safety.md)).
 - **Dig** orders an area mined out (see [excavation.md](./excavation.md)).
   **Mark an area** arms a tool: while it is armed a drag on the map draws a
   rectangle instead of panning (`attachInput`'s `areaTool` and `area` hooks),

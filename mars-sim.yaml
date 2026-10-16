@@ -336,6 +336,12 @@ siting-auto: true
 ## what the colony pays for an assault rifle at its silo
 # price-assault-rifle: 60
 
+## what a pistol is worth before one has traded
+# price-pistol: 20
+
+## what a shotgun is worth before one has traded
+# price-shotgun: 35
+
 # ── Colony standing orders ──────────────────────────────────────────────
 ## the colony posts no standing orders but its bids for building materials (rock, iron ore, clay)
 # standing-orders-build-only: true
@@ -559,6 +565,32 @@ siting-auto: true
 ##       percent of the base rate in the unconscious drive activity
 #       unconscious: 10
 
+#     place:
+##       percent of the rate while the colonist is home
+#       home: 100
+
+##       percent of the rate while the colonist is settled
+#       settled: 100
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 100
+
+##       percent of the rate while the colonist is guarded
+#       guarded: 100
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 0
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: 0
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: 0
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: 0
+
 ##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
 #     consequence-every: 0
 
@@ -599,6 +631,32 @@ siting-auto: true
 
 ##       percent of the base rate in the unconscious drive activity
 #       unconscious: 10
+
+#     place:
+##       percent of the rate while the colonist is home
+#       home: 100
+
+##       percent of the rate while the colonist is settled
+#       settled: 100
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 100
+
+##       percent of the rate while the colonist is guarded
+#       guarded: 100
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 0
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: 0
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: 0
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: 0
 
 ##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
 #     consequence-every: 0
@@ -641,6 +699,32 @@ siting-auto: true
 ##       percent of the base rate in the unconscious drive activity
 #       unconscious: 0
 
+#     place:
+##       percent of the rate while the colonist is home
+#       home: 100
+
+##       percent of the rate while the colonist is settled
+#       settled: 100
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 100
+
+##       percent of the rate while the colonist is guarded
+#       guarded: 100
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 0
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: 0
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: 0
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: 0
+
 ##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
 #     consequence-every: 200
 
@@ -682,8 +766,101 @@ siting-auto: true
 ##       percent of the base rate in the unconscious drive activity
 #       unconscious: -100
 
+#     place:
+##       percent of the rate while the colonist is home
+#       home: 100
+
+##       percent of the rate while the colonist is settled
+#       settled: 100
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 100
+
+##       percent of the rate while the colonist is guarded
+#       guarded: 100
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 0
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: 0
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: 0
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: 0
+
 ##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
 #     consequence-every: 0
+
+#   safety:
+##     base growth per tick, in thousandths of a point
+#     rate: 1000
+
+##     floor the level never falls below
+#     min: 0
+
+##     level at which the colonist drops work to satisfy it
+#     seek-at: 600
+
+##     level at which the drive becomes critical
+#     critical-at: 850
+
+##     ceiling; the drive's consequences there apply while it sits here
+#     max: 1000
+
+##     ticks spent using the facility (0: until the drive falls to 0, as sleep does in bed)
+#     use-ticks: 0
+
+##     ticks at the facility before carrying the rest away (0 = must be used in place)
+#     grab-ticks: 0
+
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 100
+
+##       percent of the base rate in the idle drive activity
+#       idle: 100
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 100
+
+##       percent of the base rate in the unconscious drive activity
+#       unconscious: 100
+
+#     place:
+##       percent of the rate while the colonist is home
+#       home: -300
+
+##       percent of the rate while the colonist is settled
+#       settled: -50
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 200
+
+##       percent of the rate while the colonist is guarded
+#       guarded: -200
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 50
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: -25
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: -35
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: -50
+
+##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
+#     consequence-every: 200
 
 ## HP lost per tick while a drive's death consequence applies
 # starve-damage: 1
@@ -968,6 +1145,51 @@ siting-auto: true
 ## percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's
 # talk-gossip-percent: 10
 
+## how many retellings news survives in conversation (0: hearsay off)
+# hearsay-max-hops: 2
+
+## percent of its weight hearsay keeps at each retelling after the first
+# hearsay-hop-percent: 50
+
+## clock hour of the evening news broadcast (-1: no news)
+# news-hour: 21
+
+## days of news the colony keeps for the News panel
+# news-days: 30
+
+## ticks a want's order rests on the book before the colonist decides again
+# want-ttl: 1080
+
+## lapsed orders on one rung before a colonist that can afford the next looks past it
+# want-patience: 3
+
+## ticks a rung just taken is given to work before the next is wanted
+# want-settle-ticks: 1080
+
+## percent of a gun's price a colonist will pay at its safety drive's ceiling
+# gun-willingness: 150
+
+## meals' worth of money a colonist keeps back from anything a want would buy
+# want-reserve-meals: 4
+
+## hours in a bodyguard's contract
+# escort-hours: 8
+
+## tiles a bodyguard keeps within of its client, and counts as guarding it
+# escort-radius: 3
+
+## the least an escort contract may pay an hour
+# escort-wage: 6
+
+## percent of escort-wage a client will pay an hour at its safety drive's ceiling
+# escort-willingness: 150
+
+## the most of its spare money a client spends on one shift of a bodyguard
+# escort-budget-percent: 10
+
+## percent less safety a colonist feels for each rank of guarding, up to four
+# guarding-nerve-percent: 15
+
 # ── Meeting hall ────────────────────────────────────────────────────────
 ## the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)
 # colonists-per-chair: 4
@@ -1020,6 +1242,72 @@ siting-auto: true
 
 ## tiles nearer a hostile hunter reckons a passed-out colonist (0: hunters ignore helplessness)
 # helpless-prey-discount: 6
+
+## ticks to dress one wound (less with medicine rank)
+# aid-dress-ticks: 15
+
+## percent of the usual time a colonist takes to dress its own wound
+# aid-self-dress: 200
+
+## HP a dressed wound heals each hour asleep in a bunk
+# heal-per-hour: 1
+
+## heal rate in an infirmary cot, percent of a bunk's
+# heal-cot: 300
+
+## heal rate lying down on the floor (passed out), percent of a bunk's
+# heal-floor: 50
+
+## a bad open wound bleeds until it is dressed, and a colonist that loses too much collapses
+# bleeding: true
+
+## an open wound bleeds while its part is below this percent of its HP
+# bleed-threshold: 50
+
+## hundredths of an HP an hour a bleeding wound loses for each point its part has lost
+# bleed-rate: 40
+
+## a bleeding colonist below this percent of its HP collapses
+# bleed-collapse: 30
+
+## a colonist down from blood loss comes round once healed to this percent of its HP and not bleeding
+# bleed-wake: 40
+
+## colonists the colony keeps on call as EMTs at the start (the player sets it in play)
+# emt-detail: 0
+
+## cents an hour the colony offers an on-call EMT at the start (the player sets it in play); a colonist takes the place only if this meets its ask
+# emt-wage: 25
+
+## what a colonist asks for being on call at all, as a percent of what an hour of its time is worth (Caring asks half, Callous double)
+# emt-premium: 10
+
+## per mille of on-call time colonists reckon calls take, before the colony has measured it
+# emt-call-share: 100
+
+## dollars the colony pays an on-call EMT for each casualty it sees to, at the start (the player sets it in play; 0: none)
+# emt-fee: 0
+
+## calls per thousand hours on call colonists reckon an EMT answers, before the colony has measured it
+# emt-call-rate: 20
+
+## percent of its expected fee income a colonist counts on when it weighs being on call (Industrious more, Lazy much less, Optimist a little more, Pessimist a little less)
+# emt-fee-trust: 80
+
+## aid score an on-call EMT adds for each dollar of the per-call fee
+# emt-fee-incentive: 4
+
+## most aid score the per-call fee adds
+# emt-fee-incentive-max: 100
+
+## aid score an on-call EMT adds for any casualty, out of duty (half for a Lazy EMT, a quarter more for an Industrious one)
+# aid-duty-bonus: 80
+
+## with an EMT detail, the colony commissions an infirmary cot for each this many colonists (0: none)
+# colonists-per-cot: 8
+
+## an EMT dragging a casualty moves at this percent of a step a tick
+# drag-speed: 50
 
 # ── Affect ──────────────────────────────────────────────────────────────
 ## charge, grip and valence each run in [-mood-max, mood-max]

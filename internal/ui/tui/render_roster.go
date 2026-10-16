@@ -155,6 +155,9 @@ func (m Model) renderColonistList(cs []sim.EntityView, sel, rows, width int) str
 		if c.Peril != sim.PerilNone {
 			state += " (" + c.Peril.String() + ")"
 		}
+		if c.OnCall {
+			state += " · on call"
+		}
 		infoLine := c.Kind.String() // overwritten below for a colonist or an alien
 		if c.Profile != nil {
 			pronouns = c.Profile.Gender.Pronouns()
@@ -479,7 +482,11 @@ func bodyPartLines(c sim.EntityView) []string {
 		if c.MaxParts[i] == 0 {
 			continue
 		}
-		out = append(out, fmt.Sprintf("%s %d/%d", sim.BodyPart(i).Short(), hp, c.MaxParts[i]))
+		line := fmt.Sprintf("%s %d/%d", sim.BodyPart(i).Short(), hp, c.MaxParts[i])
+		if wd := c.Wounds[i]; wd != sim.WoundNone {
+			line += " " + wd.String()
+		}
+		out = append(out, line)
 	}
 	return out
 }

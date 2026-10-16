@@ -88,15 +88,19 @@ func driveActivityOf(e *Entity) DriveActivity {
 	return DriveIdle
 }
 
-// syncDriveActivity refreshes a colonist's drives when its drive activity has
-// changed since its last turn. step calls it after every colonist turn; the
-// rates otherwise hold, so this costs one comparison a tick.
+// syncDriveActivity refreshes a colonist's drives when its drive activity,
+// its place class or its best weapon has changed since its last turn. step
+// calls it after every colonist turn; the rates otherwise hold, so this costs
+// a few comparisons a tick.
 func (w *World) syncDriveActivity(e *Entity) {
 	if e.Kind != Colonist || !e.Alive() {
 		return
 	}
-	if a := driveActivityOf(e); a != e.driveActivity {
-		e.driveActivity = a
+	a, place, rank := driveActivityOf(e), w.placeOf(e), weaponRank(bestWeapon(e.Inventory))
+	nerve := e.rank(SkillGuarding)
+	if a != e.driveActivity || place != e.place || rank != e.weaponRank || nerve != e.nerveRank {
+		e.driveActivity, e.place, e.weaponRank, e.nerveRank = a, place, rank, nerve
 		w.refreshDrives(e)
 	}
+	w.noteGuarded(e)
 }

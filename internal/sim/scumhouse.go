@@ -57,6 +57,11 @@ var recipes = []Recipe{
 	// gun bench. See docs/foundry.md.
 	{Name: "smelt steel", Inputs: []ItemStack{{IronOre, 2}}, Outputs: []ItemStack{{SteelIngot, 1}}, Facility: Forge, Ticks: 40, Skill: SkillSmithing},
 	{Name: "machine an assault rifle", Inputs: []ItemStack{{SteelIngot, 3}}, Outputs: []ItemStack{{AssaultRifle, 1}}, Facility: GunBench, Ticks: 60, Skill: SkillSmithing},
+	// Sidearms for colonists who feel unsafe (docs/safety.md): made only for a
+	// bid, like everything at the bench, and after the rifle so nothing that
+	// takes the bench's first recipe changes.
+	{Name: "machine a pistol", Inputs: []ItemStack{{SteelIngot, 1}}, Outputs: []ItemStack{{Pistol, 1}}, Facility: GunBench, Ticks: 30, Skill: SkillSmithing},
+	{Name: "machine a shotgun", Inputs: []ItemStack{{SteelIngot, 2}}, Outputs: []ItemStack{{Shotgun, 1}}, Facility: GunBench, Ticks: 45, Skill: SkillSmithing},
 }
 
 // ---- Cave scum ------------------------------------------------------------------

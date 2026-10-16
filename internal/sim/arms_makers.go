@@ -252,6 +252,10 @@ var employerRoles = [numSkills][]string{
 	SkillCooking:      {"a galley cook", "a canteen manager", "a food-safety inspector"},
 	SkillConstruction: {"a habitat rigger", "a site foreman", "a pressure-seal welder"},
 	SkillSmithing:     {"a line machinist", "a test-range armorer", "a metallurgist"},
+	// Never an arrival's profession (it is learned here), but a table entry
+	// keeps every skill named.
+	SkillGuarding: {"a site security officer", "an escort driver", "a range warden"},
+	SkillMedicine: {"a site paramedic", "a clinic nurse", "a first-aid trainer"},
 }
 
 // rollEmployer gives an arriving colonist its former employer, or none. Call

@@ -289,13 +289,46 @@ func (w *World) applyAffect(e *Entity, reaction *ReactionSpec, percept Percept) 
 	result := w.resolveWear(e, reaction, percept)
 	target := result.Target
 	impact := reaction.Impact
+	impactScale := 100
+	// Each retelling past the first halves (hearsay-hop-percent) how hard
+	// hearsay lands: third-hand is a rumor.
+	for h := 1; percept.Channel == ChannelHearsay && h < percept.Hops; h++ {
+		impact = percent(impact, w.cfg.HearsayHopPercent)
+		impactScale = percent(impactScale, w.cfg.HearsayHopPercent)
+	}
 	w.forEachTraitRule(e, percept, func(rule TraitRule) {
+
 		impact = percent(impact, rule.Impact)
+		impactScale = percent(impactScale, rule.Impact)
 		target.Charge = percent(target.Charge, rule.Charge)
 		target.Grip = percent(target.Grip, rule.Grip)
 		target.Valence = percent(target.Valence, rule.Valence)
 	})
 	w.blendAffect(e, target, impact)
+	w.applyDriveBumps(e, reaction, result.Level, impactScale)
+}
+
+// applyDriveBumps applies a reaction's drive bumps: each read between its
+// fresh and worn values at the wear level the affect was read at, scaled by
+// the trait rules' impact percent, and added to the drive's true level.
+func (w *World) applyDriveBumps(e *Entity, reaction *ReactionSpec, wear, impactScale int) {
+	for _, b := range reaction.Drives {
+		points := b.Fresh
+		switch {
+		case wear >= 100:
+			points = b.Worn
+		case wear > 0:
+			points = b.Fresh + roundedDiv((b.Worn-b.Fresh)*wear, 100)
+		}
+		points = percent(points, impactScale)
+		if b.Drive == DriveSafety && points > 0 {
+			points = percent(points, w.nervePercent(e)) // a veteran guard has seen worse
+		}
+
+		if points != 0 {
+			w.refreshDrive(e, b.Drive, points*driveUnit)
+		}
+	}
 }
 
 func (w *World) resolveWear(e *Entity, reaction *ReactionSpec, percept Percept) WearResult {

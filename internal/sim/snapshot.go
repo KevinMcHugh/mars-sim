@@ -23,7 +23,12 @@ type EntityView struct {
 	Focus FocusKind
 	// Peril is how much danger a casualty (a colonist passed out where it
 	// fell) is in; PerilNone for everyone else. See casualty.go.
-	Peril     Peril
+	Peril Peril
+	// Wounds is each body part's wound: open, dressed, or none (colonists
+	// only; see wounds.go). OnCall is whether the colonist is on the EMT
+	// detail.
+	Wounds    [numBodyParts]Wound
+	OnCall    bool
 	Drives    [numDrives]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
 	Inventory Inventory // colonists only; copied by value
@@ -80,6 +85,10 @@ type EntityView struct {
 	// Backstory is a colonist's one-line past, "Worked as a drill operator
 	// for MarsCorp." ("" for none). Flavor only; see docs/arms-makers.md.
 	Backstory string
+	// Want is what a pressing drive would have it buy, and what it will pay
+	// ("Wants a gun: will pay up to $15; has $61."), empty when nothing
+	// presses. See wants.go.
+	Want string
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
@@ -220,6 +229,10 @@ type WorkOrderView struct {
 	Pay    Money // per unit
 	Units  int
 	Pos    Point
+	// WorkEscort only: the bodyguard on station (0: none) and the hours
+	// served so far.
+	Escort EntityID
+	Served int
 }
 
 // OrderView is an immutable copy of one open order.
@@ -277,7 +290,8 @@ func (w *World) economyView() EconomyView {
 	v.DigWage, v.DigMax = w.wageFor(Floor), maxExcavationTiles
 	for _, o := range w.sortedWork(nil) {
 		v.WorkOrders = append(v.WorkOrders, WorkOrderView{ID: o.ID, Kind: o.Kind, Issuer: o.Issuer,
-			Pay: o.Pay, Units: o.Units, Pos: o.Pos})
+			Pay: o.Pay, Units: o.Units, Pos: o.Pos, Escort: o.escort, Served: o.served})
+
 	}
 	for _, o := range w.sortedOrders(nil) {
 		v.Orders = append(v.Orders, OrderView{ID: o.ID, Side: o.Side, Item: o.Item, Qty: o.Qty,
@@ -497,6 +511,12 @@ type Snapshot struct {
 	// The map is shared by every snapshot published between two deaths, so
 	// it must not be modified.
 	Deceased map[EntityID]EntityView
+	// News is every evening broadcast the colony still keeps, newest first,
+	// and NewsHour the clock hour they air at (-1: none). Shared by every
+	// snapshot until the next broadcast, so it must not be modified. See
+	// news.go.
+	News     []NewsBroadcast
+	NewsHour int
 	// Log is the retained colony log, oldest first. Kind is the type column;
 	// Text is the sentence. See log.go.
 	Log        []LogEntry
@@ -555,7 +575,9 @@ type Snapshot struct {
 	// Defense is every defense zone by id (see docs/defense.md); GuardWage
 	// what a guard is paid an hour, and Armed how many living colonists
 	// carry a weapon (the most a detail can ever be).
-	Defense   []DefenseView
+	Defense []DefenseView
+	// EMT is the colony's EMT detail (see emt.go).
+	EMT       EMTView
 	GuardWage Money
 	Armed     int
 
@@ -855,6 +877,7 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		ZoningAuto:           w.cfg.ZoningAuto,
 		ClearWage:            Money(w.cfg.WageDemolish),
 		Defense:              w.publishedDefense(),
+		EMT:                  w.publishedEMT(),
 		GuardWage:            Money(w.cfg.WageGuard),
 		Armed:                w.armedColonists(),
 		Scum:                 w.publishedScum(),
@@ -862,24 +885,27 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Remains:              w.publishedRemains(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
-		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
-		Sprites:              w.sprites.SVGs,
-		AlienLore:            w.speciesLore,
-		SpriteOf:             w.sprites.Of,
-		Corporations:         append([]Corporation(nil), w.corporations...),
-		GunModels:            append([]GunModel(nil), w.gunModels...),
-		Population:           w.popHist,
-		Metrics:              w.metricsView(),
-		Economy:              w.economyView(),
-		Recruiting:           w.recruitingView(),
-		AffinityMax:          w.cfg.AffinityMax,
-		MoodMax:              w.cfg.MoodMax,
-		ScumMax:              w.cfg.ScumMax,
-		Ships:                w.shipViews(),
-		Paused:               paused,
-		TicksPerSecond:       tps,
-		FogOfWar:             w.cfg.FogOfWar,
-		previews:             previews,
+		News:                 w.publishedNewsBroadcasts(),
+		NewsHour:             w.cfg.NewsHour,
+
+		AlienSpecies:   append([]AlienSpecies(nil), w.alienSpecies...),
+		Sprites:        w.sprites.SVGs,
+		AlienLore:      w.speciesLore,
+		SpriteOf:       w.sprites.Of,
+		Corporations:   append([]Corporation(nil), w.corporations...),
+		GunModels:      append([]GunModel(nil), w.gunModels...),
+		Population:     w.popHist,
+		Metrics:        w.metricsView(),
+		Economy:        w.economyView(),
+		Recruiting:     w.recruitingView(),
+		AffinityMax:    w.cfg.AffinityMax,
+		MoodMax:        w.cfg.MoodMax,
+		ScumMax:        w.cfg.ScumMax,
+		Ships:          w.shipViews(),
+		Paused:         paused,
+		TicksPerSecond: tps,
+		FogOfWar:       w.cfg.FogOfWar,
+		previews:       previews,
 	}
 }
 
@@ -933,6 +959,8 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		State:     e.State,
 		Focus:     e.focus,
 		Peril:     w.perilOf(e),
+		Wounds:    e.wounds,
+		OnCall:    e.onCall,
 		Drives:    w.currentDrives(e),
 		Profile:   e.Profile.clone(),
 		Inventory: e.Inventory,
@@ -959,6 +987,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Skills = e.skillViews()
 		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
 		ev.Backstory = w.backstory(e)
+		ev.Want = w.wantLine(e)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

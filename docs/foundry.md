@@ -47,6 +47,13 @@ three links down to the ore vein, one ordinary bid at a time.
 | mine | — | a tile of iron-bearing rock | 1 iron ore | `mine-ticks` | the rock face |
 | smelt | smelt steel | 2 iron ore | 1 steel ingot | 40 | forge |
 | machine | machine an assault rifle | 3 steel ingots | 1 assault rifle | 60 | gun bench |
+| machine | machine a pistol | 1 steel ingot | 1 pistol | 30 | gun bench |
+| machine | machine a shotgun | 2 steel ingots | 1 shotgun | 45 | gun bench |
+
+The pistol and the shotgun are for colonists who feel unsafe: their bids for
+a gun (see [safety.md](./safety.md)) are what a gunsmith's planner answers.
+They come after the rifle in the recipe table, so anything that takes the
+bench's first recipe is unchanged.
 
 Both workshops are depots, like the scumhouse: inputs and outputs sit in a
 storage container on the tile, with a ledger, and whoever owns the inputs

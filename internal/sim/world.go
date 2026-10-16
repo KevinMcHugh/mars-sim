@@ -46,13 +46,16 @@ func (w *World) rememberPercept(e *Entity, percept Percept) {
 	}
 	text := renderMemoryTemplate(reaction.Memory.Template, percept)
 	if !w.collapseRepeat(e, reaction, text) {
+		o := percept.Occurrence
 		e.Memories = append(e.Memories, Memory{
 			Tick:     w.tick,
 			LastTick: w.tick,
 			Count:    1,
 			Text:     text,
 			Rule:     reaction.ID,
+			Gist:     &MemoryGist{Actor: o.Actor, Action: o.Action, Object: o.Object, Text: text, Hops: percept.Hops},
 		})
+
 		if len(e.Memories) > maxColonistMemories {
 			e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
 		}
@@ -159,6 +162,12 @@ const (
 	// walkable, and not a link, since nothing comes back up it. What goes
 	// in lands on the tile underneath. See holes.go and docs/holes.md.
 	Hole
+	// Cot is a bed in an infirmary, where an EMT lays a colonist down from
+	// blood loss: its hunger held while it lies there, its wounds healing
+	// faster. Furniture, like a chair: nobody owns one or uses it through the
+	// facility machinery; a casualty lies on the floor beside it. Blocks
+	// movement. See wounds.go and docs/emergency-services.md.
+	Cot
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -207,6 +216,8 @@ func (t Terrain) String() string {
 		return "shaft bottom"
 	case Hole:
 		return "hole"
+	case Cot:
+		return "cot"
 	default:
 		return "unknown"
 	}
@@ -890,6 +901,34 @@ type World struct {
 	casualties []EntityID
 	aidRescues int
 	aidDeaths  int
+	// The EMT detail (emt.go): how many the player wants on call, who is (by
+	// ID), and what the colony has paid them. cotClaims is which casualty
+	// lies beside, or is being dragged to, each infirmary cot (wounds.go).
+	emtDetail int
+	onCall    []EntityID
+	emtPaid   Money
+	cotClaims map[Point]EntityID
+	// emtWage is what the colony offers an EMT, in cents an hour; emtShare
+	// the per-mille of on-call time calls have lately taken, the colonists'
+	// guide to what being on call costs them, folded in from emtBusyTicks
+	// of emtOnTicks once a day's worth has gathered (emt.go).
+	emtWage      int
+	emtShare     int
+	emtOnTicks   int
+	emtBusyTicks int
+	// How long casualties waited before a helper set out to them, summed,
+	// and how many did: for on-call EMTs and for bystanders apart
+	// (noteResponse).
+	emtResponses, emtResponseTicks int
+	aidResponses, aidResponseTicks int
+	// The per-call fee (emt.go): what the colony pays an on-call EMT for
+	// each casualty it sees to, in dollars; what it has paid in fees; and
+	// the calls an EMT answers per thousand hours on call (emtCallRate),
+	// folded in from emtCallsWindow with emtShare.
+	emtFee         Money
+	emtFeesPaid    Money
+	emtCallRate    int
+	emtCallsWindow int
 	// haulClaims records which colonist has taken each open haul order, so
 	// two never set off for the same goods. See hauling.go.
 	haulClaims map[OrderID]EntityID
@@ -959,6 +998,8 @@ type World struct {
 	topicRNG        *rand.Rand // conversation topics (topics.go): gossip moves affinity, so not prng, and not rng so they shift no other draw
 	recruitRNG      *rand.Rand // the recruiter's candidates and where recruits arrive (recruit.go): player-driven, so rolling a set shifts no other stream
 	compassionRNG   *rand.Rand // the compassion trait group (casualty.go): it changes behavior, and arrived after the other groups, so it shifts none of their draws
+	daringRNG       *rand.Rand // the daring trait group (Bold, Timid; place.go), apart for the same reason
+
 	// rngSrc holds the PCG sources behind rng, prng, agePRNG, nestRNG,
 	// skillRNG, topicRNG, recruitRNG and compassionRNG, so
 	// their state can be saved. See rng.go.
@@ -976,6 +1017,20 @@ type World struct {
 
 	// driveTables are the drives' compiled bands (drive_bands.go).
 	driveTables [numDrives]driveTable
+	// homeRoomsBy indexes every standing room by the colonist that
+	// commissioned it, as of homeRoomsRev-1 == structureRev (see place.go).
+	homeRoomsBy  map[EntityID][]*roomRecord
+	homeRoomsRev uint64
+	// news is the nightly news (news.go): items in Seq order, newsSeq the
+	// next Seq to report, newsAired how many have been broadcast.
+	news      []NewsItem
+	newsSeq   int
+	newsAired int
+	// newsRev moves whenever a broadcast airs or old news is dropped, and
+	// publishedNews is the News tab's view as of publishedNewsRev-1.
+	newsRev          int
+	publishedNews    []NewsBroadcast
+	publishedNewsRev int
 
 	// alienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, temperament, and the combat stats (bite
@@ -1052,6 +1107,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 		books:             make(map[bookKey]*book),
 		plans:             make(map[planID]*plan),
 		haulClaims:        make(map[OrderID]EntityID),
+		cotClaims:         make(map[Point]EntityID),
 		candidatesTick:    -1,
 		kin:               make(map[kinID]*kinPerson),
 		nextKinID:         1,
@@ -1080,8 +1136,15 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.topicRNG = rand.New(w.rngSrc.topic)
 	w.rngSrc.recruit = newPCG(cfg.Seed ^ recruitSeed)
 	w.recruitRNG = rand.New(w.rngSrc.recruit)
+	w.emtDetail = cfg.EMTDetail
+	w.emtWage = cfg.EMTWage
+	w.emtShare = cfg.EMTCallShare
+	w.emtFee = Money(cfg.EMTFee)
+	w.emtCallRate = cfg.EMTCallRate
 	w.rngSrc.compassion = newPCG(cfg.Seed ^ compassionSeed)
 	w.compassionRNG = rand.New(w.rngSrc.compassion)
+	w.rngSrc.daring = newPCG(cfg.Seed ^ daringSeed)
+	w.daringRNG = rand.New(w.rngSrc.daring)
 	if len(cfg.SpeciesPack) > 0 {
 		var picked []int
 		w.alienSpecies, picked = packedRoster(newRand(cfg.Seed^alienLoreSeed), cfg, cfg.SpeciesPack, max(1, cfg.AlienSpeciesCount))
@@ -1141,6 +1204,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.trackFacility(GunBench)
 	// Colonists walk to a meeting hall's chairs to socialize and to eat.
 	w.trackFacility(Chair)
+	w.trackFacility(Cot)
 	// And scrapers and harvesters to the incubator.
 	w.trackFacility(Incubator)
 	w.communityMealsTick = -1
@@ -1537,12 +1601,17 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 // recruit.go.
 func (w *World) spawnWith(kind Kind, p Point, species int, rec *recruitCandidate) *Entity {
 	e := w.species[kind].newEntity(w.nextID, p, w.cfg)
+	e.newsHeard = w.newsSeq // a newcomer starts with no old news
+
 	// Stagger starting drive levels so a freshly settled colony does not all
-	// get hungry on the same tick and stampede the facilities at once.
+	// get hungry on the same tick and stampede the facilities at once. An
+	// unsought drive (safety) starts at 0: everyone lands calm, and drawing
+	// for it would move every seed's stream for nothing.
 	var levels [numDrives]int
 	if kind == Colonist {
 		for i := range levels {
-			if seek := w.cfg.Drives[i].SeekAt; seek > 0 {
+			if seek := w.cfg.Drives[i].SeekAt; seek > 0 && !w.cfg.Drives[i].Unsought {
+
 				levels[i] = w.rng.IntN(seek)
 			}
 		}
@@ -1613,6 +1682,8 @@ func (w *World) remove(id EntityID, cause string) {
 		// A casualty's death is settled with the living (guilt, grief) while
 		// its name and family can still be read.
 		w.casualtyDied(e)
+		w.releaseOnCall(e)
+		w.reportDeath(e, cause)
 		// Open orders go first, so a bid's escrow is back in the wallet
 		// before the wallet freezes.
 		w.cancelOrdersOf(ColonistOwner(e.ID))

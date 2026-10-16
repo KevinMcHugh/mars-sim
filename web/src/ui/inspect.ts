@@ -1,7 +1,8 @@
 // The inspector's topic payloads (internal/wire/inspect.go: EntityTopic and
 // TileTopic), as the page reads them.
 
-export interface PartHP { name: string; hp: number; max: number }
+/** wound is "open", "dressed", or absent for a whole part (docs/emergency-services.md). */
+export interface PartHP { name: string; hp: number; max: number; wound?: string }
 export interface Stack { slot: number; item: string; count: number }
 
 export interface Colonist {
@@ -20,6 +21,8 @@ export interface Colonist {
   profession?: string; professionLabel?: string;
   /** Who it worked for back home, "Worked as a drill operator for MarsCorp."; flavor only. */
   backstory?: string;
+  /** What a pressing drive would have it buy, and what it will pay (sim wants.go). */
+  want?: string;
   family: { relation: string; id: number; name: string }[];
   affinities: { id: number; name: string; value: number }[];
   affinityMax: number;

@@ -636,6 +636,13 @@ func (w *World) planRooms() {
 			return
 		}
 	}
+	// An infirmary only while the colony keeps EMTs on call: a cot is where
+	// one lays a colonist nobody can rouse (see cotsShort).
+	if short := w.cotsShort(); short > 0 {
+		if w.placeFixtures(infirmaryRoom, units(short, Cot), true) {
+			return
+		}
+	}
 	// The foundry last of all: nothing about rifles keeps anyone alive, and
 	// everything above does. One is enough; its demand is the armory's, not
 	// a headcount (see foundry.go).

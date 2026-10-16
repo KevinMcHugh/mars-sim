@@ -56,6 +56,10 @@ const (
 	// percent, +30 to 130%, -50 to half. How drives affect one another
 	// (exhaustion building faster the hungrier a colonist is).
 	ConsequenceRate
+	// ConsequenceUnsafe (an experience): the colonist feels unsafe, a
+	// "felt-unsafe" occurrence whose mood hit and memory are cognition.yaml
+	// rows. A safety drive at its ceiling.
+	ConsequenceUnsafe
 
 	numConsequences // keep last
 )
@@ -74,6 +78,8 @@ func (c Consequence) String() string {
 		return "soiling"
 	case ConsequenceRate:
 		return "rate"
+	case ConsequenceUnsafe:
+		return "fear"
 	default:
 		return "consequence"
 	}
@@ -82,7 +88,8 @@ func (c Consequence) String() string {
 // acts reports whether c does something to the colonist itself (as opposed to
 // changing another drive's rate), and so is dispatched each tick.
 func (c Consequence) acts() bool {
-	return c == ConsequenceDeath || c == ConsequenceLoneliness || c == ConsequencePassOut || c == ConsequenceSoiling
+	return c == ConsequenceDeath || c == ConsequenceLoneliness || c == ConsequencePassOut ||
+		c == ConsequenceSoiling || c == ConsequenceUnsafe
 }
 
 // DriveConsequence applies Kind with Value while its drive's level is in
@@ -429,6 +436,11 @@ func (w *World) applyDriveConsequences(e *Entity) {
 				if w.consequenceDue(e, d) {
 					w.emitDone(e, ActionFeel, NounLoneliness, "Felt lonely.")
 				}
+			case ConsequenceUnsafe:
+				if w.consequenceDue(e, d) {
+					w.emitDone(e, ActionFeel, NounDanger, "Felt unsafe.")
+				}
+
 			case ConsequencePassOut:
 				if !e.passedOut && !w.usingFacility(e, d) {
 					w.passOut(e, d)
@@ -531,7 +543,7 @@ func (w *World) passOut(e *Entity, d DriveKind) {
 	w.emitOccurrence(o)
 	w.logEventAt(LogNote, e.Pos, fmt.Sprintf("%s passed out from exhaustion.", e.displayName()))
 	w.markMindDirty(e)
-	w.addCasualty(e)
+	w.refreshCasualty(e)
 }
 
 // stayPassedOut runs an unconscious colonist's turn and reports whether it is
@@ -546,14 +558,12 @@ func (w *World) stayPassedOut(e *Entity) bool {
 	w.decayAffect(e)
 	w.updateDisconnected(e)
 	w.applyUraniumExposure(e)
-	if w.driveLevel(e, e.passedOutDrive) >= w.cfg.Drives[e.passedOutDrive].CriticalAt {
+	if e.downBled && w.stillDownFromBloodLoss(e) ||
+		!e.downBled && w.driveLevel(e, e.passedOutDrive) >= w.cfg.Drives[e.passedOutDrive].CriticalAt {
 		e.State = PassedOut
 		return true
 	}
-	e.passedOut = false
-	e.State = Idle
-	w.dropCasualty(e)
-	w.markMindDirty(e)
+	w.comeRound(e)
 	return true // the waking tick is spent coming to
 }
 

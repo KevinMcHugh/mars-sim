@@ -3,8 +3,8 @@ schema_version: 1
 
 # Stable content vocabulary used by editor dropdowns and rule validation.
 vocabulary:
-  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness]
-  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil, rescue, lose, abandon, fail]
+  nouns: [colonist, alien, cat, rat, gore, meal, toilet, bed, need, rock, structure, refuse, gruel, scum, scumhouse, goods, skill, loneliness, danger, ship]
+  actions: [present, bite, attack, kill, crush, catch, wound, converse, eat, use, sleep, satisfy, mine, clear, construct, clean, incinerate, mutate, cook, scrape, deliver, trade, buy, haul, learn, feel, socialize, collapse, soil, rescue, lose, abandon, fail, die, arrive, guard]
 
 attractors:
   driven    : { good: "driven"    , bad: "furious"   , charge:  70, grip:  60, radius: 46 }
@@ -90,6 +90,7 @@ reactions:
     memory: { record: true }
     affect: { impact: 45, fresh: { charge: 8, grip: -10, valence: -15 }, worn: { charge: 5, grip: -22, valence: -22 } }
     wear_policy: memory-occasions
+    drives: { safety: { fresh: 150, worn: 80 } }
     stimulus: { salience: 100, lifetime: 12, source: actor, contributions: {flee: 500, fight: 500} }
   - id: saw-rat
     match: { actor_noun: rat, action: present, channel: sight, role: witness, phase: enter }
@@ -101,24 +102,28 @@ reactions:
     memory: { record: true }
     affect: { impact: 30, fresh: { charge: -3, grip: -7, valence: -6 }, worn: { charge: -6, grip: -14, valence: -10 } }
     wear_policy: memory-occasions
+    drives: { safety: { fresh: 40, worn: 20 } }
     stimulus: { salience: 35, lifetime: 30, source: none, contributions: {work: 20} }
   - id: bitten
     match: { actor_noun: alien, action: bite, object_noun: colonist, channel: direct, role: target, phase: instant }
     memory: { record: true }
     affect: { impact: 70, fresh: { charge: 55, grip: -44, valence: -30 }, worn: { charge: 35, grip: -80, valence: -55 } }
     wear_policy: memory-occasions
+    drives: { safety: { fresh: 350, worn: 300 } }
     stimulus: { salience: 100, lifetime: 20, source: actor, contributions: {flee: 300, fight: 150} }
   - id: witnessed-colonist-killed
     match: { actor_noun: alien, action: kill, object_noun: colonist, channel: sight, role: witness, phase: instant }
     memory: { record: true }
     affect: { impact: 95, fresh: { charge: 70, grip: 40, valence: -60 }, worn: { charge: 20, grip: -85, valence: -85 } }
     wear_policy: memory-occasions
+    drives: { safety: { fresh: 400, worn: 250 } }
     stimulus: { salience: 90, lifetime: 20, source: actor, contributions: {flee: 250, fight: 100} }
   - id: witnessed-colonist-attacked
     match: { actor_noun: alien, action: bite, object_noun: colonist, channel: sight, role: witness, phase: instant }
     memory: { record: true }
     affect: { impact: 75, fresh: { charge: 45, grip: 25, valence: -40 }, worn: { charge: 25, grip: -70, valence: -60 } }
     wear_policy: memory-occasions
+    drives: { safety: { fresh: 250, worn: 150 } }
     stimulus: { salience: 70, lifetime: 12, source: actor, contributions: {flee: 200, fight: 100} }
   - id: crushed-rat
     match: { actor_noun: colonist, action: crush, object_noun: rat, channel: direct, role: actor, phase: instant }
@@ -140,11 +145,13 @@ reactions:
     memory: { record: true }
     affect: { impact: 55, fresh: { charge: 45, grip: 52, valence: 35 }, worn: { charge: 25, grip: 20, valence: 8 } }
     wear_policy: memory-occasions
+    drives: { safety: { fresh: -150, worn: -50 } }
   - id: witnessed-alien-killed
     match: { actor_noun: colonist, action: kill, object_noun: alien, channel: sight, role: witness, phase: instant }
     memory: { record: true }
     affect: { impact: 35, fresh: { charge: 5, grip: 6, valence: 4 }, worn: { charge: 2, grip: 2, valence: 0 } }
     wear_policy: memory-occasions
+    drives: { safety: { fresh: -50, worn: -20 } }
   - id: wounded-alien
     match: { actor_noun: colonist, action: wound, object_noun: alien, channel: direct, role: actor, phase: instant }
     memory: { record: true }
@@ -155,6 +162,7 @@ reactions:
     memory: { record: true }
     affect: { impact: 50, fresh: { charge: 35, grip: -25, valence: -20 }, worn: { charge: 18, grip: -45, valence: -35 } }
     wear_policy: memory-occasions
+    drives: { safety: { fresh: 100, worn: 60 } }
   - id: conversation
     match: { actor_noun: colonist, action: converse, object_noun: colonist, channel: direct, phase: instant }
     memory: { record: true }
@@ -268,6 +276,12 @@ reactions:
     memory: { record: true, collapse: "Felt lonely." }
     affect: { impact: 30, fresh: { charge: -8, grip: -6, valence: -12 }, worn: { charge: -12, grip: -10, valence: -20 } }
     wear_policy: memory-occasions
+  # A safety drive at its ceiling is felt as fear (docs/safety.md).
+  - id: felt-unsafe
+    match: { actor_noun: colonist, action: feel, object_noun: danger, channel: direct, role: actor, phase: instant }
+    memory: { record: true, collapse: "Felt unsafe." }
+    affect: { impact: 30, fresh: { charge: 4, grip: -12, valence: -8 }, worn: { charge: 2, grip: -22, valence: -15 } }
+    wear_policy: memory-occasions
   # A conversation a colonist went into with its social drive at seek-at or
   # above: company it needed, on top of the conversation's own appraisal.
   - id: socialized
@@ -330,6 +344,81 @@ reactions:
     match: { actor_noun: colonist, action: fail, object_noun: colonist, channel: direct, role: actor, phase: instant }
     memory: { record: true }
     affect: { impact: 45, fresh: { charge: -5, grip: -20, valence: -22 }, worn: { charge: -8, grip: -28, valence: -30 } }
+  # Hearsay: a memory recounted in conversation (topics.go). It records
+  # nothing of its own; the listener's memory of the conversation carries it.
+  - id: heard-colonist-killed
+    match: { actor_noun: alien, action: kill, object_noun: colonist, channel: hearsay, phase: instant }
+    memory: { record: false }
+    affect: { impact: 40, fresh: { charge: 10, grip: -20, valence: -30 }, worn: { charge: 10, grip: -20, valence: -30 } }
+    wear_policy: none
+    drives: { safety: { fresh: 150, worn: 150 } }
+  - id: heard-friend-killed
+    match: { actor_noun: alien, action: kill, object_noun: colonist, channel: hearsay, phase: instant, object_relation: friend }
+    memory: { record: false }
+    affect: { impact: 60, fresh: { charge: 15, grip: -30, valence: -50 }, worn: { charge: 15, grip: -30, valence: -50 } }
+    wear_policy: none
+    drives: { safety: { fresh: 220, worn: 220 } }
+  - id: heard-colonist-attacked
+    match: { actor_noun: alien, action: bite, object_noun: colonist, channel: hearsay, phase: instant }
+    memory: { record: false }
+    affect: { impact: 25, fresh: { charge: 5, grip: -10, valence: -15 }, worn: { charge: 5, grip: -10, valence: -15 } }
+    wear_policy: none
+    drives: { safety: { fresh: 80, worn: 80 } }
+  - id: heard-alien-sighting
+    match: { actor_noun: alien, action: present, channel: hearsay, phase: instant }
+    memory: { record: false }
+    affect: { impact: 10, fresh: { charge: 2, grip: -4, valence: -5 }, worn: { charge: 2, grip: -4, valence: -5 } }
+    wear_policy: none
+    drives: { safety: { fresh: 40, worn: 40 } }
+  - id: heard-colonist-died
+    match: { actor_noun: "", action: die, object_noun: colonist, channel: hearsay, phase: instant }
+    memory: { record: false }
+    affect: { impact: 30, fresh: { charge: 0, grip: -10, valence: -25 }, worn: { charge: 0, grip: -10, valence: -25 } }
+    wear_policy: none
+    drives: { safety: { fresh: 100, worn: 100 } }
+  - id: heard-friend-died
+    match: { actor_noun: "", action: die, object_noun: colonist, channel: hearsay, phase: instant, object_relation: friend }
+    memory: { record: false }
+    affect: { impact: 55, fresh: { charge: 0, grip: -20, valence: -50 }, worn: { charge: 0, grip: -20, valence: -50 } }
+    wear_policy: none
+    drives: { safety: { fresh: 150, worn: 150 } }
+  # The nightly news (news.go), heard by everyone who did not already know.
+  - id: news-colonist-died
+    match: { actor_noun: "", action: die, object_noun: colonist, channel: broadcast, phase: instant }
+    memory: { record: true }
+    affect: { impact: 35, fresh: { charge: 5, grip: -15, valence: -25 }, worn: { charge: 0, grip: -20, valence: -25 } }
+    wear_policy: memory-occasions
+    drives: { safety: { fresh: 120, worn: 80 } }
+  - id: news-friend-died
+    match: { actor_noun: "", action: die, object_noun: colonist, channel: broadcast, phase: instant, object_relation: friend }
+    memory: { record: true }
+    affect: { impact: 60, fresh: { charge: 5, grip: -30, valence: -45 }, worn: { charge: 0, grip: -35, valence: -50 } }
+    wear_policy: memory-occasions
+    drives: { safety: { fresh: 200, worn: 150 } }
+  - id: news-arrival
+    match: { actor_noun: "", action: arrive, channel: broadcast, phase: instant }
+    memory: { record: true }
+    affect: { impact: 15, fresh: { charge: 5, grip: 5, valence: 10 }, worn: { charge: 2, grip: 2, valence: 5 } }
+    wear_policy: memory-occasions
+    drives: { safety: { fresh: -30, worn: -10 } }
+  # A bodyguard taking on a client (escort.go).
+  - id: guarded-client
+    match: { actor_noun: colonist, action: guard, object_noun: colonist, channel: direct, role: actor, phase: instant }
+    memory: { record: true }
+    affect: { impact: 15, fresh: { charge: 2, grip: 6, valence: 2 }, worn: { charge: 0, grip: 2, valence: 0 } }
+    wear_policy: memory-occasions
+  - id: hired-bodyguard
+    match: { actor_noun: colonist, action: guard, object_noun: colonist, channel: direct, role: target, phase: instant }
+    memory: { record: true }
+    affect: { impact: 20, fresh: { charge: 0, grip: 10, valence: 4 }, worn: { charge: 0, grip: 4, valence: 1 } }
+    wear_policy: memory-occasions
+    drives: { safety: { fresh: -60, worn: -30 } }
+  - id: guarded
+    match: { actor_noun: colonist, action: guard, object_noun: colonist, channel: proximity, role: target, phase: enter }
+    memory: { record: true }
+    affect: { impact: 10, fresh: { charge: 0, grip: 6, valence: 3 }, worn: { charge: 0, grip: 2, valence: 1 } }
+    wear_policy: memory-occasions
+    drives: { safety: { fresh: -20, worn: -5 } }
 
 # Trait rules compose in declaration order. Scales are percentages.
 trait_rules:
@@ -439,3 +528,27 @@ trait_rules:
     trait: callous
     match: { actor_noun: colonist, action: rescue, object_noun: colonist, channel: direct, role: actor, phase: instant }
     scales: { impact: 50, charge: 50, grip: 50, valence: 50, wear_rate: 100 }
+  - id: bold-sight
+    trait: bold
+    match: { actor_noun: "", action: "", channel: sight }
+    scales: { impact: 60, charge: 100, grip: 100, valence: 100, wear_rate: 100 }
+  - id: timid-sight
+    trait: timid
+    match: { actor_noun: "", action: "", channel: sight }
+    scales: { impact: 140, charge: 100, grip: 100, valence: 100, wear_rate: 100 }
+  - id: timid-hearsay
+    trait: timid
+    match: { actor_noun: "", action: "", channel: hearsay }
+    scales: { impact: 140, charge: 100, grip: 100, valence: 100, wear_rate: 100 }
+  - id: bold-hearsay
+    trait: bold
+    match: { actor_noun: "", action: "", channel: hearsay }
+    scales: { impact: 50, charge: 100, grip: 100, valence: 100, wear_rate: 100 }
+  - id: optimist-hearsay
+    trait: optimist
+    match: { actor_noun: "", action: "", channel: hearsay }
+    scales: { impact: 70, charge: 100, grip: 100, valence: 100, wear_rate: 100 }
+  - id: pessimist-hearsay
+    trait: pessimist
+    match: { actor_noun: "", action: "", channel: hearsay }
+    scales: { impact: 130, charge: 100, grip: 100, valence: 100, wear_rate: 100 }

@@ -63,6 +63,10 @@ export function dumpYAML(cfg) {
     const worn = reaction.worn || fresh;
     out += `    affect: { impact: ${reaction.impact}, fresh: ${flowMap(fresh)}, worn: ${flowMap(worn)} }\n`;
     out += `    wear_policy: ${reaction.wear_policy || "memory-occasions"}\n`;
+    const drives = Object.entries(reaction.drives || {}).filter(([, b]) => b && (b.fresh || b.worn));
+    if (drives.length) {
+      out += `    drives: { ${drives.map(([drive, b]) => `${drive}: { fresh: ${b.fresh ?? 0}, worn: ${b.worn ?? 0} }`).join(", ")} }\n`;
+    }
     if (reaction.stimulus) {
       const contributions = flowMap(reaction.stimulus.contributions || {});
       out += `    stimulus: { salience: ${reaction.stimulus.salience}, lifetime: ${reaction.stimulus.lifetime}, source: ${reaction.stimulus.source || "actor"}, contributions: ${contributions} }\n`;
@@ -147,6 +151,13 @@ function validateConfig(candidate) {
     for (const [field, allowed] of Object.entries(sets)) {
       const value = reaction.match?.[field];
       if (value && !allowed.has(value)) throw new Error(`Reaction ${id} uses unknown ${field} "${value}"`);
+    }
+    const drives = new Set(vocab.drives || DEFAULT_VOCABULARY.drives || []);
+    for (const [drive, bump] of Object.entries(reaction.drives || {})) {
+      if (!drives.has(drive)) throw new Error(`Reaction ${id} bumps unknown drive "${drive}"`);
+      if (!Number.isInteger(bump?.fresh ?? 0) || !Number.isInteger(bump?.worn ?? 0)) {
+        throw new Error(`Reaction ${id}'s ${drive} bump needs whole fresh and worn points`);
+      }
     }
     if (!Number.isInteger(reaction.impact) || reaction.impact < 0 || reaction.impact > 100) {
       throw new Error(`Reaction ${id} impact must be 0..100`);

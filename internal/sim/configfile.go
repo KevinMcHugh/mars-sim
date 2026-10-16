@@ -115,6 +115,11 @@ func configArrayElementName(tag string, index int) string {
 		return FocusKind(index).String()
 	case "activity":
 		return driveActivityNames[index]
+	case "place":
+		return placeNames[index]
+	case "armed":
+		return weaponRankNames[index]
+
 	default:
 		panic("unsupported config spec array: " + tag)
 	}

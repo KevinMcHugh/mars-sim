@@ -17,6 +17,7 @@ func (w *World) step() {
 		w.landRestAloft() // nobody is left in orbit once the game starts
 	}
 	w.tick++
+	w.airNews()
 	for _, id := range w.entityTurnOrder() {
 		e := w.entities[id]
 		if e == nil || !e.Alive() {
@@ -35,8 +36,11 @@ func (w *World) step() {
 		switch e.Kind {
 		case Colonist:
 			w.colonistTurn(e)
+			w.hearNews(e)          // the evening news, once it is awake to hear it
+			w.postWants(e)         // what a pressing drive would buy (wants.go)
 			w.syncDriveActivity(e) // drives grow at the rate of what it is now doing
-			w.tallyActivity(e)     // the Activity tab's tally (read-only bookkeeping)
+
+			w.tallyActivity(e) // the Activity tab's tally (read-only bookkeeping)
 		default:
 			w.animalTurn(e)
 		}
@@ -151,13 +155,20 @@ func (w *World) colonistTurn(e *Entity) {
 	// before anything else this turn reads a drive.
 	w.advanceEffects(e)
 	w.applyDriveConsequences(e)
-	if !e.Alive() { // starved this tick
+	bled := w.bleed(e)
+	if !e.Alive() { // starved or bled out this tick
+		cause, line := "starved", "%s starved to death."
+		if bled {
+			cause, line = "bled to death", "%s bled to death."
+		}
 		w.clearJob(e) // release any board claim before removal
 		w.leaveBody(e, e.Pos, ColonistCorpse)
-		w.remove(e.ID, "starved")
-		w.logEventAt(LogDeath, e.Pos, fmt.Sprintf("%s starved to death.", e.displayName()))
+		w.remove(e.ID, cause)
+		w.logEventAt(LogDeath, e.Pos, fmt.Sprintf(line, e.displayName()))
 		return
 	}
+	w.healWounds(e)
+	w.serveOnCall(e)
 	if w.stayPassedOut(e) {
 		return
 	}
@@ -776,6 +787,8 @@ func (w *World) clearJob(e *Entity) {
 		w.releaseTend(e)
 	case JobGuard:
 		w.releaseGuard(e)
+	case JobEscort:
+		w.releaseEscort(e)
 	case JobAid:
 		w.releaseAid(e)
 	}
@@ -821,6 +834,10 @@ func (w *World) runJob(e *Entity) {
 		w.jobTend(e)
 	case JobGuard:
 		w.jobGuard(e)
+	case JobFetch:
+		w.jobFetch(e)
+	case JobEscort:
+		w.jobEscort(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1046,7 +1063,10 @@ func (w *World) finishTalk(a, b *Entity) {
 		{Observer: b.ID, Target: conversationMoodVector(outcome + w.noteConversation(b))},
 	}
 	w.emitOccurrence(o)
+	// What the speaker recalled reaches the listener as hearsay.
+	w.tellHearsay(topic, listener)
 	// Company sought while lonely is its own experience, on top of how the
+
 	// talk went: a colonist who came to it with its social drive at seek-at
 	// or above "socialized". Read before jobTalk resets the drive.
 	for _, e := range []*Entity{a, b} {
@@ -1064,6 +1084,15 @@ func (w *World) finishTalk(a, b *Entity) {
 // first (life-support rooms), otherwise mine the frontier. Leaves JobNone if
 // nothing suitable is reachable.
 func (w *World) assignWorkJob(e *Entity) {
+	// A colonist looking for work takes an open place on the EMT detail and
+	// goes on looking: being on call is not a job (see emt.go).
+	w.tryTakeOnCall(e)
+	// A gun it bought, waiting at a depot, before anything else: it goes out
+	// to the frontier armed.
+	if w.tryFetchGun(e) {
+		return
+	}
+
 	// A meal in its pockets before it's hungry, so hunger never starts with a
 	// walk across the colony (see food.go).
 	if w.tryPocketMeal(e) {
@@ -1103,7 +1132,11 @@ func (w *World) assignWorkJob(e *Entity) {
 	// an alien out of a shaft into the colony. Behind the trough and goods
 	// already sold, which are a few ticks' work and starve or stall
 	// somebody if left.
+	if w.tryAssignEscort(e) { // a contract pays more than a defense post
+		return
+	}
 	if w.tryAssignGuard(e) {
+
 		return
 	}
 	// Collaborate on planned construction (facility rooms, etc.): claim the
@@ -1860,6 +1893,8 @@ func (w *World) noteBuild(kind Terrain, at Point) {
 		w.logEventAt(LogBuildComplete, at, "A gun bench is set up in the foundry.")
 	case Chair:
 		w.logEventAt(LogBuildComplete, at, "A chair is set out in the meeting hall.")
+	case Cot:
+		w.logEventAt(LogBuildComplete, at, "A cot is made up in the infirmary.")
 	case Incubator:
 		w.logEventAt(LogBuildComplete, at, "A scum incubator hums to life.")
 	}
@@ -1963,6 +1998,11 @@ func (w *World) travelTo(e *Entity, target Point) (arrived, ok bool) {
 func (w *World) nudgeLoiterer(e *Entity, end Point) bool {
 	b := w.entityAt(end)
 	if b == nil || b.ID == e.ID || b.Kind == Alien {
+		return false
+	}
+	// A colonist passed out on the floor has no job, but it is not loitering:
+	// it cannot step anywhere, and nudging it slid a casualty along the floor.
+	if b.passedOut {
 		return false
 	}
 	if b.Kind != Colonist {
@@ -2121,6 +2161,7 @@ func (w *World) strike(alien, prey *Entity) {
 		o.TargetText = strikeTargetText(mode, part, noun)
 		o.WitnessText = fmt.Sprintf("Watched %s %s %s.", noun, verb.hit, name)
 		w.emitOccurrence(o)
+		w.hurt(prey)
 	}
 }
 

@@ -35,6 +35,11 @@ const (
 	// NounLoneliness is what a colonist whose social drive sits at its
 	// ceiling feels (ConsequenceLoneliness).
 	NounLoneliness NounID = "loneliness"
+	// NounDanger is what a colonist whose safety drive sits at its ceiling
+	// feels (ConsequenceUnsafe).
+	NounDanger NounID = "danger"
+	// NounShip is a colony ship, in the news of its landing.
+	NounShip NounID = "ship"
 )
 
 const (
@@ -74,6 +79,11 @@ const (
 	ActionLose    ActionID = "lose"
 	ActionAbandon ActionID = "abandon"
 	ActionFail    ActionID = "fail"
+	// The news (news.go): a colonist died; someone new arrived.
+	ActionDie    ActionID = "die"
+	ActionArrive ActionID = "arrive"
+	// A bodyguard taking on a client (escort.go).
+	ActionGuard ActionID = "guard"
 )
 
 // ChannelID says how an observer learned about an occurrence. Direct is
@@ -86,6 +96,11 @@ const (
 	ChannelSight     ChannelID = "sight"
 	ChannelHearing   ChannelID = "hearing"
 	ChannelProximity ChannelID = "proximity"
+	// ChannelHearsay is a memory recounted in conversation, reaching the
+	// listener (finishTalk); ChannelBroadcast is the nightly news (news.go).
+	// Both are delivered by the feature, never by a perception rule.
+	ChannelHearsay   ChannelID = "hearsay"
+	ChannelBroadcast ChannelID = "broadcast"
 )
 
 // ObserverRole is the observer's relationship to an occurrence. Role is kept
@@ -233,6 +248,10 @@ type Percept struct {
 	Phase          PerceptPhase
 	ObjectRelation ObjectRelationID
 	Occurrence     Occurrence
+	// Hops is how many retellings the occurrence came through: 0 for
+	// something the observer saw, or heard on the news; 1 for hearsay from
+	// someone who saw it, 2 from someone who heard it. See docs/safety.md.
+	Hops int
 }
 
 // OccurrencePattern is the configurable half of matching shared by perception

@@ -87,9 +87,11 @@ pool than a two-foot one all the way down to the individual limb (see
 requires `Parts[Head] > 0 && Parts[Torso] > 0`. A called shot to a vital part
 kills outright even if the aggregate HP pool has plenty left — the whole
 point of tracking parts instead of one number. A destroyed limb
-(`Parts[LeftArm] == 0`, say) is not fatal by itself; today it has no further
-gameplay effect (no aim penalty, no bleed-out) beyond being visible in the
-roster — see Extending it.
+(`Parts[LeftArm] == 0`, say) is not fatal by itself, and has no aim or
+movement penalty — see Extending it. Every hit on a colonist's part also
+opens a wound there: it never heals until someone dresses it, can bleed
+with `bleeding` on, and makes the colonist a casualty others may see to
+(see [emergency-services.md](./emergency-services.md)).
 
 ### Landing a hit
 
@@ -167,7 +169,9 @@ a cat's 25 each), a quarter of those guns shotguns
 chicken or a cat. Before that, each manifest gun was rolled on its own
 (`crash-pod-pistol-percent`, `crash-pod-shotgun-percent`): a 70% chance of a pistol and
 a 20% chance of a shotgun, so most settlers landed armed but about a quarter
-landed with nothing. An unarmed colonist flees until it finds or buys a gun. See
+landed with nothing. An unarmed colonist flees until it finds or buys a gun: one
+that feels unsafe bids for one, and a gunsmith machines it (see
+[safety.md](./safety.md)). See
 [ships.md](./ships.md).
 
 Arming everyone was a real balance change, and it was measured (before

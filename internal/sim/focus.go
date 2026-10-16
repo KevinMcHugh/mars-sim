@@ -156,7 +156,8 @@ func affectContribution(charge, grip int, spec FocusSpec, moodMax int) int {
 
 func workJob(job JobKind) bool {
 	switch job {
-	case JobMine, JobBuild, JobClean, JobStore, JobCraft, JobScrape, JobSell, JobCarry, JobTend, JobGuard:
+	case JobMine, JobBuild, JobClean, JobStore, JobCraft, JobScrape, JobSell, JobCarry, JobTend, JobGuard, JobFetch, JobEscort:
+
 		return true
 	default:
 		return false
@@ -200,7 +201,8 @@ func (w *World) nextCognitionTick(e *Entity) int {
 	for n := DriveKind(0); n < numDrives; n++ {
 		level := w.driveLevel(e, n)
 		phase := e.drives[n].phase
-		if (phase == DrivePressing || phase == DriveCritical) && level < w.cfg.Drives[n].Max &&
+		if (phase == DrivePressing || phase == DriveCritical) && level < w.cfg.Drives[n].Max && !w.cfg.Drives[n].Unsought &&
+
 			!(sleepProgressOnly && n == DriveSleep) {
 			return w.tick + 1
 		}
@@ -391,7 +393,7 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 	for n := DriveKind(0); n < numDrives; n++ {
 		spec := in.needs[n]
 		phase := in.phase[n]
-		if phase != DrivePressing && phase != DriveCritical {
+		if spec.Unsought || phase != DrivePressing && phase != DriveCritical {
 			continue
 		}
 		pressure := drivePressure(in.level[n], spec)
@@ -422,7 +424,7 @@ func fillFocusCandidates(in focusInputs, out *[numFocusKinds]FocusCandidate) {
 	// non-fatal drives. Threats remain eligible and can still dominate it.
 	if fatalPressing {
 		for n := DriveKind(0); n < numDrives; n++ {
-			if in.needs[n].Fatal() {
+			if in.needs[n].Fatal() || in.needs[n].Unsought {
 				continue
 			}
 			out[focusForDrive(n)].Eligible = false

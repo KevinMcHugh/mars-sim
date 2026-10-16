@@ -289,6 +289,10 @@ type Config struct {
 	// docs/foundry.md.
 	ArmoryRifles      int   `cfg:"armory-rifles" sec:"Foundry" doc:"assault rifles the colony wants in its armory (0: it builds no foundry and buys none)"`
 	PriceAssaultRifle int64 `cfg:"price-assault-rifle" doc:"what the colony pays for an assault rifle at its silo"`
+	// What the other guns are worth to a colonist who wants one, before any
+	// has traded. Nobody makes them yet: they come to market secondhand.
+	PricePistol  int64 `cfg:"price-pistol" doc:"what a pistol is worth before one has traded"`
+	PriceShotgun int64 `cfg:"price-shotgun" doc:"what a shotgun is worth before one has traded"`
 
 	// Colony standing orders. With StandingOrdersBuildOnly, the colony posts
 	// no standing orders but its silo bids for building materials
@@ -577,6 +581,42 @@ type Config struct {
 	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species or a corporation (0 never)"`
 	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
 
+	// Hearsay and the news. A memory recounted in conversation reaches the
+	// listener as hearsay, and can be retold up to HearsayMaxHops times, each
+	// retelling past the first landing HearsayHopPercent as hard. Every
+	// evening at NewsHour the colony hears the day's major news (deaths,
+	// arrivals). See news.go and docs/safety.md.
+	HearsayMaxHops    int `cfg:"hearsay-max-hops" doc:"how many retellings news survives in conversation (0: hearsay off)"`
+	HearsayHopPercent int `cfg:"hearsay-hop-percent" doc:"percent of its weight hearsay keeps at each retelling after the first"`
+	NewsHour          int `cfg:"news-hour" doc:"clock hour of the evening news broadcast (-1: no news)"`
+	NewsDays          int `cfg:"news-days" doc:"days of news the colony keeps for the News panel"`
+
+	// Wants: what a pressing drive buys (wants.go). A want's order rests for
+	// WantTTL, and on lapsing the colonist decides again; after WantPatience
+	// lapses on one rung it may look past it. A rung just taken is given
+	// WantSettleTicks to work before the next is wanted. A gun is worth up
+	// to GunWillingness percent of its price at the drive's ceiling.
+	WantTTL         int `cfg:"want-ttl" doc:"ticks a want's order rests on the book before the colonist decides again"`
+	WantPatience    int `cfg:"want-patience" doc:"lapsed orders on one rung before a colonist that can afford the next looks past it"`
+	WantSettleTicks int `cfg:"want-settle-ticks" doc:"ticks a rung just taken is given to work before the next is wanted"`
+	GunWillingness  int `cfg:"gun-willingness" doc:"percent of a gun's price a colonist will pay at its safety drive's ceiling"`
+	// WantReserveMeals is how many meals' worth of money a colonist keeps
+	// back from any want: food comes first.
+	WantReserveMeals int `cfg:"want-reserve-meals" doc:"meals' worth of money a colonist keeps back from anything a want would buy"`
+
+	// Bodyguards (escort.go): an escort contract is EscortHours hours at an
+	// hourly rate of at least EscortWage, up to EscortWillingness percent of
+	// it at the drive's ceiling, and a whole shift may cost at most
+	// EscortBudgetPercent of what the client has beyond its food money. A
+	// bodyguard keeps within EscortRadius of its client. Each guarding rank
+	// cuts the safety a colonist feels by GuardingNervePercent.
+	EscortHours          int `cfg:"escort-hours" doc:"hours in a bodyguard's contract"`
+	EscortRadius         int `cfg:"escort-radius" doc:"tiles a bodyguard keeps within of its client, and counts as guarding it"`
+	EscortWage           int `cfg:"escort-wage" doc:"the least an escort contract may pay an hour"`
+	EscortWillingness    int `cfg:"escort-willingness" doc:"percent of escort-wage a client will pay an hour at its safety drive's ceiling"`
+	EscortBudgetPercent  int `cfg:"escort-budget-percent" doc:"the most of its spare money a client spends on one shift of a bodyguard"`
+	GuardingNervePercent int `cfg:"guarding-nerve-percent" doc:"percent less safety a colonist feels for each rank of guarding, up to four"`
+
 	// The meeting hall: a room of chairs the colony commissions, where
 	// colonists go to socialize and to eat. See docs/meeting-hall.md.
 	ColonistsPerChair int `cfg:"colonists-per-chair" sec:"Meeting hall" doc:"the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)"`
@@ -602,6 +642,34 @@ type Config struct {
 	AidPassedByMax       int  `cfg:"aid-passed-by-max" doc:"most colonists a casualty remembers passing it by, for guilt if it dies"`
 	PerilCriticalHPPct   int  `cfg:"peril-critical-hp" doc:"a casualty below this percent of its hit points is critical"`
 	HelplessPreyDiscount int  `cfg:"helpless-prey-discount" doc:"tiles nearer a hostile hunter reckons a passed-out colonist (0: hunters ignore helplessness)"`
+
+	// Wound care (A3): an open wound never heals; a dressed one heals while
+	// the colonist lies down. Bleeding (A5): a bad open wound drains HP, and
+	// a colonist that has lost too much collapses. Emergency services (A4):
+	// the EMT detail, its pay and duty, cots and dragging. See wounds.go,
+	// emt.go and docs/emergency-services.md.
+	AidDressTicks      int  `cfg:"aid-dress-ticks" doc:"ticks to dress one wound (less with medicine rank)"`
+	AidSelfDressPct    int  `cfg:"aid-self-dress" doc:"percent of the usual time a colonist takes to dress its own wound"`
+	HealPerHour        int  `cfg:"heal-per-hour" doc:"HP a dressed wound heals each hour asleep in a bunk"`
+	HealCotPct         int  `cfg:"heal-cot" doc:"heal rate in an infirmary cot, percent of a bunk's"`
+	HealFloorPct       int  `cfg:"heal-floor" doc:"heal rate lying down on the floor (passed out), percent of a bunk's"`
+	Bleeding           bool `cfg:"bleeding" doc:"a bad open wound bleeds until it is dressed, and a colonist that loses too much collapses"`
+	BleedThresholdPct  int  `cfg:"bleed-threshold" doc:"an open wound bleeds while its part is below this percent of its HP"`
+	BleedPct           int  `cfg:"bleed-rate" doc:"hundredths of an HP an hour a bleeding wound loses for each point its part has lost"`
+	BleedCollapsePct   int  `cfg:"bleed-collapse" doc:"a bleeding colonist below this percent of its HP collapses"`
+	BleedWakePct       int  `cfg:"bleed-wake" doc:"a colonist down from blood loss comes round once healed to this percent of its HP and not bleeding"`
+	EMTDetail          int  `cfg:"emt-detail" doc:"colonists the colony keeps on call as EMTs at the start (the player sets it in play)"`
+	EMTWage            int  `cfg:"emt-wage" doc:"cents an hour the colony offers an on-call EMT at the start (the player sets it in play); a colonist takes the place only if this meets its ask"`
+	EMTPremiumPct      int  `cfg:"emt-premium" doc:"what a colonist asks for being on call at all, as a percent of what an hour of its time is worth (Caring asks half, Callous double)"`
+	EMTCallShare       int  `cfg:"emt-call-share" doc:"per mille of on-call time colonists reckon calls take, before the colony has measured it"`
+	EMTFee             int  `cfg:"emt-fee" doc:"dollars the colony pays an on-call EMT for each casualty it sees to, at the start (the player sets it in play; 0: none)"`
+	EMTCallRate        int  `cfg:"emt-call-rate" doc:"calls per thousand hours on call colonists reckon an EMT answers, before the colony has measured it"`
+	EMTFeeTrustPct     int  `cfg:"emt-fee-trust" doc:"percent of its expected fee income a colonist counts on when it weighs being on call (Industrious more, Lazy much less, Optimist a little more, Pessimist a little less)"`
+	EMTFeeIncentive    int  `cfg:"emt-fee-incentive" doc:"aid score an on-call EMT adds for each dollar of the per-call fee"`
+	EMTFeeIncentiveMax int  `cfg:"emt-fee-incentive-max" doc:"most aid score the per-call fee adds"`
+	AidDutyBonus       int  `cfg:"aid-duty-bonus" doc:"aid score an on-call EMT adds for any casualty, out of duty (half for a Lazy EMT, a quarter more for an Industrious one)"`
+	ColonistsPerCot    int  `cfg:"colonists-per-cot" doc:"with an EMT detail, the colony commissions an infirmary cot for each this many colonists (0: none)"`
+	DragSpeedPct       int  `cfg:"drag-speed" doc:"an EMT dragging a casualty moves at this percent of a step a tick"`
 
 	// Affect. Charge, grip and valence each run in [-MoodMax, MoodMax].
 	// Conversation company/quality produce a temporary signed outcome which is
@@ -902,6 +970,8 @@ func DefaultConfig() Config {
 		// walk (see docs/foundry.md for the arithmetic).
 		ArmoryRifles:      4,
 		PriceAssaultRifle: 60,
+		PricePistol:       20,
+		PriceShotgun:      35,
 		WageDig:           2,
 		WageWall:          2,
 		WageFixture:       5,
@@ -1028,6 +1098,28 @@ func DefaultConfig() Config {
 		AidPassedByMax:       16,
 		PerilCriticalHPPct:   25,
 		HelplessPreyDiscount: 6,
+		AidDressTicks:        15,
+		AidSelfDressPct:      200,
+		HealPerHour:          1,
+		HealCotPct:           300,
+		HealFloorPct:         50,
+		Bleeding:             true,
+		BleedThresholdPct:    50,
+		BleedPct:             40,
+		BleedCollapsePct:     30,
+		BleedWakePct:         40,
+		EMTDetail:            0,
+		EMTWage:              25,
+		EMTPremiumPct:        10,
+		EMTCallShare:         100,
+		EMTFee:               0,
+		EMTCallRate:          20,
+		EMTFeeTrustPct:       80,
+		EMTFeeIncentive:      4,
+		EMTFeeIncentiveMax:   100,
+		AidDutyBonus:         80,
+		ColonistsPerCot:      8,
+		DragSpeedPct:         50,
 		ColonistsPerChair:    4,
 		HallRange:            48,
 		HallTalkBonus:        15,
@@ -1040,6 +1132,24 @@ func DefaultConfig() Config {
 		TalkTopicColonistWeight: 3,
 		TalkTopicLoreWeight:     2,
 		TalkGossipPercent:       10,
+
+		HearsayMaxHops:    2,
+		HearsayHopPercent: 50,
+		NewsHour:          21,
+		NewsDays:          30,
+
+		WantTTL:          1080,
+		WantPatience:     3,
+		WantSettleTicks:  1080,
+		GunWillingness:   150,
+		WantReserveMeals: 4,
+
+		EscortHours:          8,
+		EscortRadius:         3,
+		EscortWage:           6,
+		EscortWillingness:    150,
+		EscortBudgetPercent:  10,
+		GuardingNervePercent: 15,
 
 		MoodMax:                   defaultMoodMax,
 		ConversationCompanyWeight: 6,

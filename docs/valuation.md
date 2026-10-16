@@ -206,7 +206,9 @@ e.g. `-infinite-food=false`.
   needs its own gather plan, like `planGather`.
 - **Shrewder bidding**: change the derived bid's price in `planCraft`. Keep it
   at or below the margin, or the planner loses money by design.
-- **Wanting more than food**: a willingness-to-pay rule like `mealBidLimit`
+- **Wanting more than food**: built for safety as wants (`wants.go`, see
+  [safety.md](./safety.md)): a ladder of rungs, `willingness` generalizing
+  this rule, and orders that lapse after a day. Before that the note read: a willingness-to-pay rule like `mealBidLimit`
   for the need, and a caller that posts the bid.
 - **Skills** (see [skills.md](./skills.md)): the planner already prices each
   colonist's own time. Next is pricing a queue at a shared workshop into a

@@ -61,6 +61,7 @@ function bind(root) {
     fillSelect(q(root, "#rule-phase"), words.phases || DEFAULT_VOCABULARY.phases);
     fillSelect(q(root, "#rule-relation"), words.object_relations || DEFAULT_VOCABULARY.object_relations);
     fillSelect(q(root, "#rule-wear-policy"), words.wear_policies || DEFAULT_VOCABULARY.wear_policies, false);
+    fillSelect(q(root, "#rule-drive"), words.drives || DEFAULT_VOCABULARY.drives || []);
     fillSelect(q(root, "#perception-actor"), words.nouns || []);
     fillSelect(q(root, "#perception-action"), words.actions || []);
     fillSelect(q(root, "#perception-object"), words.nouns || []);
@@ -99,6 +100,9 @@ function bind(root) {
       q(root, `#rule-worn-${field}`).value = 0;
     }
     q(root, "#rule-memory").value = "";
+    q(root, "#rule-drive").value = "";
+    q(root, "#rule-drive-fresh").value = 0;
+    q(root, "#rule-drive-worn").value = 0;
     note("#rule-validation", "", true);
   }
 
@@ -125,6 +129,11 @@ function bind(root) {
     q(root, "#rule-worn-grip").value = rule.worn?.grip ?? 0;
     q(root, "#rule-worn-valence").value = rule.worn?.valence ?? 0;
     q(root, "#rule-memory").value = rule.memory?.text || "";
+    // The form edits one drive's bump; any others on the rule are kept.
+    const [drive, bump] = Object.entries(rule.drives || {})[0] || ["", { fresh: 0, worn: 0 }];
+    q(root, "#rule-drive").value = drive;
+    q(root, "#rule-drive-fresh").value = bump.fresh ?? 0;
+    q(root, "#rule-drive-worn").value = bump.worn ?? 0;
     note("#rule-validation", "", true);
     scrollTo("#rule-form");
   }
@@ -150,11 +159,28 @@ function bind(root) {
         throw new Error(`Match duplicates "${otherID}". Give one rule a more specific match.`);
       }
     }
+    // Drives: the form's one drive, on top of whatever else the rule bumps.
+    // A drive at 0 / 0 is dropped, as Go drops it.
+    const drives = { ...(editingRule ? store.config.reactions[editingRule]?.drives : {}) };
+    const drive = q(root, "#rule-drive").value;
+    if (drive) {
+      const fresh = Number(q(root, "#rule-drive-fresh").value) || 0;
+      const worn = Number(q(root, "#rule-drive-worn").value) || 0;
+      if (fresh || worn) drives[drive] = { fresh, worn };
+      else delete drives[drive];
+    }
+    // A rule that records no memory (hearsay) keeps recording none.
+    const previous = editingRule ? store.config.reactions[editingRule]?.memory : undefined;
+    const memory = previous?.record === false
+      ? { record: false }
+      : { ...(previous || {}), record: true, text: q(root, "#rule-memory").value };
     return {
       id,
       rule: {
         match,
-        memory: { record: true, text: q(root, "#rule-memory").value },
+        memory,
+        drives,
+
         impact,
         wear_policy: q(root, "#rule-wear-policy").value || "memory-occasions",
         fresh: {
@@ -526,7 +552,8 @@ function reactionFacts(rule) {
     ["impact", rule.impact ?? ""],
     ["fresh", `${fresh.charge ?? 0} / ${fresh.grip ?? 0} / ${fresh.valence ?? 0}`],
     ["worn", `${worn.charge ?? 0} / ${worn.grip ?? 0} / ${worn.valence ?? 0}`],
-    ["memory", rule.memory?.text || rule.memory?.collapse || ""],
+    ["memory", rule.memory?.record === false ? "none" : rule.memory?.text || rule.memory?.collapse || ""],
+    ["drives", Object.entries(rule.drives || {}).map(([drive, b]) => `${drive} ${b.fresh} / ${b.worn}`).join(", ")],
     ["stimulus", stimulus],
   ]);
 }
@@ -615,6 +642,9 @@ const TEMPLATE = `
       ${field("Worn grip", num("rule-worn-grip", 0, -100, 100))}
       ${field("Worn valence", num("rule-worn-valence", 0, -100, 100))}
       <label class="field wide"><span>Memory line</span><input id="rule-memory" type="text" placeholder="Watched {actor} play with {object}."></label>
+      ${field("Drive", select("rule-drive"))}
+      ${field("Drive fresh", num("rule-drive-fresh", 0, -1000, 1000))}
+      ${field("Drive worn", num("rule-drive-worn", 0, -1000, 1000))}
     </div>
     <div class="form-actions">
       <button type="button" id="rule-new" class="ghost">Clear</button>
