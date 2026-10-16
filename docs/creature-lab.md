@@ -22,7 +22,8 @@ The game does not read the catalog yet. See "Extending it" for the plan.
 - [`internal/creaturelab/web/`](../internal/creaturelab/web/): the router (`server.go`), the pages (`pages.go`, `templates/`), and [`e2e_test.go`](../internal/creaturelab/web/e2e_test.go), which covers the API, OAuth, the pages and a real MCP client session against Postgres.
 - [`internal/creaturelab/auth/`](../internal/creaturelab/auth/), [`oauth/`](../internal/creaturelab/oauth/oauth.go): keys, tokens, middleware, and the OAuth 2.1 server claude.ai needs.
 - [`internal/creaturelab/db/`](../internal/creaturelab/db/): sqlc output. **Do not edit.** Run `make generate` in `creature-lab/` instead.
-- [`creature-lab/`](../creature-lab/): the non-Go half: `api/openapi.yaml` and `oapi-codegen.yaml`, `db/migrations` (dbmate), `db/queries` (sqlc), `sqlc.yaml`, the `Makefile`, and `deploy/run-postgres.sh`.
+- [`creature-lab/`](../creature-lab/): the non-Go half: `api/openapi.yaml` and `oapi-codegen.yaml`, `db/migrations` (dbmate), `db/queries` (sqlc), `sqlc.yaml`, the `Makefile`, `deploy/run-postgres.sh`, and `deploy/redeploy.sh`.
+- [`.github/workflows/creature-lab.yml`](../.github/workflows/creature-lab.yml): tests the lab against a Postgres service container, then redeploys it on its sprite.
 
 ## How it works
 
@@ -165,7 +166,29 @@ sprite exec -- bash -lc '/.sprite/bin/sprite-env services create creature-lab \
 sprite config update -s creature-lab --url-auth public
 ```
 
-**Redeploy:** `git pull`, then `dbmate … up`, `go build …`, and `sprite-env services restart creature-lab`. A redeploy changes `generator_rev` for new species only. Existing rows keep the species they were rolled as.
+**Redeploy:** a push to `main` that touches the lab redeploys it, with no laptop needed. The `Creature Lab` workflow ([`creature-lab.yml`](../.github/workflows/creature-lab.yml)) runs the lab's tests, including the Postgres ones against a service container. It then installs the `sprite` CLI on the runner, signs in with the `SPRITES_TOKEN` repository secret, and runs [`deploy/redeploy.sh`](../creature-lab/deploy/redeploy.sh) on the sprite over `sprite exec`. To redeploy without a push (from the GitHub app, say), use "Run workflow" on the Actions tab. The script:
+
+1. fast-forwards `~/mars-sim` to `origin/main` and re-runs the pulled copy of itself, so a change to the deploy steps applies in the same deploy;
+2. takes a sprite checkpoint, as a restore point;
+3. reinstalls `run-postgres.sh` and restarts postgres, but only if that file changed;
+4. waits for postgres, then runs `dbmate up`;
+5. builds `bin/creature-lab.new`, swaps it in (keeping `.prev`), and restarts the service;
+6. polls `/health` for 30 s. If it never answers, it puts `.prev` back, restarts the service again, and fails the run.
+
+By hand, the same script is the whole redeploy: `sprite exec -s creature-lab -- bash -lc '~/mars-sim/creature-lab/deploy/redeploy.sh'`.
+
+One-time setup: create a token at [sprites.dev/account](https://sprites.dev/account) for the org that owns the sprite (format `org/…/token`, as `sprite auth setup --token` takes it), and save it as the `SPRITES_TOKEN` Actions secret. Until the secret exists, the deploy job fails with a message saying so, and the tests still run.
+
+Why it is built this way:
+
+- **The binary is built on the sprite, not in CI.** `GeneratorRev` reads the commit from the binary's VCS stamp, and the sprite's git checkout is what gives it one. Building on the sprite also keeps the deploy as "run one script", whether it is CI or a person doing it.
+- **CI pushes, the sprite does not poll.** A sprite pauses when idle, so a timer on the sprite would not fire while it sleeps, and keeping it awake to poll would cost more than the lab is worth. The `sprite exec` wakes it.
+- **`internal/sim` is in the workflow's paths.** The lab rolls species with the game's own roster code, so a roster change has to reach the lab or its new species stop matching what a world rolls. That means sim-only pushes redeploy the lab too, which is cheap.
+- **Deploys queue and never cancel each other** (`cancel-in-progress: false`). A deploy killed after migrating but before restarting is worse than one that waits.
+- **`--ff-only`, not `reset --hard`.** If someone edits the checkout on the sprite, the deploy stops instead of throwing the edit away.
+- **The rollback only swaps the binary.** Migrations stay applied, so it helps only when the old binary still runs on the new schema. Write migrations so that it does.
+
+A redeploy changes `generator_rev` for new species only. Existing rows keep the species they were rolled as.
 
 **Connect Claude:** in claude.ai, add a custom connector at `https://creature-lab-<org>.sprites.app/mcp/rpc` with automatic client registration, then paste a `cl_` key when asked, or a `cl_iv_` invite the first time. For Claude Code: `claude mcp add --transport http creature-lab https://…/mcp/rpc --header "Authorization: Bearer cl_…"`.
 
