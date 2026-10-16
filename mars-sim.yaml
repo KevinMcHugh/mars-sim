@@ -333,6 +333,12 @@ siting-auto: true
 ## what the colony pays for an assault rifle at its silo
 # price-assault-rifle: 60
 
+## what a pistol is worth before one has traded
+# price-pistol: 20
+
+## what a shotgun is worth before one has traded
+# price-shotgun: 35
+
 # ── Colony standing orders ──────────────────────────────────────────────
 ## the colony posts no standing orders but its bids for building materials (rock, iron ore, clay)
 # standing-orders-build-only: true
@@ -550,6 +556,32 @@ siting-auto: true
 ##       percent of the base rate in the unconscious drive activity
 #       unconscious: 10
 
+#     place:
+##       percent of the rate while the colonist is home
+#       home: 100
+
+##       percent of the rate while the colonist is settled
+#       settled: 100
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 100
+
+##       percent of the rate while the colonist is guarded
+#       guarded: 100
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 0
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: 0
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: 0
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: 0
+
 ##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
 #     consequence-every: 0
 
@@ -590,6 +622,32 @@ siting-auto: true
 
 ##       percent of the base rate in the unconscious drive activity
 #       unconscious: 10
+
+#     place:
+##       percent of the rate while the colonist is home
+#       home: 100
+
+##       percent of the rate while the colonist is settled
+#       settled: 100
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 100
+
+##       percent of the rate while the colonist is guarded
+#       guarded: 100
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 0
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: 0
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: 0
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: 0
 
 ##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
 #     consequence-every: 0
@@ -632,6 +690,32 @@ siting-auto: true
 ##       percent of the base rate in the unconscious drive activity
 #       unconscious: 0
 
+#     place:
+##       percent of the rate while the colonist is home
+#       home: 100
+
+##       percent of the rate while the colonist is settled
+#       settled: 100
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 100
+
+##       percent of the rate while the colonist is guarded
+#       guarded: 100
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 0
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: 0
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: 0
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: 0
+
 ##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
 #     consequence-every: 200
 
@@ -673,8 +757,101 @@ siting-auto: true
 ##       percent of the base rate in the unconscious drive activity
 #       unconscious: -100
 
+#     place:
+##       percent of the rate while the colonist is home
+#       home: 100
+
+##       percent of the rate while the colonist is settled
+#       settled: 100
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 100
+
+##       percent of the rate while the colonist is guarded
+#       guarded: 100
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 0
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: 0
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: 0
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: 0
+
 ##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
 #     consequence-every: 0
+
+#   safety:
+##     base growth per tick, in thousandths of a point
+#     rate: 1000
+
+##     floor the level never falls below
+#     min: 0
+
+##     level at which the colonist drops work to satisfy it
+#     seek-at: 600
+
+##     level at which the drive becomes critical
+#     critical-at: 850
+
+##     ceiling; the drive's consequences there apply while it sits here
+#     max: 1000
+
+##     ticks spent using the facility (0: until the drive falls to 0, as sleep does in bed)
+#     use-ticks: 0
+
+##     ticks at the facility before carrying the rest away (0 = must be used in place)
+#     grab-ticks: 0
+
+#     activity:
+##       percent of the base rate in the asleep drive activity
+#       asleep: 100
+
+##       percent of the base rate in the idle drive activity
+#       idle: 100
+
+##       percent of the base rate in the working drive activity
+#       working: 100
+
+##       percent of the base rate in the labor drive activity
+#       labor: 100
+
+##       percent of the base rate in the unconscious drive activity
+#       unconscious: 100
+
+#     place:
+##       percent of the rate while the colonist is home
+#       home: -300
+
+##       percent of the rate while the colonist is settled
+#       settled: -50
+
+##       percent of the rate while the colonist is frontier
+#       frontier: 200
+
+##       percent of the rate while the colonist is guarded
+#       guarded: -200
+
+##     percent added to the frontier's for each level below the landing level
+#     place-depth: 50
+
+#     armed:
+##       percent change to the rate while the best weapon carried is a pistol
+#       pistol: -25
+
+##       percent change to the rate while the best weapon carried is a shotgun
+#       shotgun: -35
+
+##       percent change to the rate while the best weapon carried is a rifle
+#       rifle: -50
+
+##     ticks between repeats of the drive's felt consequence while it stays in range (0: once until satisfied)
+#     consequence-every: 200
 
 ## HP lost per tick while a drive's death consequence applies
 # starve-damage: 1
@@ -958,6 +1135,33 @@ siting-auto: true
 
 ## percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's
 # talk-gossip-percent: 10
+
+## how many retellings news survives in conversation (0: hearsay off)
+# hearsay-max-hops: 2
+
+## percent of its weight hearsay keeps at each retelling after the first
+# hearsay-hop-percent: 50
+
+## clock hour of the evening news broadcast (-1: no news)
+# news-hour: 21
+
+## days of news the colony keeps for the News panel
+# news-days: 30
+
+## ticks a want's order rests on the book before the colonist decides again
+# want-ttl: 1080
+
+## lapsed orders on one rung before a colonist that can afford the next looks past it
+# want-patience: 3
+
+## ticks a rung just taken is given to work before the next is wanted
+# want-settle-ticks: 1080
+
+## percent of a gun's price a colonist will pay at its safety drive's ceiling
+# gun-willingness: 150
+
+## meals' worth of money a colonist keeps back from anything a want would buy
+# want-reserve-meals: 4
 
 # ── Meeting hall ────────────────────────────────────────────────────────
 ## the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)

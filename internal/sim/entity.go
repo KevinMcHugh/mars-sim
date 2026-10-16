@@ -282,6 +282,7 @@ const (
 	JobTend             // keep its chickens' trough in feed: scrape scum, mix feed at a scumhouse, fill the trough (see chickens.go)
 	JobGuard            // hold a station in a defense zone and shoot what threatens it (see defense.go)
 	JobAid              // walk to a casualty and bring it round (see casualty.go)
+	JobFetch            // collect a gun it bought from the depot at Target (see wants.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -317,6 +318,21 @@ type Memory struct {
 	Count    int // occurrences folded into this memory; 1 when uncollapsed
 	Text     string
 	Rule     RuleID // stable reaction identity used for consecutive collapse
+	// Gist is what the memory is of, so it can be retold as hearsay and so
+	// the news can tell who already knows (see news.go). nil for none.
+	Gist *MemoryGist
+}
+
+// MemoryGist is the occurrence a memory holds: who did what to whom, the
+// colonist's own first-hand words for it, and how many retellings it came
+// through (0: saw it, or heard it on the news). Never mutated once made, so a
+// snapshot may share it.
+type MemoryGist struct {
+	Actor  FactRef
+	Action ActionID
+	Object FactRef
+	Text   string
+	Hops   int
 }
 
 // Entity is a single actor in the world. Rather than a strict ECS, we use one
@@ -368,16 +384,30 @@ type Entity struct {
 	// drive effects running on it, and nextEffectTick the earliest tick one
 	// of them changes stage (0: none). See drive_activity.go and
 	// drive_effects.go.
-	driveBase      [numDrives]int
-	driveTrait     [numDrives]int
-	driveActivity  DriveActivity
-	effects        []activeEffect
+	driveBase     [numDrives]int
+	driveTrait    [numDrives]int
+	driveActivity DriveActivity
+	// place and weaponRank are the place class and best weapon the rates
+	// were last composed for (see place.go).
+	place      PlaceClass
+	weaponRank int
+	effects    []activeEffect
+
 	nextEffectTick int
 	// passedOut is whether the colonist is unconscious where it fell (a
 	// drive's ConsequencePassOut), and passedOutDrive the drive that put it
 	// down; it comes to once that drive falls below CriticalAt. See passOut.
 	passedOut      bool
 	passedOutDrive DriveKind
+	// newsHeard is the Seq of the first news item it has not heard yet
+	// (news.go).
+	newsHeard int
+	// wants is where it is on each drive's ladder of wants (wants.go).
+	wants [numDrives]wantState
+	// gunWaiting is the weaponRank of a gun it bought and has not yet
+	// fetched from the depot it was bought at (0: none).
+	gunWaiting int
+
 	// Aid (colonists only; see casualty.go). aidTarget is the casualty this
 	// colonist holds the claim on while it helps; aidedBy, on a casualty, is
 	// that helper. aidPassedBy is who a casualty's rescue was offered to and

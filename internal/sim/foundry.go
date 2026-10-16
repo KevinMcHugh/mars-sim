@@ -115,9 +115,12 @@ func (w *World) ownStockFor(e *Entity, b *Order) (ownStock, bool) {
 	if !suppliable(b.Item) {
 		return ownStock{}, false
 	}
-	if n := e.ownCarried(b.Item); n > 0 {
+	// A weapon in its hand is not stock: a colonist does not sell the gun it
+	// carries (one waiting in a depot, it may).
+	if n := e.ownCarried(b.Item); n > 0 && !b.Item.isWeapon() {
 		return ownStock{from: e.Pos, n: n, carried: true}, true
 	}
+
 	me := ColonistOwner(e.ID)
 	if c := w.storageContainers[b.Depot]; c != nil {
 		if n := c.held(me, b.Item); n > 0 {

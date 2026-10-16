@@ -213,7 +213,11 @@ func (w *World) landShip(n int, l shipLayout, o Point, crashed, announce bool) *
 			who = fmt.Sprintf("%d settlers", n)
 		}
 		w.logEventAt(LogArrival, o.Add(l.width/2, l.height/2), fmt.Sprintf("A %s colony ship %s at (%d, %d): %s aboard.", l.shape, how, o.X, o.Y, who))
+		if w.tick > 0 { // the founders all came down together: no news to anyone
+			w.reportShipArrival(s)
+		}
 	}
+
 	return s
 }
 

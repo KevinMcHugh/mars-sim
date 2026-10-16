@@ -17,6 +17,7 @@ func (w *World) step() {
 		w.landRestAloft() // nobody is left in orbit once the game starts
 	}
 	w.tick++
+	w.airNews()
 	for _, id := range w.entityTurnOrder() {
 		e := w.entities[id]
 		if e == nil || !e.Alive() {
@@ -35,8 +36,11 @@ func (w *World) step() {
 		switch e.Kind {
 		case Colonist:
 			w.colonistTurn(e)
+			w.hearNews(e)          // the evening news, once it is awake to hear it
+			w.postWants(e)         // what a pressing drive would buy (wants.go)
 			w.syncDriveActivity(e) // drives grow at the rate of what it is now doing
-			w.tallyActivity(e)     // the Activity tab's tally (read-only bookkeeping)
+
+			w.tallyActivity(e) // the Activity tab's tally (read-only bookkeeping)
 		default:
 			w.animalTurn(e)
 		}
@@ -821,6 +825,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobTend(e)
 	case JobGuard:
 		w.jobGuard(e)
+	case JobFetch:
+		w.jobFetch(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1046,7 +1052,10 @@ func (w *World) finishTalk(a, b *Entity) {
 		{Observer: b.ID, Target: conversationMoodVector(outcome + w.noteConversation(b))},
 	}
 	w.emitOccurrence(o)
+	// What the speaker recalled reaches the listener as hearsay.
+	w.tellHearsay(topic, listener)
 	// Company sought while lonely is its own experience, on top of how the
+
 	// talk went: a colonist who came to it with its social drive at seek-at
 	// or above "socialized". Read before jobTalk resets the drive.
 	for _, e := range []*Entity{a, b} {
@@ -1064,6 +1073,12 @@ func (w *World) finishTalk(a, b *Entity) {
 // first (life-support rooms), otherwise mine the frontier. Leaves JobNone if
 // nothing suitable is reachable.
 func (w *World) assignWorkJob(e *Entity) {
+	// A gun it bought, waiting at a depot, before anything else: it goes out
+	// to the frontier armed.
+	if w.tryFetchGun(e) {
+		return
+	}
+
 	// A meal in its pockets before it's hungry, so hunger never starts with a
 	// walk across the colony (see food.go).
 	if w.tryPocketMeal(e) {

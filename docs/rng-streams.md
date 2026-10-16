@@ -14,7 +14,7 @@ the RNG half of save/load ([save-load.md](./save-load.md)).
 
 - `internal/sim/rng.go`: `newPCG` / `newRand` (seeding), `rngSources`,
   `rngState`, and `World.saveRNG` / `World.loadRNG`.
-- `internal/sim/world.go`: `newWorld` builds `rng`, `prng`, `agePRNG`, `skillRNG`, `topicRNG`, `recruitRNG` and `compassionRNG`.
+- `internal/sim/world.go`: `newWorld` builds `rng`, `prng`, `agePRNG`, `skillRNG`, `topicRNG`, `recruitRNG`, `compassionRNG` and `daringRNG`.
 - `internal/sim/caverns.go`: `trackCavernsForNests` builds `nestRNG`.
 - `internal/sim/worldgen_chunks.go`: `featureRand`, the per-chunk worldgen
   streams.
@@ -32,6 +32,8 @@ the RNG half of save/load ([save-load.md](./save-load.md)).
 | `World.topicRNG` (conversation topics) | `Seed ^ 0x2B7E151628AED2A6` | whole game | yes |
 | `World.recruitRNG` (recruiter's candidates, where recruits arrive) | `Seed ^ 0x1F83D9ABFB41BD6B` | whole game | yes |
 | `World.compassionRNG` (the Caring/Callous trait group) | `Seed ^ 0x6C62272E07BB0142` | whole game | yes |
+| `World.daringRNG` (the Bold/Timid trait group, colonists and recruits) | `Seed ^ 0x2F8B1D93A4C76E15` | whole game | yes |
+
 | worldgen veins, per chunk and level | `featureRand(0x243F6A8885A308D3 + level, cx, cy)` | one plan | no |
 | worldgen cave scum, per chunk | `featureRand(0x5CA1AB1E, cx, cy)` | one plan | no |
 | worldgen salt, per chunk | `featureRand(0x5A17D0C5, cx, cy)` | one plan | no |

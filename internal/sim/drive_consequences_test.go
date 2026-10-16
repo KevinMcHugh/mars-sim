@@ -23,7 +23,9 @@ func TestShippedCeilingConsequences(t *testing.T) {
 		DriveBladder: ConsequenceSoiling,
 		DriveSocial:  ConsequenceLoneliness,
 		DriveSleep:   ConsequencePassOut,
+		DriveSafety:  ConsequenceUnsafe,
 	}
+
 	for d := DriveKind(0); d < numDrives; d++ {
 		spec := cfg.Drives[d]
 		if got := spec.CeilingConsequence(); got != want[d] {

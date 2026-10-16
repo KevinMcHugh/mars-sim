@@ -214,6 +214,10 @@ const (
 	// on their own stream (see rollCompassion), not with the rest.
 	TraitCaring
 	TraitCallous
+	// TraitBold and TraitTimid are the daring group: how readily a colonist
+	// feels unsafe (DriveSafety). Rolled on their own stream (rollOwnGroup).
+	TraitBold
+	TraitTimid
 
 	numTraits // keep last
 )
@@ -248,6 +252,9 @@ const (
 	// casualty.go). It changes behavior, so it is not flavor, and it is rolled
 	// on its own stream so adding it moved no other trait any seed rolls.
 	groupCompassion
+	// groupDaring is how readily a colonist feels unsafe (see docs/safety.md).
+	// It is rolled on its own stream, like compassion, for the same reason.
+	groupDaring
 
 	numTraitGroups // keep last
 )
@@ -327,11 +334,11 @@ var traitSpecs = [numTraits]traitSpec{
 	},
 	TraitResilient: {
 		Name: "Resilient", Desc: "Slow to grow numb; repeated experiences stay relatively fresh.",
-		group: groupNerve,
+		group: groupNerve, driveRate: [numDrives]int{DriveSafety: -20},
 	},
 	TraitCowardly: {
 		Name: "Cowardly", Desc: "Rattled easily, and worn down quickly by threats.",
-		group: groupNerve,
+		group: groupNerve, driveRate: [numDrives]int{DriveSafety: +50},
 	},
 	TraitOptimist: {
 		Name: "Optimist", Desc: "Settles back into expecting things to work out.",
@@ -358,6 +365,15 @@ var traitSpecs = [numTraits]traitSpec{
 	TraitCallous: {
 		Name: "Callous", Desc: "Looks after family; everyone else can look after themselves.",
 		group: groupCompassion,
+	},
+	TraitBold: {
+		Name: "Bold", Desc: "Steady under fire, and shrugs off rumors.",
+		group: groupDaring, driveRate: [numDrives]int{DriveSafety: -40},
+		// The sight and hearsay discounts are cognition trait rules.
+	},
+	TraitTimid: {
+		Name: "Timid", Desc: "Jumps at shadows; the frontier wears on them fast.",
+		group: groupDaring, driveRate: [numDrives]int{DriveSafety: +40},
 	},
 }
 
@@ -442,6 +458,7 @@ func (w *World) assignPersonality(e *Entity) {
 	// are rollProfile, which the lab's WASM build calls without a world.
 	e.Profile = rollProfile(w.prng, w.agePRNG, w.cfg.TraitChance)
 	addCompassion(e.Profile, w.compassionRNG, w.cfg.TraitChance)
+	addDaring(e.Profile, w.daringRNG, w.cfg.TraitChance)
 	w.settlePersonality(e)
 }
 
@@ -554,21 +571,33 @@ func rollTraits(r *rand.Rand, traitChance int) []Trait {
 // own rather than in rollTraits. A group added after seeds were in play is
 // rolled apart, so it shifts no draw of the groups before it: every colonist
 // keeps the traits it had, and gains the new group's on top.
-func ownStreamGroup(g traitGroup) bool { return g == groupCompassion }
+func ownStreamGroup(g traitGroup) bool { return g == groupCompassion || g == groupDaring }
 
-// rollCompassion draws the compassion group the way rollTraits draws every
+// rollOwnGroup draws an own-stream group g the way rollTraits draws every
 // other: taken with TraitChance probability, then one of its traits.
-func rollCompassion(r *rand.Rand, traitChance int) (Trait, bool) {
-	group := rollableTraitsInGroup(groupCompassion)
+func rollOwnGroup(g traitGroup, r *rand.Rand, traitChance int) (Trait, bool) {
+	group := rollableTraitsInGroup(g)
 	if len(group) == 0 || r.IntN(100) >= traitChance {
 		return 0, false
 	}
 	return group[r.IntN(len(group))], true
 }
 
+// rollCompassion draws the compassion group.
+func rollCompassion(r *rand.Rand, traitChance int) (Trait, bool) {
+	return rollOwnGroup(groupCompassion, r, traitChance)
+}
+
 // addCompassion gives p a compassion trait from r, if it rolls one.
 func addCompassion(p *Profile, r *rand.Rand, traitChance int) {
 	if t, ok := rollCompassion(r, traitChance); ok {
+		p.Traits = append(p.Traits, t)
+	}
+}
+
+// addDaring gives p a daring trait (Bold, Timid) from r, if it rolls one.
+func addDaring(p *Profile, r *rand.Rand, traitChance int) {
+	if t, ok := rollOwnGroup(groupDaring, r, traitChance); ok {
 		p.Traits = append(p.Traits, t)
 	}
 }
@@ -613,6 +642,9 @@ func (g traitGroup) labID() string {
 		return "outlook"
 	case groupCompassion:
 		return "compassion"
+	case groupDaring:
+		return "daring"
+
 	default:
 		return "trait"
 	}

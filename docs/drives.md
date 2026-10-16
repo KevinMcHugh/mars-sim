@@ -4,8 +4,9 @@
 
 ## What it is
 
-Colonists have four **drives** — food (hunger), bladder, social (company) and
-sleep — that build up over time and that they act to satisfy. A drive is a
+Colonists have five **drives** — food (hunger), bladder, social (company),
+sleep and safety — that build up over time. They act to satisfy the first
+four; safety is felt, not sought (see *Unsought drives* below). A drive is a
 score between a minimum and a maximum. How fast it grows is a base rate scaled
 by stacked modifiers: what the colonist is doing, its traits, the bands other
 drives sit in, and timed **effects** such as a substance. What a level does to
@@ -53,6 +54,7 @@ Each `DriveKind` has a `DriveSpec` in `Config.Drives`, indexed by the kind:
 | bladder | 3000 | 600 | 900 | 1000 | Toilet | 10 | 0 | soiling |
 | sleep | 1000 | 720 | 900 | 1000 | Bed | 0 (until met) | 0 | passing out |
 | social | 2000 | 500 | 850 | 1000 | conversation | — | — | loneliness, every 200 ticks |
+| safety | 1000 | 600 | 850 | 1000 | none (where the colonist is) | — | — | feeling unsafe, every 200 ticks |
 
 Levels are whole points from `Min` (0) to `Max`; 0 means satisfied. Rates are in
 thousandths of a point per tick (`driveUnit = 1000`), so 1750 is 1.75 points a
@@ -101,6 +103,8 @@ seed always gives the same rates:
 ```
 rate = entity base rate + Σ effect Add
 rate = rate × activity%             // colonists only: DriveSpec.Activity[driveActivity]
+rate = rate × place%                // colonists only: DriveSpec.Place[place class] (+PlaceDepth on the frontier)
+rate = rate × (100 + armed)%        // colonists only: DriveSpec.Armed[best weapon], 0 unarmed
 rate = rate × trait%                // Entity.driveTrait, from the traits' driveRate
 rate = rate × (100 + coupling)%     // each ConsequenceRate on this drive from another drive's band
 rate = rate × (100 + effect)%       // each running effect's RateChange
@@ -116,7 +120,32 @@ is Big Eater (150%), Light Eater is −30, Introvert's social −50, Extrovert's
 that does not mention a drive needs nothing written. Effect `RateChange` and
 coupling `Value` read the same way.
 
+### Place and weapon
+
+Two more colonist inputs, both 100% (no change) for every drive but safety:
+the **place class** where the colonist stands (home, settled, frontier,
+guarded; `DriveSpec.Place`, and `PlaceDepth` added on the frontier per level
+below the landing level) and the **best weapon** it carries
+(`DriveSpec.Armed`, a percent change per pistol, shotgun, rifle).
+`syncDriveActivity` recomputes both after every turn with the drive
+activity, and refreshes the drives only when one has changed. They are
+settings: `drives.safety.place.frontier`, `drives.safety.armed.rifle`. See
+[safety.md](./safety.md).
+
+### Unsought drives
+
+`DriveSpec.Unsought` marks a drive that is felt, not acted on: it is never
+`mostUrgentDrive`, puts no focus forward in arbitration, does not make a
+pressing colonist think every tick, and starts at 0 instead of at a
+staggered random level (so it draws nothing from the simulation stream).
+Its bands and consequences apply as for any drive. Safety is the first:
+what it buys is the job of the wants layer, not of focus (see
+[safety.md](./safety.md)). It is identity, not a setting. A reaction in
+[`cognition.yaml`](../cognition.yaml) can also move any drive directly, with
+a `drives` row (see [compositional-perception-and-events.md](./compositional-perception-and-events.md)).
+
 ### Drive activities
+
 
 How strenuous what a colonist is doing is, as far as its drives are concerned.
 There are five classes, and each drive has a percent of its rate for each. A

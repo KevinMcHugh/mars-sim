@@ -283,6 +283,10 @@ type Config struct {
 	// docs/foundry.md.
 	ArmoryRifles      int   `cfg:"armory-rifles" sec:"Foundry" doc:"assault rifles the colony wants in its armory (0: it builds no foundry and buys none)"`
 	PriceAssaultRifle int64 `cfg:"price-assault-rifle" doc:"what the colony pays for an assault rifle at its silo"`
+	// What the other guns are worth to a colonist who wants one, before any
+	// has traded. Nobody makes them yet: they come to market secondhand.
+	PricePistol  int64 `cfg:"price-pistol" doc:"what a pistol is worth before one has traded"`
+	PriceShotgun int64 `cfg:"price-shotgun" doc:"what a shotgun is worth before one has traded"`
 
 	// Colony standing orders. With StandingOrdersBuildOnly, the colony posts
 	// no standing orders but its silo bids for building materials
@@ -563,6 +567,29 @@ type Config struct {
 	TalkTopicColonistWeight int `cfg:"talk-topic-colonist-weight" doc:"relative weight of talking about another colonist (0 never)"`
 	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species or a corporation (0 never)"`
 	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
+
+	// Hearsay and the news. A memory recounted in conversation reaches the
+	// listener as hearsay, and can be retold up to HearsayMaxHops times, each
+	// retelling past the first landing HearsayHopPercent as hard. Every
+	// evening at NewsHour the colony hears the day's major news (deaths,
+	// arrivals). See news.go and docs/safety.md.
+	HearsayMaxHops    int `cfg:"hearsay-max-hops" doc:"how many retellings news survives in conversation (0: hearsay off)"`
+	HearsayHopPercent int `cfg:"hearsay-hop-percent" doc:"percent of its weight hearsay keeps at each retelling after the first"`
+	NewsHour          int `cfg:"news-hour" doc:"clock hour of the evening news broadcast (-1: no news)"`
+	NewsDays          int `cfg:"news-days" doc:"days of news the colony keeps for the News panel"`
+
+	// Wants: what a pressing drive buys (wants.go). A want's order rests for
+	// WantTTL, and on lapsing the colonist decides again; after WantPatience
+	// lapses on one rung it may look past it. A rung just taken is given
+	// WantSettleTicks to work before the next is wanted. A gun is worth up
+	// to GunWillingness percent of its price at the drive's ceiling.
+	WantTTL         int `cfg:"want-ttl" doc:"ticks a want's order rests on the book before the colonist decides again"`
+	WantPatience    int `cfg:"want-patience" doc:"lapsed orders on one rung before a colonist that can afford the next looks past it"`
+	WantSettleTicks int `cfg:"want-settle-ticks" doc:"ticks a rung just taken is given to work before the next is wanted"`
+	GunWillingness  int `cfg:"gun-willingness" doc:"percent of a gun's price a colonist will pay at its safety drive's ceiling"`
+	// WantReserveMeals is how many meals' worth of money a colonist keeps
+	// back from any want: food comes first.
+	WantReserveMeals int `cfg:"want-reserve-meals" doc:"meals' worth of money a colonist keeps back from anything a want would buy"`
 
 	// The meeting hall: a room of chairs the colony commissions, where
 	// colonists go to socialize and to eat. See docs/meeting-hall.md.
@@ -888,6 +915,8 @@ func DefaultConfig() Config {
 		// walk (see docs/foundry.md for the arithmetic).
 		ArmoryRifles:      4,
 		PriceAssaultRifle: 60,
+		PricePistol:       20,
+		PriceShotgun:      35,
 		WageDig:           2,
 		WageWall:          2,
 		WageFixture:       5,
@@ -1024,6 +1053,17 @@ func DefaultConfig() Config {
 		TalkTopicColonistWeight: 3,
 		TalkTopicLoreWeight:     2,
 		TalkGossipPercent:       10,
+
+		HearsayMaxHops:    2,
+		HearsayHopPercent: 50,
+		NewsHour:          21,
+		NewsDays:          30,
+
+		WantTTL:          1080,
+		WantPatience:     3,
+		WantSettleTicks:  1080,
+		GunWillingness:   150,
+		WantReserveMeals: 4,
 
 		MoodMax:                   defaultMoodMax,
 		ConversationCompanyWeight: 6,

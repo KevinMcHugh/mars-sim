@@ -80,6 +80,10 @@ type EntityView struct {
 	// Backstory is a colonist's one-line past, "Worked as a drill operator
 	// for MarsCorp." ("" for none). Flavor only; see docs/arms-makers.md.
 	Backstory string
+	// Want is what a pressing drive would have it buy, and what it will pay
+	// ("Wants a gun: will pay up to $15; has $61."), empty when nothing
+	// presses. See wants.go.
+	Want string
 
 	// Dead, DiedTick, and Cause are set only on a Snapshot.Graveyard or
 	// Snapshot.Deceased entry: it died at DiedTick (from Cause, a short
@@ -497,6 +501,12 @@ type Snapshot struct {
 	// The map is shared by every snapshot published between two deaths, so
 	// it must not be modified.
 	Deceased map[EntityID]EntityView
+	// News is every evening broadcast the colony still keeps, newest first,
+	// and NewsHour the clock hour they air at (-1: none). Shared by every
+	// snapshot until the next broadcast, so it must not be modified. See
+	// news.go.
+	News     []NewsBroadcast
+	NewsHour int
 	// Log is the retained colony log, oldest first. Kind is the type column;
 	// Text is the sentence. See log.go.
 	Log        []LogEntry
@@ -862,24 +872,27 @@ func (w *World) snapshot(paused bool, tps int) *Snapshot {
 		Remains:              w.publishedRemains(),
 		Graveyard:            append([]EntityView(nil), w.graveyard...),
 		Deceased:             w.publishedDeceasedColonists(),
-		AlienSpecies:         append([]AlienSpecies(nil), w.alienSpecies...),
-		Sprites:              w.sprites.SVGs,
-		AlienLore:            w.speciesLore,
-		SpriteOf:             w.sprites.Of,
-		Corporations:         append([]Corporation(nil), w.corporations...),
-		GunModels:            append([]GunModel(nil), w.gunModels...),
-		Population:           w.popHist,
-		Metrics:              w.metricsView(),
-		Economy:              w.economyView(),
-		Recruiting:           w.recruitingView(),
-		AffinityMax:          w.cfg.AffinityMax,
-		MoodMax:              w.cfg.MoodMax,
-		ScumMax:              w.cfg.ScumMax,
-		Ships:                w.shipViews(),
-		Paused:               paused,
-		TicksPerSecond:       tps,
-		FogOfWar:             w.cfg.FogOfWar,
-		previews:             previews,
+		News:                 w.publishedNewsBroadcasts(),
+		NewsHour:             w.cfg.NewsHour,
+
+		AlienSpecies:   append([]AlienSpecies(nil), w.alienSpecies...),
+		Sprites:        w.sprites.SVGs,
+		AlienLore:      w.speciesLore,
+		SpriteOf:       w.sprites.Of,
+		Corporations:   append([]Corporation(nil), w.corporations...),
+		GunModels:      append([]GunModel(nil), w.gunModels...),
+		Population:     w.popHist,
+		Metrics:        w.metricsView(),
+		Economy:        w.economyView(),
+		Recruiting:     w.recruitingView(),
+		AffinityMax:    w.cfg.AffinityMax,
+		MoodMax:        w.cfg.MoodMax,
+		ScumMax:        w.cfg.ScumMax,
+		Ships:          w.shipViews(),
+		Paused:         paused,
+		TicksPerSecond: tps,
+		FogOfWar:       w.cfg.FogOfWar,
+		previews:       previews,
 	}
 }
 
@@ -959,6 +972,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		ev.Skills = e.skillViews()
 		ev.Profession, ev.ProfessionLabel = e.profession, e.professionLabel()
 		ev.Backstory = w.backstory(e)
+		ev.Want = w.wantLine(e)
 		if full {
 			ev.Relations = append([]Relation(nil), w.cachedRelations(e, kinChildren)...)
 			ev.Affinities = w.affinitiesOf(e.ID)

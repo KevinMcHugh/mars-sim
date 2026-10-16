@@ -1,4 +1,4 @@
-# Safety and bodyguards (proposal)
+# Safety and bodyguards
 
 > Part of the [mars-sim documentation](./README.md).
 
@@ -19,7 +19,10 @@ book: a bid for a gun, a bid for a better one, and at the top, an escort
 contract an armed colonist takes the way it takes a post in a
 [defense zone](./defense.md).
 
-Nothing here is built.
+S1 to S3 are built: the safety drive, what moves it, the traits that temper
+it, hearsay, the nightly news, and wants, with safety's first two rungs (a
+gun, a better gun). From S4 on (bodyguards) it is a proposal. *Built so far* below records where the build departed from the
+plan and what it measured.
 
 ## Decisions already made
 
@@ -35,44 +38,79 @@ Nothing here is built.
 
 | Phase | What ships | Status |
 | --- | --- | --- |
-| S1 | The safety drive: a place-dependent rate (home, settled, frontier, guarded), bumps from percepts through a `drives` field on reactions in `cognition.yaml`, the felt-unsafe experience at the ceiling, and the disposition traits (Bold/Timid, and safety rules on nerve and outlook). No behavior beyond affect. | Proposed |
-| S2 | Hearsay and the nightly news: a recounted memory reaches the listener as a percept on a new `hearsay` channel, so hearing about a killing or a sighting is a reaction row; the dead become conversation topics; an evening broadcast on a `broadcast` channel reports the day's deaths, then arrivals. | Proposed |
-| S3 | Wants: one willingness-to-pay rule for any drive, ladders of rungs, the hook that posts an order when a drive presses, and the inspector line that explains it. Safety's first two rungs: a gun, then a better gun, with the old one sold on. | Proposed |
+| S1 | The safety drive: a place-dependent rate (home, settled, frontier, guarded), bumps from percepts through a `drives` field on reactions in `cognition.yaml`, the felt-unsafe experience at the ceiling, and the disposition traits (Bold/Timid, and safety rules on nerve and outlook). No behavior beyond affect. | Shipped |
+| S2 | Hearsay and the nightly news: a recounted memory reaches the listener as a percept on a new `hearsay` channel, so hearing about a killing or a sighting is a reaction row; an evening broadcast on a `broadcast` channel reports the day's deaths and arrivals. | Shipped |
+| S3 | Wants: one willingness-to-pay rule for any drive, ladders of rungs, the hook that posts an order when a drive presses, and the inspector line that explains it. Safety's first two rungs: a gun, then a better gun, with the old one sold on; pistols and shotguns machined at the gun bench (pulled forward from S6). | Shipped |
 | S4 | Bodyguards: `WorkEscort` contracts escrowed from the client, `JobEscort` as a guard post that follows a colonist, protection as a place class, the calm-to-serve rule for every guard post, the guarding skill, and escorts on the Market tab. | Proposed |
 | S5 | Critical safety: retreating home, turning down frontier work, restless nights. | Proposed |
-| S6 | Chipping in to a defense zone's wages; pistols and shotguns made at the gun bench. | Proposed |
+| S6 | Chipping in to a defense zone's wages. | Proposed |
 
 ## Source
 
-What changes, when built:
+Built (S1, S2):
 
 - [`internal/sim/drives.go`](../internal/sim/drives.go): `DriveSafety` and
-  its `DriveSpec` in `defaultDrives`; a place modifier in `driveRate`.
-- `internal/sim/place.go` (new): `PlaceClass` (home, settled, frontier,
-  guarded), `placeOf`, and `syncPlace`, the place twin of
-  `syncDriveActivity`.
-- [`internal/sim/personality.go`](../internal/sim/personality.go): the
-  `daring` trait group (Bold, Timid); safety rates on Resilient, Cowardly,
-  Optimist and Pessimist.
-- [`internal/sim/skills.go`](../internal/sim/skills.go): `SkillGuarding`.
+  its `DriveSpec` in `defaultDrives`; `DriveSpec.Place`, `PlaceDepth`,
+  `Armed` and `Unsought`; the place and weapon steps in `driveRate`;
+  `mostUrgentDrive` skipping an unsought drive.
+- [`internal/sim/place.go`](../internal/sim/place.go): `PlaceClass` (home,
+  settled, frontier, guarded), `placeOf`, `guardedAt`, `atHome`,
+  `homeRooms`, `placePercent`, and the daring stream's seed.
+- [`internal/sim/drive_activity.go`](../internal/sim/drive_activity.go):
+  `syncDriveActivity` also watches the place class and the best weapon.
+- [`internal/sim/focus.go`](../internal/sim/focus.go): an unsought drive puts
+  no focus forward and never wakes the colonist to think.
+- [`internal/sim/drive_bands.go`](../internal/sim/drive_bands.go):
+  `ConsequenceUnsafe`, an experience like loneliness.
+- [`internal/sim/personality.go`](../internal/sim/personality.go),
+  [`recruit.go`](../internal/sim/recruit.go), [`rng.go`](../internal/sim/rng.go):
+  the `daring` group (Bold, Timid) on its own stream (`rollOwnGroup`,
+  `addDaring`, `daringRNG`); safety rates on Resilient and Cowardly.
 - [`internal/sim/cognition_config.go`](../internal/sim/cognition_config.go):
-  a `drives` field on reactions, the `hearsay` channel, and the `die`,
-  `guard` and `hear` vocabulary.
-- [`internal/sim/world.go`](../internal/sim/world.go): `rememberPercept`
-  applies a reaction's drive bumps.
+  `ReactionSpec.Drives` (`DriveBump`) and its YAML `drives` field, the
+  `hearsay` and `broadcast` channels (`deliveredChannel`: no perception rule
+  may sense on them), the `danger`, `ship`, `die` and `arrive` vocabulary, the
+  bumps, the hearsay and news reactions, and the daring and outlook trait
+  rules.
+- [`internal/sim/affect.go`](../internal/sim/affect.go): `applyDriveBumps`,
+  at the wear and trait scale the affect was read at; hearsay's hop scaling.
+- [`internal/sim/entity.go`](../internal/sim/entity.go),
+  [`world.go`](../internal/sim/world.go): `Memory.Gist` (`MemoryGist`),
+  recorded by `rememberPercept`; the news fields; reporting a death from
+  `remove`.
 - [`internal/sim/topics.go`](../internal/sim/topics.go),
-  [`systems.go`](../internal/sim/systems.go) (`finishTalk`): hearsay
-  percepts for the listener; the dead as topics.
-- [`internal/sim/entity.go`](../internal/sim/entity.go): `Memory` gains the
-  gist of the occurrence it holds and a hop count.
-- `internal/sim/news.go` (new): `NewsItem`, `reportNews`, `broadcastNews`,
-  and each colonist's cursor into the news; deaths report from where a
-  colonist is removed, arrivals from ship landings and recruiting.
-- `internal/sim/wants.go` (new): `wantSpec`, `wantRung`, `willingness`,
-  `postWants`; safety's ladder.
-- [`internal/sim/combat.go`](../internal/sim/combat.go),
-  [`inventory.go`](../internal/sim/inventory.go): reference prices for the
-  pistol and shotgun; a bought gun fetched from its depot.
+  [`systems.go`](../internal/sim/systems.go): `tellHearsay` and `knows`,
+  called from `finishTalk`; `recountableMemories` retelling what was heard;
+  `airNews` and `hearNews` in `step`.
+- [`internal/sim/news.go`](../internal/sim/news.go): `NewsItem`,
+  `reportNews`, `airNews`, `hearNews`, `reportDeath`, `reportShipArrival`
+  (from `landShip`), `reportRecruits` (from `hireRecruits`).
+- [`cognition.yaml`](../cognition.yaml), [`mars-sim.yaml`](../mars-sim.yaml):
+  the rows and settings above.
+- [`internal/sim/safety_test.go`](../internal/sim/safety_test.go).
+
+Built (S3):
+
+- [`internal/sim/wants.go`](../internal/sim/wants.go): `wantRung`,
+  `wantSpec`, `wantState`, `willingness`, `postWants` (`runWant`),
+  `wantLine` (the inspector's sentence); safety's ladder (`safetyRungs`,
+  `gunValue`, `bestGunOwned`, `bidForGun`); fetching a bought gun
+  (`tryFetchGun`, `jobFetch`, `JobFetch`) and putting the old one on sale.
+- [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go): the pistol
+  and shotgun recipes at the gun bench.
+- [`internal/sim/foundry.go`](../internal/sim/foundry.go): `ownStockFor`
+  never counts the gun in a colonist's hand.
+- [`internal/sim/systems.go`](../internal/sim/systems.go): `postWants` after
+  every colonist turn; `tryFetchGun` first in `assignWorkJob`.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go),
+  [`internal/wire/inspect.go`](../internal/wire/inspect.go),
+  [`web/src/ui/InspectPanel.svelte`](../web/src/ui/InspectPanel.svelte):
+  `EntityView.Want`, the entity topic's `want`, shown under Drives.
+- [`internal/sim/wants_test.go`](../internal/sim/wants_test.go).
+
+Proposed (S4 on):
+
+- [`internal/sim/skills.go`](../internal/sim/skills.go): `SkillGuarding`.
 - [`internal/sim/workorder.go`](../internal/sim/workorder.go): `WorkEscort`.
 - [`internal/sim/defense.go`](../internal/sim/defense.go): the post grows a
   second shape, an area that follows a client; `tryAssignEscort`,
@@ -90,9 +128,16 @@ Safety is a drive like the other four (see [drives.md](./drives.md)): a
 level from 0 (feels safe) to `Max` (terrified), lazily evaluated, cut into
 bands. It is a drive and not a fourth affect axis because it has to do the
 things drives do and affect does not: accumulate rather than decay toward a
-home, cross thresholds on a schedule, emit pressure into focus, and say how
-much a colonist would pay. Affect still carries how it *feels*, through the
-reactions below.
+home, cross thresholds on a schedule, and (from S3) say how much a colonist
+would pay. Affect still carries how it *feels*, through the reactions below.
+
+It is the first **unsought** drive (`DriveSpec.Unsought`): felt, not acted
+on. It is never the most urgent drive, puts no focus forward, and does not
+make a pressing colonist think every tick. Its bands and its ceiling
+consequence apply as for any drive. S5's retreat is what would give it a
+focus. Colonists land calm: an unsought drive starts at 0 rather than at a
+staggered random level, which also keeps the simulation stream's draws
+where they were.
 
 | Drive | Rate | SeekAt | CriticalAt | Max | At the ceiling |
 | --- | --- | --- | --- | --- | --- |
@@ -120,9 +165,9 @@ rate = rate × place%      // DriveSpec.Place[placeClass], 100 for every other d
 | Place | Where | safety place% |
 | --- | --- | --- |
 | home | the colonist's own house, or the rooms of the ship it landed in | −300 |
-| settled | any other built room, or a residence zone | −50 |
-| frontier | anywhere else: dug passages, caverns, open rock faces | +200, plus `safety-depth-percent` (50) per level below the landing level |
-| guarded | inside a staffed defense zone, or within `escort-radius` of its own bodyguard | −200 |
+| settled | any zoned ground: every room stands in a zone (the player's or zoning-auto's), and ships hold theirs as residence | −50 |
+| frontier | anywhere else: dug passages, caverns, open rock faces, and every level but the landing level, which has no zones | +200, plus `drives.safety.place-depth` (50) per level below the landing level |
+| guarded | inside a defense zone that someone else is on station in (later: within `escort-radius` of its own bodyguard) | −200 |
 
 Guarded outranks the rest: a colonist with a bodyguard in a cavern is
 guarded, not on the frontier. At the shipped base rate a colonist out on
@@ -130,17 +175,18 @@ level 1's frontier goes from calm to uneasy in about 300 ticks, a little
 under seven hours, and a night at home takes it from the ceiling to zero.
 Two levels down it is about half that.
 
-`placeOf` is computed only when the colonist changes region or a room or
-zone under it changes, the same moments that already invalidate its room;
-`syncPlace` compares it with the class the rates were composed for and
-refreshes only on a change, so it costs one comparison on a tick when
-nothing moves. The guarded class is set from the guard's side (below): an
-escort entering or leaving `escort-radius` flips the client's flag and
-calls `refreshDrive`, so no client scans for its guard every tick.
+As built, `placeOf` runs after every colonist turn, in `syncDriveActivity`,
+which refreshes the drives only when the class (or the drive activity, or
+the best weapon) has changed. It is cheap enough not to need the cleverer
+plan: a zone lookup, the colonist's ship's bounds, the rooms it
+commissioned (indexed by commissioner once per change to the structure
+registry, `homeRooms`), and the defense posts, which are few. Using zones
+for "settled" rather than rooms means ground the player has zoned but not
+yet built on counts as settled: the colony has claimed it.
 
 Carrying a weapon is a trait-like modifier, not a place, and a better gun
 calms more: an armed colonist's safety rate changes by its best weapon's
-`safety-armed-*` percent, −25 for a pistol, −35 for a shotgun and −50 for
+`drives.safety.armed.*` percent, −25 for a pistol, −35 for a shotgun and −50 for
 an assault rifle. That difference is what makes the second rung of the
 ladder (below) worth buying. Disposition (below) scales it further.
 
@@ -170,8 +216,9 @@ not new traits:
 - **nerve.** Resilient −20 to the rate; Cowardly +50, and its existing
   `cowardly-visible-alien` and `cowardly-bitten` rules scale the bumps too,
   since a trait rule's impact scale applies to them.
-- **outlook.** Optimist discounts what it hears (hearsay bumps 70%) and
-  recovers faster at home (place% −400); Pessimist takes hearsay at 130%.
+- **outlook.** Optimist discounts what it hears (hearsay bumps 70%);
+  Pessimist takes hearsay at 130%. (Optimists recovering faster at home was
+  planned and is not built: a per-trait place percent has no mechanism yet.)
   Outlook is about how a colonist reads the world, so it bites on rumor
   rather than on what it sees with its own eyes.
 
@@ -180,7 +227,7 @@ colonist carrying a rifle on level 1's frontier builds safety at a quarter
 of an unarmed ordinary colonist's rate there (60% × 80% × 50%): about 28
 hours from calm to uneasy, against seven.
 
-**Skill.** `SkillGuarding` is practised by every tick on station, as a guard
+**Skill (S4).** `SkillGuarding` is practised by every tick on station, as a guard
 or an escort, and by every alien a guard fights. Base 4, the baseline: there
 is plenty of it once a colony keeps a detail, and a veteran should be
 plainly better than a recruit. Each rank cuts the frontier and guarded
@@ -207,12 +254,15 @@ fresh/worn pair affect uses:
     drives: { safety: { fresh: 400, worn: 250 } }
 ```
 
-`rememberPercept` already resolves a reaction's wear and trait scales
-before applying it; it applies the drive bump with the same resolved wear,
-through a new `bumpDrive(e, d, points)` that folds the growth so far and
-re-places the level in its band, like `setDrive`. Trait rules' `impact`
-scale applies to it too, so `cowardly-visible-alien` makes an alien
-scarier without a new rule.
+`applyAffect` already resolves a reaction's wear and trait scales; it hands
+the same wear level and the product of the trait rules' `impact` scales to
+`applyDriveBumps`, which adds each bump to the drive's true level through
+`refreshDrive`'s instant (so the band, phase and next crossing follow). So
+`cowardly-visible-alien` makes an alien scarier without a new rule, and the
+Bold and Timid rules (`bold-sight`, `timid-sight`, on the sight channel)
+scale every sight. A reaction with no `drives` row bumps nothing. In YAML a
+bump of 0/0 drops a drive's row, so a file can switch one off.
+
 
 Starting values (whole points):
 
@@ -234,42 +284,49 @@ softens again.
 
 ### What a colonist hears
 
-Conversations already carry memories: `chooseTopic` draws one of the
+Conversations already carried memories: `chooseTopic` draws one of the
 speaker's own and both remember "Had a conversation with Bo, who recalled:
-…". Today that is text only. S2 makes it a percept.
+…". That was text only. S2 makes it a percept.
 
-- `Memory` gains a **gist**: the occurrence's actor noun, action, object
-  noun and object relation, copied when `rememberPercept` records it, and a
-  **hop** count (0 for something the colonist saw itself).
-- When the topic is a memory with a gist, `finishTalk` hands the listener a
-  `Percept{Channel: hearsay, Role: witness}` built from the gist. Reactions
-  match it like any other percept:
+- `Memory` has a **gist** (`MemoryGist`): the occurrence's actor and object
+  (noun, entity, label) and action, the colonist's own first-hand words for
+  it, and a **hop** count (0 for something it saw itself, or heard on the
+  news). `rememberPercept` records it with every memory.
+- When the topic is a memory with a gist, `finishTalk` calls `tellHearsay`,
+  which hands the listener a `Percept{Channel: hearsay, Role: witness,
+  Hops: hop + 1}` built from the gist. Reactions match it like any other
+  percept; the shipped ones are `heard-colonist-killed`,
+  `heard-friend-killed`, `heard-colonist-attacked`, `heard-alien-sighting`,
+  `heard-colonist-died` and `heard-friend-died`:
 
 ```yaml
-# delivered by finishTalk, like the direct channel: no perception rule
-reactions:
+# delivered by tellHearsay, like the direct channel: no perception rule
   - id: heard-colonist-killed
-    match: { actor_noun: alien, action: kill, object_noun: colonist,
-             channel: hearsay, phase: instant }
-    memory: { record: true }
-    affect: { impact: 40, fresh: { charge: 10, grip: -20, valence: -30 },
-              worn: { charge: 5, grip: -25, valence: -30 } }
-    drives: { safety: { fresh: 150, worn: 100 } }
-    wear_policy: memory-occasions
-  - id: heard-alien-sighting
-    match: { actor_noun: alien, action: present, channel: hearsay }
-    drives: { safety: { fresh: 40, worn: 20 } }
+    match: { actor_noun: alien, action: kill, object_noun: colonist, channel: hearsay, phase: instant }
+    memory: { record: false }
+    affect: { impact: 40, fresh: { charge: 10, grip: -20, valence: -30 }, worn: { charge: 10, grip: -20, valence: -30 } }
+    wear_policy: none
+    drives: { safety: { fresh: 150, worn: 150 } }
 ```
 
-- The listener's memory reads "Heard from Ada that a grelk killed Cy.",
-  keeps the gist, and has `hop + 1`. A hearsay memory is recountable, so
-  news travels, but only to `hearsay-max-hops` (2), and each hop scales the
-  bump by `hearsay-hop-percent` (50): third-hand is a rumor.
-- **Deaths.** `gossipSubjects` lists living colonists only. The dead join
-  it while anyone remembers them, and a colonist topic about a dead colonist
-  carries the gist `colonist / die`, so "Talked with Bo about Cy, who was
-  killed." is a hearsay percept too. Friends (`object_relation: friend`)
-  take it hardest, as a trait-free rule.
+- **No second memory.** A hearsay reaction records nothing of its own: the
+  listener already remembers the conversation and what was recalled in it,
+  and a separate "Heard from Ada…" line would say it twice. Instead the
+  listener's memory of that conversation takes the gist, one hop on, and
+  that is what it can retell: `recountableMemories` offers a conversation
+  memory whose gist has `0 < hops < hearsay-max-hops`, with the first-hand
+  words as its text, so a retelling never nests quotes. The cost is wear:
+  with no memory per hearing, hearsay always lands at its fresh reading
+  (`wear_policy: none`).
+- **Hops.** News travels to `hearsay-max-hops` (2) retellings, and each one
+  past the first lands at `hearsay-hop-percent` (50) of the last, affect
+  impact and drive bump alike: third-hand is a rumor.
+- **Already knew** (`knows`). A listener whose memories hold the same gist
+  (the same who, what and whom), or for a death the killing, is not told
+  again, and nothing is passed on that no hearsay reaction cares about.
+- **Deaths.** Planned as the dead joining `gossipSubjects`; not built. A
+  death travels by word of mouth anyway, as the memory of seeing it, or of
+  hearing it on the news, retold.
 
 Hearsay is slow and uneven on purpose: a death is known first by the people
 who saw it and spreads as people talk. The nightly news makes sure it
@@ -282,49 +339,38 @@ bedtime) the colony hears the day's major news. It is the colony's one
 broadcast: one place where any system can put something everyone should
 know, and one reaction channel that says how hearing it feels.
 
-- **Reporting.** A system with news calls `reportNews(gist, subject,
-  text)` at its point of truth. The item joins `World.news`, in tick order,
-  with the same gist a memory carries (actor noun, action, object noun) and
-  the entity or ship it is about. Today: a colonist dies (`colonist / die`,
-  "Cy Ortega was killed by a grelk on level 2.", or starved, or fell). Next:
-  arrivals (`ship / land`, "A ship landed with 12 aboard."; a recruit
-  joining). Later, anything major: a nest found, a new species sighted, a
-  cavern broken into, a defense zone posted.
-- **Broadcasting.** At `news-hour`, `broadcastNews` walks living colonists
-  in ID order and hands each the items since its cursor as percepts on a new
-  `broadcast` channel, role witness, phase instant. A colonist asleep or
-  passed out at news time hears it when it next wakes; the cursor is what
-  makes that free. No RNG is drawn, so it is deterministic and costs one
-  pass a day.
-- **Already knew.** A colonist whose memories already hold the same gist
-  about the same subject (it saw the killing, or heard it over lunch) skips
-  that item, so a witness is not hit twice by one death.
-- **Reactions** are rows like any other:
-
-```yaml
-  - id: news-colonist-died
-    match: { actor_noun: colonist, action: die, channel: broadcast }
-    memory: { record: true }
-    affect: { impact: 35, fresh: { charge: 5, grip: -15, valence: -25 },
-              worn: { charge: 0, grip: -20, valence: -25 } }
-    drives: { safety: { fresh: 120, worn: 80 } }
-    wear_policy: memory-occasions
-  - id: news-arrival
-    match: { actor_noun: ship, action: land, channel: broadcast }
-    memory: { record: true }
-    affect: { impact: 15, fresh: { charge: 5, grip: 5, valence: 10 },
-              worn: { charge: 2, grip: 2, valence: 5 } }
-    drives: { safety: { fresh: -30, worn: -10 } }
-```
-
-  A friend's death (`object_relation: friend`) hits harder, as on every
-  other channel. New arrivals ease safety a little: more hands, more guns.
-- **Retelling.** A news memory is hop 0, like something seen, so it can be
-  recounted as hearsay the next day. The memory reads "Heard on the evening
-  news: Cy Ortega was killed by a grelk."
-- **Frontends.** The log prints the broadcast as one entry headed "Evening
-  news, day 4", and a `news` topic lists past broadcasts for a News panel.
-  `World.news` keeps the last `news-days` (30) days, so it stays bounded.
+- **Reporting.** A system with news calls `reportNews(NewsItem)` at its
+  point of truth: an occurrence in the perception grammar and the line the
+  colony hears. Today: a colonist dies (`remove` calls `reportDeath`: object
+  the colonist, action `die`, "Cy Ortega is dead: bitten to death by a
+  grelk."), a ship lands in play (`reportShipArrival`, actor `ship`, action
+  `arrive`; the founders' landing is not news), and recruits are hired
+  (`reportRecruits`). An arrival lists its **newcomers**, who do not hear
+  news of themselves. Later, anything major: a nest found, a new species
+  sighted, a cavern broken into, a defense zone posted.
+- **Airing.** On the first tick of `news-hour`, `airNews` marks everything
+  reported since the last broadcast as aired and logs it as one line,
+  "Evening news, day 4: …". It keeps aired items for `news-days` (30) days.
+- **Hearing.** `hearNews` runs after every colonist turn: a colonist awake
+  with aired news it has not heard (its cursor, `newsHeard`) gets each item
+  as a percept on the `broadcast` channel, role witness, phase instant. A
+  colonist asleep or passed out at news time hears it when it next wakes. A
+  newcomer starts with the cursor at the end: no old news. No RNG is drawn.
+- **Already knew.** As for hearsay: a colonist that saw the killing, or
+  heard it over lunch, skips that item.
+- **Reactions** are rows like any other: `news-colonist-died`,
+  `news-friend-died` and `news-arrival`. A friend's death hits harder, as on
+  every other channel. New arrivals ease safety a little: more hands, more
+  guns. News is remembered ("Heard on the evening news: …") at hop 0, so it
+  can be retold the next day.
+- **Frontends.** The log prints each broadcast as one line. The browser's
+  **News** tab (`web/src/ui/NewsPanel.svelte`, beside Log) lists every
+  broadcast still kept, newest first, from the `news` topic
+  (`internal/wire/news.go`; see [wire-format.md](./wire-format.md)); a story
+  about a place (a death, a landing) is a button that centers the map
+  there. `Snapshot.News` (`publishedNewsBroadcasts`) is rebuilt only when a
+  broadcast airs or old news is dropped, and shared by every snapshot in
+  between. The terminal has no News tab; its log has the broadcast line.
 
 ### At the ceiling
 
@@ -344,32 +390,34 @@ second copy, and lets one drive want several things in turn:
 
 ```go
 type wantRung struct {
-    Name   string                       // "a gun", "a better gun", "a bodyguard"
-    Held   func(*World, *Entity) bool   // already has what this rung buys
-    Value  func(*World, *Entity) Money  // what it is worth to a calm colonist
-    Most   int                          // willingness percent at the ceiling
-    Budget int                          // percent of the wallet it may spend (0: the meal rule)
-    Post   func(*World, *Entity, Money) bool
+    name  string                         // "a gun", "a better gun"
+    held  func(*World, *Entity) bool     // already has what this rung buys
+    value func(*World, *Entity) Money    // what it is worth to a calm colonist
+    most  func(*World) int               // willingness percent at the ceiling
+    post  func(*World, *Entity, Money, int) *Order // its order, at a limit, with a lifetime
 }
 
 type wantSpec struct {
-    Drive DriveKind
-    From  DrivePhase // DrivePressing: when the want switches on
-    Rungs []wantRung // climbed in order
+    drive DriveKind
+    rungs []wantRung // climbed in order
 }
 ```
 
-`willingness` is `mealBidLimitWith` generalized: it starts at `Value` when
-the drive first presses, rises linearly to `Most`% of it at the ceiling, and
-is capped by what the colonist will spend. With `Budget` 0 that cap is the
-meal rule: half the wallet until critical, then all of it. A rung with a
-`Budget` may spend only that percent of the wallet, however afraid the
-colonist is.
+`willingness` is `mealBidLimitWith` generalized: it starts at the rung's
+value when the drive first presses (`SeekAt`) and rises linearly to `most`%
+of it at the ceiling. It spends only what the colonist has beyond
+`want-reserve-meals` (4) meals' worth, and half of that until the drive is
+critical, then all of it. The bodyguard rung (S4) will add its own spending
+rule, a share of the wallet per shift.
 
-`postWants` runs when a drive's phase changes (the crossing `syncDriveBand`
-already schedules) and when the colonist's open want expires, so it costs
-nothing for a calm colonist. It wants the **first rung not yet held** that
-it can afford, and posts that one; one want is open per drive per colonist.
+`postWants` runs after every colonist turn; with an order open, or the
+drive calm, it costs a comparison. It first notes what became of the open
+order: gone with `Filled` set is a purchase, gone without is a lapse. Then,
+if the drive presses and the colonist is not hungry (food comes first), it
+wants the **first rung not yet held** and posts that one, at its
+willingness; one want is open per drive per colonist. A colonist that
+cannot post at all (no market depot, no money beyond its food) tries again
+90 ticks later.
 A colonist climbs the next rung only after `want-settle-ticks` (one day)
 with the last one held and its safety still pressing: a new gun is given a
 chance to calm it first.
@@ -405,10 +453,11 @@ The book therefore always holds the colony's unmet fear, priced, for a day
 at a time, and a lapsed order never lingers after the fear behind it has
 gone.
 
-The inspector shows the ladder and where the colonist stands on it:
-"Uneasy (720). Has a pistol. Wants a better gun: will pay up to $30 for a
-shotgun, less $20 for its pistol; has $61. Can't afford a bodyguard." That is rule 6
-(every choice explainable), and it is most of the tuning interface.
+The inspector shows what the colonist wants and why, under its drives:
+"Wants a better gun: will pay up to $12; has $61.", or "can't afford it".
+That is rule 6 (every choice explainable), and it is most of the tuning
+interface. (The planned sentence named the gun and the trade-in; the built
+one is shorter.)
 
 Hunger moving onto `wantSpec` is a refactor, not part of this plan; the
 meal rule is the reference the general one is checked against.
@@ -421,19 +470,29 @@ meal rule is the reference the general one is checked against.
 | a better gun | it carries a gun above its own, up to a rifle | a bid for the next gun up or better; its old gun goes on sale when the new one arrives | the new gun's price, less what the old one fetches | the meal rule |
 | a bodyguard | it has an escort contract open | an escort contract | `escort-wage` an hour | `escort-budget-percent` of the wallet a shift |
 
-**Guns.** A gun is a good like a meal: a bid at a depot, filled from an ask,
-left there in the buyer's name and fetched by an ordinary job, as a bought
-meal is. Prices: `price-pistol` (20), `price-shotgun` (35) and the existing
-`price-assault-rifle` (60), each up to `gun-willingness` (150%) at the
-ceiling. Rifles already come down a supply chain, so a frightened
-colonist's bid for one reaches the gun bench through the producer planner
-the way a hungry colonist's bid reaches the cave wall
-([valuation.md](./valuation.md), [foundry.md](./foundry.md)). Pistols and
-shotguns have no recipe yet: they are bought secondhand, from the colonists
-who landed with them and from those trading up, whose old gun goes on sale
-at its value when the new one arrives. The ladder makes a gun market where
-there was none. A trade-in is also why the second rung is cheaper than it
-looks: a $35 shotgun costs a pistol owner $15.
+**Guns.** A gun is a good like a meal: a bid at the market depot (the
+silo), filled from an ask, left there in the buyer's name, and fetched.
+`bidForGun` bids for the best gun above the colonist's own it can pay for at
+its price, or, if it can pay for none, for the cheapest one above at what it
+can pay: a bid below the price is still demand. Prices: `price-pistol` (20),
+`price-shotgun` (35) and the existing `price-assault-rifle` (60), each the
+gun's value until guns of its kind trade (`gunValue`; kept apart from
+`refPrice`, the colony's silo price, so the foundry's reckoning did not
+move), and each up to `gun-willingness` (150%) at the ceiling.
+
+Every gun is machined at the gun bench, for a bid, through the producer
+planner, the way a hungry colonist's bid reaches the cave wall
+([valuation.md](./valuation.md), [foundry.md](./foundry.md)): a pistol from
+one steel ingot, a shotgun from two, a rifle from three. Guns also come
+secondhand: a colonist trading up fetches its new gun (`JobFetch`, first in
+`assignWorkJob`, so it does not go out unarmed) and leaves the old one in
+the depot on sale at its value. A trade-in is why the second rung is cheaper
+than it looks: a $35 shotgun costs a pistol owner $15. A colonist never
+sells the gun in its hand to someone else's bid (`ownStockFor`).
+
+A bought gun is remembered (`gunWaiting`) until it is fetched, rather than
+found by searching every depot: the rung's `held` runs every turn for an
+uneasy colonist and for the inspector every frame.
 
 A colonist that buys a gun is armed, so it also becomes someone who can
 guard: fear builds the colony's pool of guards from the bottom.
@@ -545,6 +604,73 @@ The economics fall out: a colony that lets its miners get afraid loses
 shifts at the rock face, and a defense zone over the mine or a bodyguard
 for each miner buys them back.
 
+## Built so far
+
+### S3: wants and guns
+
+Measured on three seeds of a 20-colonist game with zoning-auto and the food
+safety net on, for 10,800 ticks each:
+
+| | seed 1 | seed 2 | seed 3 |
+| --- | --- | --- | --- |
+| gun bids posted | 11 | 24 | 25 |
+| guns traded (new and secondhand) | 8 | 9 | 10 |
+| armed colonists, start → end | 12 → 11 | 10 → 10 | 10 → 14 |
+| carrying a shotgun or rifle at the end | 2 | 5 | 2 |
+| starved | 0 | 0 | 0 |
+
+- **Without a forge's sidearms, nothing filled.** Built as first planned
+  (pistols and shotguns secondhand only), the same games posted 14 to 34
+  gun bids and traded none: nobody trades up when nothing better is ever
+  sold, and the colonists' rifle bids sat below what a rifle costs to make.
+  Pulling S6's recipes forward is what made the market answer.
+- **Food comes first.** Without a reserve, colonists spent the money they
+  needed for meals, and the long-run treasury test (20 colonists, 30,000
+  ticks) starved 3 against its limit of 2. Wants now spend only money beyond
+  `want-reserve-meals` meals' worth, and post nothing while the colonist is
+  hungry.
+- **The default 6-colonist game has no market.** It never builds a silo
+  before it starves (no communal container in six seeds), so its colonists
+  want guns and have nowhere to bid. That is the game's scarcity, not the
+  ladder's.
+
+### S1 and S2
+
+S1 and S2 as built, measured on the drive tuning harness's six seeds of the
+default game for 10,800 ticks each (about 140 colonist-days):
+
+| | |
+| --- | --- |
+| mean safety level | 445 of 1000 |
+| time uneasy / afraid | 17.7% / 16.1% |
+| time at home / settled / frontier / guarded | 39.5% / 2.6% / 57.9% / 0% |
+| felt unsafe (the ceiling) | 165 times |
+| deaths heard on the news | 41 |
+| arrivals heard on the news | 0 (no arrivals in those games) |
+| hearsay passed on | 0 |
+
+- **Colonists spend most of the day on the frontier**, so a working day
+  reliably takes a miner from calm to terrified, and a night aboard ship
+  brings it back. That is the pressure S3 to S5 are meant to answer; on its
+  own it only costs mood.
+- **Hearsay is rare in practice.** The tests show it working, but those
+  games had only 124 conversations, 44 of them about a memory, and every one
+  of those memories was routine (a meal, a dig). Topics draw a memory
+  uniformly from the speaker's log, and the log is mostly work. Weighting the
+  draw toward what a colonist would bring up (a high-impact memory) would
+  make hearsay matter; it is left as a decision, since it changes what every
+  conversation is about.
+- **Not built from the plan:** the dead as gossip subjects, and Optimists
+  recovering faster at home.
+- **Scum Lab** edits the `drives` rows: the Grammar Builder's reaction form
+  has a drive and its fresh and worn bump, and its import and export carry
+  them. Its baked-in defaults are now generated from the Go defaults (see
+  [scum-lab.md](./scum-lab.md)).
+- **Every seed's game changes.** The tick-0 world is untouched (an unsought
+  drive starts at 0 without a draw, and the daring traits have their own
+  stream), but fear moves affect and so focus, and topics now retell heard
+  news. The golden hashes were re-pinned.
+
 ## Why it is this way
 
 - **A drive, not a mood.** Charge and grip already go down when something
@@ -637,26 +763,31 @@ for each miner buys them back.
 
 ## Settings
 
+Built settings first; the rest arrive with S4.
+
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `drives.safety.rate` | 1000 | base growth, before the place percent |
 | `drives.safety.place.*` | −300 / −50 / 200 / −200 | home / settled / frontier / guarded |
-| `safety-depth-percent` | 50 | extra frontier growth per level below the landing level |
+| `drives.safety.place-depth` | 50 | extra frontier growth per level below the landing level |
+| `drives.safety.armed.*` | −25 / −35 / −50 | safety rate change for the best gun carried: pistol / shotgun / rifle |
+| `drives.safety.seek-at` / `critical-at` / `max` | 600 / 850 / 1000 | uneasy / afraid / terrified |
+| `drives.safety.consequence-every` | 200 | ticks between feeling unsafe while terrified |
 | `hearsay-max-hops` | 2 | how many retellings news survives |
 | `hearsay-hop-percent` | 50 | how much of a bump survives each retelling |
 | `news-hour` | 21 | the clock hour of the evening broadcast |
 | `news-days` | 30 | days of broadcasts the colony keeps |
+| `price-pistol` / `price-shotgun` | 20 / 35 | what those guns are worth before any has traded; the rifle keeps `price-assault-rifle` (60) |
+| `gun-willingness` | 150 | percent of a gun's price a colonist will pay at the ceiling |
+| `want-ttl` | 1080 | how long a want's order rests on the book before the colonist decides again |
+| `want-patience` | 3 | lapsed orders on one rung before a colonist that can afford the next rung looks past it |
+| `want-settle-ticks` | 1080 | how long a rung just taken is given to work before the next is wanted |
+| `want-reserve-meals` | 4 | meals' worth of money a colonist keeps back from any want |
 | `escort-hours` | 8 | length of a contract |
 | `escort-radius` | 3 | how close an escort keeps, and counts as guarding |
 | `escort-wage` | 6 | the least an escort contract may pay an hour |
 | `escort-willingness` | 150 | percent of `escort-wage` a client will pay at the ceiling |
 | `escort-budget-percent` | 10 | the most of its wallet a client spends on one shift |
-| `price-pistol` / `price-shotgun` | 20 / 35 | reference prices; the rifle keeps `price-assault-rifle` (60) |
-| `gun-willingness` | 150 | percent of a gun's price a colonist will pay at the ceiling |
-| `safety-armed-pistol` / `-shotgun` / `-rifle` | −25 / −35 / −50 | safety rate change for the best gun carried |
-| `want-settle-ticks` | 1080 | how long a rung is held, still pressing, before the next is wanted |
-| `want-ttl` | 1080 | how long a want's order rests on the book before the colonist decides again |
-| `want-patience` | 3 | lapsed orders on one rung before a colonist that can afford the next rung looks past it |
 | `guarding-nerve-percent` | 15 | how much each `SkillGuarding` rank cuts safety's frontier rate and sight bumps |
 
 ## Extending it
@@ -670,8 +801,6 @@ for each miner buys them back.
 - **Another rung** (body armour between the guns and the guard, say) is a
   `wantRung` in safety's ladder and, if it should calm, a modifier on the
   rate. Order is the ladder's order.
-- **Pistols and shotguns at the gun bench (S6)** are recipe rows. Until
-  then the secondhand market is all there is, and that is fine.
 - **Chipping in to a defense zone (S6).** A colonist whose frontier is a
   zone's area could add to the zone's wage pool instead of hiring alone,
   which is the first public good paid for by the people who use it

@@ -167,7 +167,9 @@ a cat's 25 each), a quarter of those guns shotguns
 chicken or a cat. Before that, each manifest gun was rolled on its own
 (`crash-pod-pistol-percent`, `crash-pod-shotgun-percent`): a 70% chance of a pistol and
 a 20% chance of a shotgun, so most settlers landed armed but about a quarter
-landed with nothing. An unarmed colonist flees until it finds or buys a gun. See
+landed with nothing. An unarmed colonist flees until it finds or buys a gun: one
+that feels unsafe bids for one, and a gunsmith machines it (see
+[safety.md](./safety.md)). See
 [ships.md](./ships.md).
 
 Arming everyone was a real balance change, and it was measured (before

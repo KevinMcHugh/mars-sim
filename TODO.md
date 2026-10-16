@@ -1,6 +1,7 @@
 Things to build/fix as we think of them:
 * eventually, colonists should pick nicknames for novel alien species
   * meaning, at lore time, we decide how many martian species humanity has already met, and novel ones get named by the colony
+* conversation weights for categories of memories, so colonists spend less time talking about using the toilet and more about aliens. Topics draw a memory uniformly from the speaker's log, which is mostly routine work, so hearsay almost never carries anything worth hearing (0 retellings in six seeds of the tuning harness; see docs/safety.md, *Built so far*). A weight per reaction (or per category of reaction) in cognition.yaml, read by chooseTopic
 * loregen for guns. manufacturers, clip size, etc.
 * I think making it possible to convert a wall into a door will fix a lot of problems with folks getting stuck
   * so would allowing the user to create new doors
