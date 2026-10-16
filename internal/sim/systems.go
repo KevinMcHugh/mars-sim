@@ -1167,11 +1167,6 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.foodWanted() && w.tryAssignCraft(e) {
 		return
 	}
-	// The colony's reactor, while it is short of batteries: the stoves'
-	// power, so straight after cooking.
-	if w.batteriesWanted() && w.tryAssignReactor(e) {
-		return
-	}
 	if w.tryAssignClean(e) {
 		return
 	}
@@ -1198,6 +1193,13 @@ func (w *World) assignWorkJob(e *Entity) {
 	// a colony of twenty ran out all at once and lost most of itself (see
 	// tryProspect and docs/food.md).
 	if w.foodWanted() && w.wildScumAllowed() && w.prospectingForFood() && e.Inventory.CanAdd(RawRock, 1) && w.tryProspect(e, false) {
+		return
+	}
+	// The colony's reactor, while it is short of batteries, once nobody is
+	// needed for food: a stove without power still cooks, cold, and an
+	// operator taken off scraping and cleaning starved colonies that a slow
+	// stove never did (see docs/power.md).
+	if w.batteriesWanted() && w.tryAssignReactor(e) {
 		return
 	}
 	// Surplus locker meals go to market for someone hungrier to buy.
