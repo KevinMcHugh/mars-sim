@@ -360,7 +360,10 @@ func (w *World) jobFetch(e *Entity) {
 		}
 
 		w.emitDone(e, ActionHaul, NounGoods, "Picked up %s %s.", e.possessive(), k)
-		if old != ItemNone && e.Inventory.Remove(old, 1) {
+		// The old gun goes into the depot, physically and on its line, and
+		// only if the depot has room; otherwise it stays in its pocket.
+		if old != ItemNone && c.Inventory.CanAdd(old, 1) && e.Inventory.Remove(old, 1) {
+			c.Inventory.Add(old, 1)
 			c.credit(me, old, 1)
 			if o, _ := w.post(Ask, old, 1, w.gunValue(old), me, c.Pos, w.cfg.OrderTTL); o != nil {
 				w.emitDone(e, ActionTrade, NounGoods, "Put %s old %s up for sale for %v.", e.possessive(), old, w.gunValue(old))

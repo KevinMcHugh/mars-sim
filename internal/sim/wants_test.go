@@ -144,6 +144,11 @@ func TestTradingUpPutsTheOldGunOnSale(t *testing.T) {
 	if !ok || ask.Actor != ColonistOwner(e.ID) || ask.Price != w.gunValue(Pistol) {
 		t.Fatalf("the old pistol is not on sale: %+v", ask)
 	}
+	// The pistol on sale is in the silo, not just on its books: a buyer
+	// could never take a gun the ledger has and the container does not.
+	if c := w.storageContainers[silo]; !c.ledgerBalanced() || c.Inventory.Count(Pistol) != 1 {
+		t.Fatalf("silo holds %d pistols, ledger %+v", c.Inventory.Count(Pistol), c.Ledger)
+	}
 }
 
 // A colonist never sells the gun in its hand to a bid, however good.
