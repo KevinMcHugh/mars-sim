@@ -320,14 +320,21 @@ That's with the cold rows only slower. With P1's hungrier cold rows, seeds
 1–24 starved 20 with power on and no reactor (7 off), which is why those rows
 changed.
 
-**This is not settled.** Most of the deaths are single colonies collapsing
-(one seed losing 9 or 11), so 72 seeds still don't separate the three
-columns cleanly. But the reactor column leans worse, and a cost is
-plausible: while the colony is short of batteries an operator works the
-reactor before cleaning and scraping, and haulers carry ice and batteries
-instead of food. Watch it as the tariff and the market arrive. The next
-things to try are moving the operator below food work in the ladder, or
-charging only when a kitchen is actually short.
+**What the reactor column is.** Most of the deaths are single colonies
+collapsing. The biggest, seed 16 with a reactor (11 starved), isn't a
+famine. Its colony dug somewhere new for the reactor and the uranium, and a
+gremlin nest broke in at about tick 8,400 and killed 8. The other 11
+starved within the next 6,000 ticks, with 55 of the colony's meals in its
+pantries: survivors cut off or too hunted to eat. Without a reactor the same
+seed has no such attack. So that's a different history, not a cost of
+running the reactor. Leaving it out, the three columns are within noise.
+
+The operator used to sit straight after the colony's cooking in the work
+ladder. It was moved below all the food work (cleaning, seeding, harvesting
+and scraping), on the guess that it was taking colonists off food. Re-measured
+on the same 72 seeds, that changed nothing (24 starved again, seed 16's 11
+included). It stays there anyway, because a colony should be fed before it is
+powered.
 
 The chain works without a script. On 64 of the 72 seeds someone dug up
 uranium and sold it to the colony, and the colony built a reactor. On the
