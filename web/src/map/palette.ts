@@ -177,6 +177,11 @@ export const zoneTint = (color: string, a: number) => premul(color, a);
  */
 export const MARK_ALPHA = 0.95;
 export const DIG_MARK = premul('#ff8a3d', 0.9);
+/**
+ * The line from a bodyguard to its client (renderer.ts, setTethers): the
+ * defense zones' red, dashed, so a guard on station reads as one at a glance.
+ */
+export const TETHER = premul('#e53935', 0.9);
 /** The preview of unzoning: the ground goes grey-black. */
 export const UNZONE_PREVIEW = premul('#1b1b1b', 0.5);
 /** A structure the paint or the clear tool will take down. */

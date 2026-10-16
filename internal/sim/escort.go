@@ -188,3 +188,27 @@ func (w *World) lapseEscort(o *WorkOrder) bool {
 func (w *World) nervePercent(e *Entity) int {
 	return max(0, 100-w.cfg.GuardingNervePercent*min(e.nerveRank, 4))
 }
+
+// noteGuarded delivers the guarded percept on its edges: when e's bodyguard
+// comes alongside it (enter: "Walked with Bo as a bodyguard."), and when it
+// leaves (exit). syncDriveActivity calls it after every colonist turn, so the
+// percept and the guarded place class change together. The client feels the
+// guard beside it; it reads nothing about the guard but who it is.
+func (w *World) noteGuarded(e *Entity) {
+	now := w.escortedNow(e)
+	if now == e.feltGuarded {
+		return
+	}
+	e.feltGuarded = now
+	g := w.entities[e.escortedBy]
+	if g == nil {
+		return
+	}
+	phase := PhaseExit
+	if now {
+		phase = PhaseEnter
+	}
+	o := w.occurrence(g, ActionGuard, e, e.Pos, "")
+	o.TargetText = "Walked with " + g.displayName() + " as a bodyguard."
+	w.rememberPercept(e, w.perceptFor(e, ChannelProximity, RoleTarget, phase, o))
+}

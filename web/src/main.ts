@@ -13,7 +13,7 @@ import { armShip, armSite, colonyLog, cycleFlowField, follow, inspect, install, 
 import type { Rect, ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer, MARK_BOTTOM, MARK_HATCH, MARK_LEFT, MARK_RIGHT, MARK_TOP } from './map/renderer';
-import type { TileMark } from './map/renderer';
+import type { Tether, TileMark } from './map/renderer';
 import type { TileRect } from './map/camera';
 import { pickGlyph } from './emoji';
 import * as palette from './map/palette';
@@ -91,7 +91,7 @@ sim.onTopics = (t) => {
     // The zone tool's estimate reads the zones too, but only while an area
     // is marked: otherwise it would clear the highlight another tool (the
     // Ships tab's landing preview) is using.
-    if (name === 'zones') { showZones(); if (ui.zone.rect) showZone(); }
+    if (name === 'zones') { showZones(); showTethers(); if (ui.zone.rect) showZone(); }
   }
 };
 sim.onFrame = (f, bytes) => {
@@ -103,6 +103,7 @@ sim.onFrame = (f, bytes) => {
   last = f;
   map.applyFrame(f);
   updateMark();
+  showTethers();
   followCamera();
   debug.frames++;
   debug.bytes += bytes;
@@ -295,6 +296,7 @@ function resetGame(): void {
   map.setMark(null);
   map.setZones([], []);
   map.setMarks([]);
+  map.setTethers([]);
   digFrom = null;
   ui.dig = { armed: false, rect: null, tiles: 0 };
   ui.zone = { armed: false, tool: ui.zone.tool, rect: null, preview: null, detail: ui.zone.detail };
@@ -420,6 +422,8 @@ interface ZonesTopic {
   defenseColor: string;
   /** Tiles marked for digging and not dug yet: [level, y, x0, x1] (docs/excavation.md). */
   digs?: number[][];
+  /** Bodyguards on contract and their clients: [guard, client] (docs/safety.md). */
+  escorts?: number[][];
 }
 /** The zoning topic's structures, as the preview reads them. */
 interface ZoningTopic {
@@ -686,6 +690,28 @@ function landShip(x: number, y: number): void {
   else moveShip(held.ship.id, o.x, o.y);
   shipAt = null;
   armShip(null);
+}
+
+/**
+ * Tie each bodyguard to its client on the map (docs/safety.md): the zones
+ * topic names the pairs, each frame says where they stand. A frame holds only
+ * its level's creatures, so a pair both in it shares the level; neither end
+ * shows under the fog, as with the marker.
+ */
+function showTethers(): void {
+  const pairs = (topics.data.zones as ZonesTopic | undefined)?.escorts ?? [];
+  const e = last?.entities;
+  if (!e || pairs.length === 0) { map.setTethers([]); return; }
+  const at = new Map<number, [number, number]>();
+  for (let i = 0; i < e.count; i++) {
+    if (map.visible(e.x[i], e.y[i])) at.set(e.id[i], [e.x[i], e.y[i]]);
+  }
+  const tethers: Tether[] = [];
+  for (const [guard, client] of pairs) {
+    const from = at.get(guard), to = at.get(client);
+    if (from && to) tethers.push({ from, to });
+  }
+  map.setTethers(tethers);
 }
 
 /** Put the map's marker on the selection: a tile, or where the creature is now. */

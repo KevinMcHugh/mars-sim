@@ -128,10 +128,15 @@ Built (S4):
   [`affect.go`](../internal/sim/affect.go): beside one's bodyguard is
   guarded; a guarding rank cuts safety's growth and sight bumps.
 - [`cognition.yaml`](../cognition.yaml): `guarded-client`,
-  `hired-bodyguard`.
+  `hired-bodyguard`, and `guarded` (the client feeling its guard come
+  alongside, delivered by `noteGuarded` in escort.go).
 - [`internal/wire/boards.go`](../internal/wire/boards.go),
   [`web/src/ui/MarketPanel.svelte`](../web/src/ui/MarketPanel.svelte): the
   market topic's `escorts`, and the Market tab's Bodyguards section.
+- [`internal/wire/zones.go`](../internal/wire/zones.go),
+  [`web/src/map/renderer.ts`](../web/src/map/renderer.ts) (`setTethers`):
+  the zones topic's `escorts` pairs, and the line from guard to client on
+  the map.
 - [`internal/sim/escort_test.go`](../internal/sim/escort_test.go).
 
 ## How it works
@@ -592,14 +597,22 @@ Protection is felt, not read. While its escort is beside it on station
 When a bodyguard takes a client, one occurrence, `colonist / guard /
 colonist`, reaches both: the guard remembers taking the client on
 (`guarded-client`, a little pride) and the client hiring the guard
-(`hired-bodyguard`, grip up, and safety eased by 60). The planned
-persistent "guarded" percept and the affinity from time together are not
-built.
+(`hired-bodyguard`, grip up, and safety eased by 60). After that the
+client feels its guard come and go: `noteGuarded`, called with the place
+class after every colonist turn, delivers a `colonist / guard / colonist`
+percept on the proximity channel when the guard comes alongside (enter,
+"Walked with Bo as a bodyguard.") and when it leaves (exit). The `guarded`
+reaction records the enter: grip up, safety eased by 20, wearing in to 5 as
+the occasions pile up. The affinity from time together is not built; it is
+tracked in
+[#216](https://github.com/KevinMcHugh/mars-sim/issues/216).
 
 Escort contracts show on the Market tab's **Bodyguards** section (client,
 who is on station, rate, hours served and left, escrow), from the market
-topic's `escorts`, and in its work orders as kind `escort`. The planned map
-line from escort to client is not built.
+topic's `escorts`, and in its work orders as kind `escort`. On the map a
+dashed red line ties each bodyguard on contract to its client, from the
+zones topic's `escorts` pairs (`[guard, client]`) and each frame's
+positions.
 
 ### Critical safety (S5)
 

@@ -2140,6 +2140,38 @@ const DEFAULT_CONFIG = {
           "worn": -30
         }
       }
+    },
+    "guarded": {
+      "id": "guarded",
+      "match": {
+        "actor_noun": "colonist",
+        "action": "guard",
+        "object_noun": "colonist",
+        "channel": "proximity",
+        "role": "target",
+        "phase": "enter"
+      },
+      "memory": {
+        "record": true
+      },
+      "impact": 10,
+      "fresh": {
+        "charge": 0,
+        "grip": 6,
+        "valence": 3
+      },
+      "worn": {
+        "charge": 0,
+        "grip": 2,
+        "valence": 1
+      },
+      "wear_policy": "memory-occasions",
+      "drives": {
+        "safety": {
+          "fresh": -20,
+          "worn": -5
+        }
+      }
     }
   },
   "trait_rules": [

@@ -32,6 +32,10 @@
 // was under it; a line and a hatch read as "guarded" and "to be mined" on
 // any ground.
 //
+// A bodyguard on station is tied to its client by a dashed line (setTethers,
+// docs/safety.md), over the marks and under the sprites, so the pair reads as
+// one on any ground at any zoom.
+//
 // Zoomed in (GLYPH_ZOOM and up), glyphs replace the flat colors: a facility's
 // emoji over a floor backdrop, and each entity's own emoji (picked in Go, see
 // internal/glyphs) from the atlas (atlas.ts). Zoomed out, a glyph would be a
@@ -248,6 +252,42 @@ void main() {
   outColor = vec4(c, 1.0);
 }`;
 
+// A tether: one segment between two tile centres, a quad stretched along it
+// and lineWidth device pixels across, dashed in pixels so the dashes keep
+// their length at any zoom.
+const TETHER_VS = `#version 300 es
+in vec2 aCorner;
+in vec4 aEnds;          // per instance: from.x, from.y, to.x, to.y, tiles
+uniform vec2 uCam;
+uniform float uScale;
+uniform vec2 uView;
+uniform float uWidth;   // device pixels
+out float vAlong;       // device pixels from the guard's end
+void main() {
+  vec2 a = (aEnds.xy + 0.5 - uCam) * uScale;
+  vec2 b = (aEnds.zw + 0.5 - uCam) * uScale;
+  vec2 d = b - a;
+  float len = max(length(d), 1e-3);
+  vec2 n = vec2(-d.y, d.x) / len;
+  vec2 px = mix(a, b, aCorner.x) + n * (aCorner.y - 0.5) * uWidth;
+  vAlong = aCorner.x * len;
+  gl_Position = vec4(px.x / (uView.x * 0.5), -px.y / (uView.y * 0.5), 0.0, 1.0);
+}`;
+
+const TETHER_FS = `#version 300 es
+precision highp float;
+in float vAlong;
+uniform float uDash;    // device pixels per dash and gap
+uniform vec4 uColor;    // premultiplied
+out vec4 outColor;
+void main() {
+  if (fract(vAlong / uDash) > 0.6) discard;
+  outColor = uColor;
+}`;
+
+/** One tether (setTethers): a guard's tile and its client's. */
+export interface Tether { from: [number, number]; to: [number, number] }
+
 // The selection marker: a square ring around one tile, a dark line outside a
 // bright one so it reads on any ground. Sized in pixels, not tiles, so it
 // stays visible zoomed out.
@@ -327,6 +367,11 @@ export class MapRenderer {
   /** The last frame, for hover lookups of entities. */
   lastFrame: Frame | null = null;
   private markProg: WebGLProgram;
+  // Tethers (setTethers): guard-to-client lines, over the marks.
+  private tetherProg: WebGLProgram;
+  private tetherVAO: WebGLVertexArrayObject;
+  private tetherEnds: WebGLBuffer;
+  private tetherCount = 0;
   private markVAO: WebGLVertexArrayObject;
   private mark: [number, number] | null = null;
   // Zoned tiles: tint quads like filth's, under it (setZones).
@@ -370,6 +415,8 @@ export class MapRenderer {
     for (const n of ['uCam', 'uScale', 'uView']) this.u['f.' + n] = gl.getUniformLocation(this.tintProg, n);
     this.markProg = program(gl, MARK_VS, MARK_FS);
     this.marksProg = program(gl, MARKS_VS, MARKS_FS);
+    this.tetherProg = program(gl, TETHER_VS, TETHER_FS);
+    for (const n of ['uCam', 'uScale', 'uView', 'uWidth', 'uDash', 'uColor']) this.u['l.' + n] = gl.getUniformLocation(this.tetherProg, n);
     for (const n of ['uCam', 'uScale', 'uView', 'uLine']) this.u['k.' + n] = gl.getUniformLocation(this.marksProg, n);
     for (const n of ['uTile', 'uPad', 'uCam', 'uScale', 'uView', 'uSide', 'uLine', 'uColor']) {
       this.u['m.' + n] = gl.getUniformLocation(this.markProg, n);
@@ -443,6 +490,15 @@ export class MapRenderer {
     this.markVAO = gl.createVertexArray()!;
     gl.bindVertexArray(this.markVAO);
     corner(gl, this.markProg, this.quad);
+    this.tetherEnds = gl.createBuffer()!;
+    this.tetherVAO = gl.createVertexArray()!;
+    gl.bindVertexArray(this.tetherVAO);
+    corner(gl, this.tetherProg, this.quad);
+    const lEnds = gl.getAttribLocation(this.tetherProg, 'aEnds');
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.tetherEnds);
+    gl.enableVertexAttribArray(lEnds);
+    gl.vertexAttribPointer(lEnds, 4, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(lEnds, 1);
     gl.bindVertexArray(null);
 
     new ResizeObserver(() => this.resize()).observe(canvas);
@@ -776,6 +832,22 @@ export class MapRenderer {
     this.dirty = true;
   }
 
+  /**
+   * The lines from bodyguards on station to their clients (see the header).
+   * The caller passes only pairs on this level that the colony can see.
+   */
+  setTethers(tethers: Tether[]): void {
+    const n = tethers.length;
+    if (n === 0 && this.tetherCount === 0) return;
+    const ends = new Float32Array(n * 4);
+    tethers.forEach((t, i) => ends.set([t.from[0], t.from[1], t.to[0], t.to[1]], 4 * i));
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.tetherEnds);
+    gl.bufferData(gl.ARRAY_BUFFER, ends, gl.DYNAMIC_DRAW);
+    this.tetherCount = n;
+    this.dirty = true;
+  }
+
   /** Mark one tile (the inspector's selection), or none. */
   setMark(at: [number, number] | null): void {
     const m = this.mark;
@@ -947,6 +1019,17 @@ export class MapRenderer {
       gl.uniform2f(this.u['k.uView'], this.canvas.width, this.canvas.height);
       gl.uniform1f(this.u['k.uLine'], Math.min(Math.max(1, Math.round(2 * dpr)), scale / 3));
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.marksCount);
+    }
+    if (this.tetherCount > 0) {
+      gl.useProgram(this.tetherProg);
+      gl.bindVertexArray(this.tetherVAO);
+      gl.uniform2f(this.u['l.uCam'], cam.cx, cam.cy);
+      gl.uniform1f(this.u['l.uScale'], scale);
+      gl.uniform2f(this.u['l.uView'], this.canvas.width, this.canvas.height);
+      gl.uniform1f(this.u['l.uWidth'], Math.max(1.5, 2 * dpr));
+      gl.uniform1f(this.u['l.uDash'], 6 * dpr);
+      gl.uniform4fv(this.u['l.uColor'], Array.from(palette.TETHER, (v) => v / 255));
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.tetherCount);
     }
     if (this.hiCount > 0) {
       gl.useProgram(this.tintProg);

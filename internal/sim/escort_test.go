@@ -89,7 +89,25 @@ func TestABodyguardWalksWithItsClient(t *testing.T) {
 	if guard.practice[SkillGuarding] == 0 {
 		t.Fatal("no guarding practice for time on station")
 	}
+	if !client.feltGuarded || !remembers(client, "guarded", "Walked with "+guard.displayName()+" as a bodyguard.") {
+		t.Fatalf("the client did not feel its guard come alongside: %+v", client.Memories)
+	}
+	guard.Pos = client.Pos.Add(w.cfg.EscortRadius+1, 0)
+	w.syncDriveActivity(client)
+	if client.feltGuarded || client.place == PlaceGuarded {
+		t.Fatal("the client still feels guarded with its guard out of reach")
+	}
 	assertMoneyConserved(t, w)
+}
+
+// remembers reports whether e holds a memory from reaction rule with text.
+func remembers(e *Entity, rule RuleID, text string) bool {
+	for _, m := range e.Memories {
+		if m.Rule == rule && m.Text == text {
+			return true
+		}
+	}
+	return false
 }
 
 // Calm to serve: a bodyguard who comes to feel unsafe gives the contract up,

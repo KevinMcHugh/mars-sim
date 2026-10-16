@@ -35,6 +35,10 @@ type ZonesTopic struct {
 	// column, so the map can show what is marked for mining on any level
 	// whatever tab is open (see docs/excavation.md).
 	Digs [][4]int `json:"digs"`
+	// Escorts pairs every bodyguard on a contract with its client, [guard,
+	// client] by contract id, so the map can draw the line between them from
+	// each frame's positions whatever tab is open (see docs/safety.md).
+	Escorts [][2]uint64 `json:"escorts"`
 }
 
 // DefenseColor is the tint of a defense zone, on the map and the Zones tab.
@@ -53,6 +57,7 @@ func zonesTopic(s *sim.Snapshot) ZonesTopic {
 		t.Defense = append(t.Defense, [6]int{d.ID, int(d.Level), d.X0, d.Y0, d.X1, d.Y1})
 	}
 	t.Digs = digRuns(s)
+	t.Escorts = escortPairs(s)
 	for _, r := range s.Zones {
 		locked := 0
 		if r.Locked {
@@ -61,6 +66,18 @@ func zonesTopic(s *sim.Snapshot) ZonesTopic {
 		t.Runs = append(t.Runs, [5]int{r.Y, r.X0, r.X1, int(r.Kind), locked})
 	}
 	return t
+}
+
+// escortPairs is every escort contract with a bodyguard on it, as [guard,
+// client].
+func escortPairs(s *sim.Snapshot) [][2]uint64 {
+	out := [][2]uint64{}
+	for _, o := range s.Economy.WorkOrders {
+		if o.Kind == sim.WorkEscort && o.Escort != 0 {
+			out = append(out, [2]uint64{uint64(o.Escort), uint64(o.Issuer.ID)})
+		}
+	}
+	return out
 }
 
 // digRuns is every undug tile of every excavation order, as sorted row runs.
