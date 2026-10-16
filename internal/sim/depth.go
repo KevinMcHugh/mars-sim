@@ -20,7 +20,7 @@ func depthOf(l Level) int { return max(0, int(l-LandingLevel)) }
 
 // depthConfig is cfg as level l generates and rolls nests: unchanged on the
 // landing level, and scaled by the Depth* settings a level at a time below
-// it. Percentages are capped at 100.
+// it. Shares are capped at the whole map (100 percent, 1000 per mille).
 func depthConfig(cfg Config, l Level) Config {
 	d := depthOf(l)
 	if d == 0 {
@@ -28,10 +28,11 @@ func depthConfig(cfg Config, l Level) Config {
 	}
 	scale := func(v, perLevel int) int { return v * (100 + perLevel*d) / 100 }
 	pct := func(v int) int { return min(100, max(0, v)) }
+	permille := func(v int) int { return min(1000, max(0, v)) }
 	cfg.IronRockPercent = pct(scale(cfg.IronRockPercent, cfg.DepthOrePercent))
 	cfg.IceRockPercent = pct(scale(cfg.IceRockPercent, cfg.DepthOrePercent))
 	cfg.ClayRockPercent = pct(scale(cfg.ClayRockPercent, cfg.DepthOrePercent))
-	cfg.UraniumRockPercent = pct(scale(cfg.UraniumRockPercent, cfg.DepthUraniumPercent))
+	cfg.UraniumRockPermille = permille(scale(cfg.UraniumRockPermille, cfg.DepthUraniumPercent))
 	cfg.CavernMin = scale(cfg.CavernMin, cfg.DepthCavernPercent)
 	cfg.CavernMax = scale(cfg.CavernMax, cfg.DepthCavernPercent)
 	cfg.CavernNestPercent = pct(cfg.CavernNestPercent + cfg.DepthNestPercent*d)
@@ -173,7 +174,7 @@ func (w *World) naturalShaft(c Point, g *worldGen) {
 	w.addLayer(foot.Level)
 	w.SetTerrain(foot, ShaftBottom) // breaking in: the cavern below floods into view
 	w.SetTerrain(p, ShaftTop)
-	w.logEvent(LogCavern, fmt.Sprintf("The cavern holds a natural shaft down to a cavern on level %d.", foot.Level))
+	w.logEventAt(LogCavern, p, fmt.Sprintf("The cavern holds a natural shaft down to a cavern on level %d.", foot.Level))
 }
 
 // sinkhole opens a hole in the cavern at c's floor onto the level below:
@@ -194,7 +195,7 @@ func (w *World) sinkhole(c Point, g *worldGen) {
 	w.addLayer(foot.Level)
 	w.SetTerrain(foot, Floor)
 	w.SetTerrain(p, Hole)
-	w.logEvent(LogCavern, fmt.Sprintf("A sinkhole in the cavern floor drops to level %d.", foot.Level))
+	w.logEventAt(LogCavern, p, fmt.Sprintf("A sinkhole in the cavern floor drops to level %d.", foot.Level))
 }
 
 // rollNestsAndFeatures is rollNests followed by naturalFeatures, on a copy

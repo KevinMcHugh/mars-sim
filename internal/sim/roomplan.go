@@ -690,7 +690,7 @@ func (w *World) fitOut(recs []*roomRecord, us []fixtureUnit, st roomPlanState) b
 		}
 		name := w.roomTitle(rec) + " fit-out"
 		if w.designateShape(sh, plan, pl, name) {
-			w.logEvent(LogBuildStart, fmt.Sprintf("The colony fits out a %s with %s.", w.roomTitle(rec), fixturePhrase(pl)))
+			w.logEventAt(LogBuildStart, rec.site(), fmt.Sprintf("The colony fits out a %s with %s.", w.roomTitle(rec), fixturePhrase(pl)))
 			return true
 		}
 	}
@@ -791,7 +791,7 @@ func (w *World) mergeRooms(recs []*roomRecord, us []fixtureUnit, least int, st r
 		}
 		before := w.roomTitle(a)
 		if w.designateShape(sh, plan, pl, before+" merger") {
-			w.logEvent(LogBuildStart, fmt.Sprintf("The colony takes down the walls between two rooms to make one larger %s.", w.roomTitle(a)))
+			w.logEventAt(LogBuildStart, a.site(), fmt.Sprintf("The colony takes down the walls between two rooms to make one larger %s.", w.roomTitle(a)))
 			return true
 		}
 	}
@@ -856,7 +856,7 @@ func (w *World) growRoom(recs []*roomRecord, us []fixtureUnit, st roomPlanState)
 		}
 		name := w.roomTitle(rec) + " expansion"
 		if w.designateShape(best.sh, best.plan, best.pl, name) {
-			w.logEvent(LogBuildStart, fmt.Sprintf("The colony moves a wall out to enlarge a %s.", w.roomTitle(rec)))
+			w.logEventAt(LogBuildStart, rec.site(), fmt.Sprintf("The colony moves a wall out to enlarge a %s.", w.roomTitle(rec)))
 			return true
 		}
 	}

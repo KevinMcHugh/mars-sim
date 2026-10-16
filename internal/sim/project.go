@@ -297,7 +297,7 @@ func (w *World) pruneProjects() {
 					w.closeWork(t.order)
 				}
 			}
-			w.logEvent(LogBuildComplete, capitalizeFirst(withArticle(p.name))+" is complete.")
+			w.logEventProject(LogBuildComplete, p, capitalizeFirst(withArticle(p.name))+" is complete.")
 			w.structureRev++ // its structure, if it raised one, has stopped rising
 			continue
 		}
@@ -847,7 +847,7 @@ func (w *World) designateRoom(r roomRecipe, f roomFrame, n int, issuer Owner) bo
 	if r.name == scumhouseRoom.name {
 		w.linkPantry(p)
 	}
-	w.logEvent(LogBuildStart, r.planLog)
+	w.logEventProject(LogBuildStart, p, r.planLog)
 	return true
 }
 

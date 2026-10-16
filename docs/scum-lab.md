@@ -4,13 +4,13 @@
 
 ## What it is
 
-Scum Lab is the tuning bench for `cognition.yaml`: one shell, one in-memory config, a nav of tools. **Focus Tester** explains one colonist's focus. **Grammar Builder** edits perceptions, reactions, and trait rules. **Sprite Designer** draws SVG map sprites with Claude and does not touch the config; see [sprite-designer.md](./sprite-designer.md). **Species Catalog** shows every species in [Creature Lab](./creature-lab.md) with its sprites, and does not touch the config either. The page does not run a world. Go still validates the file at load.
+Scum Lab is the tuning bench for `cognition.yaml`: one shell, one in-memory config, a nav of tools. **Focus Tester** explains one colonist's focus. **Grammar Builder** edits perceptions, reactions (their affect, and a drive bump such as safety's; see [safety.md](./safety.md)), and trait rules. **Sprite Designer** draws SVG map sprites with Claude and does not touch the config; see [sprite-designer.md](./sprite-designer.md). **Species Catalog** shows every species in [Creature Lab](./creature-lab.md) with its sprites, and does not touch the config either. The page does not run a world. Go still validates the file at load.
 
 Focus scoring and colonist rolls go through a WASM build of the sim. Do not reimplement them in JavaScript. See [wasm.md](./wasm.md).
 
 ## Source
 
-- [`tools/scum-lab/`](../tools/scum-lab/) — the page. `shell.js` is hash routing and the YAML dialog. `tools/registry.js` is the tool list. `shared/store.js` is the one config. `shared/sim.js` talks to WASM. `shared/yaml.js` reads and writes the file the lab emits. `shared/defaults.js` is the reset snapshot.
+- [`tools/scum-lab/`](../tools/scum-lab/) — the page. `shell.js` is hash routing and the YAML dialog. `tools/registry.js` is the tool list. `shared/store.js` is the one config. `shared/sim.js` talks to WASM. `shared/yaml.js` reads and writes the file the lab emits. `shared/defaults.js` is the reset snapshot, generated from the Go defaults by `gen-defaults.mjs`.
 - [`tools/scum-lab/brand/`](../tools/scum-lab/brand/) — `logo.svg` (masthead) and `favicon.svg`. The favicon is a separate, simpler drawing on a 32px grid: the logo's bubbles and thin strokes blur into mush at 16px. Colors are the theme's amber and `--bg` rust; keep it free of white outlines.
 - [`tools/scum-lab/build.sh`](../tools/scum-lab/build.sh) — builds the module. `--open` serves port 8765 and opens the page.
 - [`cognition.yaml`](../cognition.yaml) — what the tools import and export.
@@ -52,7 +52,7 @@ Traits split into **Native** (rolled at spawn) and **Acquired** (gained in play,
 2. Import it in `tools/registry.js` and append it to `tools`. Order is nav order.
 3. Mutate `ctx.store.config` in place. No private copy, no second YAML dialog. `ctx.openYAML("import" | "export" | "vocab")` opens the shell dialog.
 4. A one-off stays in the tool file. `shared/` is for logic a second tool needs.
-5. When `cognition.yaml` defaults change, update `shared/defaults.js` in the same change. The lab does not regenerate it. Drift shows up as reset disagreeing with `go run . -print-cognition-config`.
+5. When the Go cognition defaults change, regenerate `shared/defaults.js` in the same change: `node tools/scum-lab/gen-defaults.mjs` from the repo root (`--check` fails if it is stale). It reads `go run . -print-cognition-config` and `-print-cognition-vocab` through the lab's own YAML reader, so reset is the game's defaults by construction. It used to be kept by hand and drifted: by the safety drive it was missing twenty reactions, and its focuses kept a `need_weight` key after the lab had moved to `drive_weight`, so the Focus Tester scored every drive's pressure at zero.
 
 A new *system* still uses this shell. Scoring still goes through the WASM API in [wasm.md](./wasm.md).
 

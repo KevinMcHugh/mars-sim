@@ -25,6 +25,7 @@
       <span class="tag {{.Temperament}}">{{.Temperament}}</span>{{if .Apex}}<span class="tag hostile">apex</span>{{end}}
       <span class="tag">{{.FormCount}} form{{if ne .FormCount 1}}s{{end}}</span>
       {{if .Complete}}<span class="tag done">complete</span>{{end}}
+      {{if .NameEdited}}<span class="tag" title="Renamed in the lab">renamed</span>{{end}}
       <span class="muted" style="font-size:.8rem">seed {{.Seed}}</span>
     </div>
     <div class="thumbs">

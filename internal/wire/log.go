@@ -27,8 +27,19 @@ type LogTopic struct {
 type LogEntry struct {
 	Seq  int    `json:"seq"`
 	Tick int    `json:"tick"`
+	When string `json:"when"` // Tick as a colony date and time (sim.Clock)
 	Kind string `json:"kind"` // sim.LogKind's label: "death", "build complete", ...
 	Text string `json:"text"`
+	// Place is the tile the line is about, which clicking it centers the
+	// map on; absent for a line about the colony as a whole.
+	Place *LogPlace `json:"place,omitempty"`
+}
+
+// LogPlace is a log line's tile.
+type LogPlace struct {
+	X     int `json:"x"`
+	Y     int `json:"y"`
+	Level int `json:"level"`
 }
 
 // newLogTopic makes one subscription's log topic. Unlike the others it has
@@ -53,7 +64,11 @@ func newLogTopic() topic {
 			}
 		}
 		for _, e := range log[from:] {
-			t.Entries = append(t.Entries, LogEntry{Seq: e.Seq, Tick: e.Tick, Kind: e.Kind.String(), Text: e.Text})
+			le := LogEntry{Seq: e.Seq, Tick: e.Tick, When: sim.Clock(e.Tick, s.TicksPerDay), Kind: e.Kind.String(), Text: e.Text}
+			if e.HasAt {
+				le.Place = &LogPlace{X: e.At.X, Y: e.At.Y, Level: int(e.At.Level)}
+			}
+			t.Entries = append(t.Entries, le)
 		}
 		if len(log) > 0 {
 			next = log[len(log)-1].Seq + 1

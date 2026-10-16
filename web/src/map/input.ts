@@ -6,6 +6,8 @@ import type { Camera } from './camera';
 
 export interface InputHooks {
   changed: () => void;               // the camera moved
+  /** The player panned (a drag or a key; not a zoom): the camera is theirs, so following stops. */
+  panned: () => void;
   hover: (sx: number, sy: number) => void;
   leave: () => void;
   /** A press and release without a drag or pinch between them. */
@@ -63,6 +65,8 @@ export function attachInput(canvas: HTMLCanvasElement, cam: Camera, hooks: Input
     if (press && Math.hypot(x - press.x, y - press.y) > CLICK_SLOP) press = null;
     if (pointers.size === 1) {
       cam.panPixels(x - p.x, y - p.y);
+      // Not inside the click slop, or every click would stop following.
+      if (!press) hooks.panned();
     } else if (pointers.size === 2) {
       p.x = x; p.y = y;
       const d = spread(pointers);
@@ -127,6 +131,7 @@ export function attachInput(canvas: HTMLCanvasElement, cam: Camera, hooks: Input
       default: return;
     }
     e.preventDefault();
+    if (e.key !== ']' && e.key !== '[') hooks.panned();
     hooks.changed();
   });
 }

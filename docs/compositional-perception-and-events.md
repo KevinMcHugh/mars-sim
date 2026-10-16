@@ -50,7 +50,12 @@ The occurrence `colonist / converse / colonist` can produce:
 - `direct / target` for the listener;
 - a future `hearing / witness` rule if someone should overhear.
 
-`Channel` is `direct`, `sight`, `hearing`, or `proximity`. `Role` is `actor`,
+`Channel` is `direct`, `sight`, `hearing`, `proximity`, `hearsay` or
+`broadcast`. The last two are delivered by the feature itself, never by a
+perception rule (the compiler rejects a rule that senses on them): hearsay
+is a memory recounted in conversation (`tellHearsay`), with `Percept.Hops`
+counting the retellings, and broadcast is the nightly news (`hearNews`). See
+[safety.md](./safety.md). `Role` is `actor`,
 `target`, or `witness`. `Phase` is `instant`, `enter`, `ongoing`, or `exit`.
 `ObjectRelation` is observer-relative (`friend` today) and is computed from
 affinity, not authored onto the occurrence. Nouns and actions are stable
@@ -116,7 +121,15 @@ A reaction can configure:
 - memory recording, templates, and consecutive collapse;
 - affect impact plus a `fresh`/`worn` pair;
 - a wear-policy ID (`memory-occasions` or `none`);
-- stimulus salience, lifetime, source identity, and focus contributions.
+- stimulus salience, lifetime, source identity, and focus contributions;
+- `drives`: whole points added to the observer's drives as the percept
+  lands (`drives: { safety: { fresh: 400, worn: 250 } }`), read at the same
+  wear and trait `impact` scale as the affect. Safety is moved this way
+  (see [safety.md](./safety.md)).
+
+Every recorded memory keeps the occurrence's gist (`Memory.Gist`), so it can
+be retold as hearsay and so the news can tell who already knows.
+
 
 The immutable reaction ID is also the durable memory-collapse and
 stimulus-coalescing identity.

@@ -68,6 +68,10 @@ func TestLoadSpeciesPack(t *testing.T) {
 		"two for a form":   func(p *SpeciesPack) { p.Species[1].Sprites = append(p.Species[1].Sprites, p.Species[1].Sprites[0]) },
 		"not an svg":       func(p *SpeciesPack) { p.Species[1].Sprites[0].SVG = "hello" },
 		"huge notes":       func(p *SpeciesPack) { p.Species[0].Notes = strings.Repeat("x", MaxPackedLoreBytes+1) },
+		"half a rename":    func(p *SpeciesPack) { p.Species[0].Singular = "vent wraith" },
+		"huge rename": func(p *SpeciesPack) {
+			p.Species[0].Singular, p.Species[0].Plural = strings.Repeat("x", MaxPackedNameBytes+1), "xs"
+		},
 		"huge sprite": func(p *SpeciesPack) {
 			p.Species[1].Sprites[0].SVG = "<svg>" + strings.Repeat(" ", MaxPackedSpriteBytes) + "</svg>"
 		},
@@ -225,6 +229,40 @@ func TestPackedLore(t *testing.T) {
 	plain := newTestWorld(t, testConfig()).snapshot(false, 8)
 	if plain.FieldNotes(0) != plain.AlienSpecies[0].Description() || plain.LabNotes(0) != "" || plain.FieldNotes(99) != "" {
 		t.Fatal("a rolled species' lore is not its generated description")
+	}
+}
+
+// A species renamed in the lab plays under its new name, and its generated
+// field notes use it; two species a rename makes share a name never meet.
+func TestPackedRename(t *testing.T) {
+	seeds := seedsWithLife(t, 2)
+	pack := testPack(t, seeds...)
+	rolled := pack[0].Species.Singular
+	pack[0].Singular, pack[0].Plural = "vent wraith", "vent wraiths"
+	cfg := testConfig()
+	cfg.SpeciesPack = pack
+	cfg.AlienSpeciesCount = 2
+	snap := newTestWorld(t, cfg).snapshot(false, 8)
+	found := false
+	for i, sp := range snap.AlienSpecies {
+		if sp.Singular == rolled {
+			t.Fatalf("species %d plays under its rolled name %q", i, rolled)
+		}
+		if sp.ScientificName == pack[0].Species.ScientificName {
+			found = true
+			if sp.Singular != "vent wraith" || sp.Plural != "vent wraiths" || !strings.Contains(strings.ToLower(snap.FieldNotes(i)), "vent wraiths") {
+				t.Fatalf("renamed species plays as %q/%q: %q", sp.Singular, sp.Plural, snap.FieldNotes(i))
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the renamed species is not in the roster")
+	}
+
+	pack[1].Singular, pack[1].Plural = "vent wraith", "vent wraiths"
+	cfg.SpeciesPack = pack
+	if roster := newTestWorld(t, cfg).snapshot(false, 8).AlienSpecies; len(roster) != 1 {
+		t.Fatalf("two species renamed alike both joined a world: %d", len(roster))
 	}
 }
 

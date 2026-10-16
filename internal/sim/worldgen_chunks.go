@@ -48,6 +48,10 @@ const (
 	// veinOriginTries is how many sites a vein gets before it is skipped:
 	// each must be ordinary rock with room to grow.
 	veinOriginTries = 8
+	// motherLodeTries is how many sites the mother lode gets. It is the one
+	// vein a world is promised, so it searches its whole chunk rather than
+	// giving up the way an ordinary vein does.
+	motherLodeTries = 512
 	// cavernSiteFailures is how many sites touching the landing box a chunk
 	// may re-roll before it stops planning caverns short of its budget. Only
 	// bites on a chunk that is mostly landing site.
@@ -83,6 +87,10 @@ const (
 	genStreamPassage uint64 = 0xA4093822299F31D0
 	genStreamScum    uint64 = 0x5CA1AB1E
 	genStreamSalt    uint64 = 0x5A17D0C5
+	// genStreamMotherLode picks the mother lode's chunk (no ids) and grows
+	// its vein (the chunk's coordinates). Its own stream, so the chunk's
+	// ordinary uranium veins draw exactly what they would without it.
+	genStreamMotherLode uint64 = 0x0DDBA11C0FFEE5ED
 )
 
 // veinLevels lists the compositions in priority order. A vein avoids every
@@ -91,18 +99,28 @@ const (
 // New compositions go at the end, so adding one moves no existing vein.
 var veinLevels = [...]RockComposition{IronBearingRock, WaterIceBearingRock, UraniumBearingRock, ClayBearingRock}
 
-func veinPercent(cfg *Config, level int) int {
+// uraniumVeinLevel is uranium's index in veinLevels.
+const uraniumVeinLevel = 2
+
+// veinShare is the share of the map a composition level covers, as share
+// tiles in every per: per is 100 for the compositions set in percent and 1000
+// for uranium, set per mille. The vein count keeps each composition's own
+// denominator rather than converting everything to per mille, because the
+// denominator is the bound of the count's one random draw: a percent
+// composition drawn over a thousand would move every iron and ice vein on
+// every seed.
+func veinShare(cfg *Config, level int) (share, per int) {
 	switch veinLevels[level] {
 	case IronBearingRock:
-		return cfg.IronRockPercent
+		return cfg.IronRockPercent, 100
 	case WaterIceBearingRock:
-		return cfg.IceRockPercent
+		return cfg.IceRockPercent, 100
 	case UraniumBearingRock:
-		return cfg.UraniumRockPercent
+		return cfg.UraniumRockPermille, 1000
 	case ClayBearingRock:
-		return cfg.ClayRockPercent
+		return cfg.ClayRockPercent, 100
 	}
-	return 0
+	return 0, 100
 }
 
 // chunkKey names a worldgen chunk.
@@ -179,6 +197,10 @@ type worldGen struct {
 	// landingLo/landingHi bound the landing cavern expanded by
 	// cavernLandingClearance: no cavern or passage may touch this box.
 	landingLo, landingHi Point
+	// motherLode is the chunk promised a full-size uranium vein (see
+	// pickMotherLode); hasMotherLode is false when uranium is off.
+	motherLode    chunkKey
+	hasMotherLode bool
 
 	veins    [len(veinLevels)]genCache[chunkKey, []Point]
 	cands    genCache[chunkKey, []*genCavern]
@@ -228,7 +250,35 @@ func newWorldGenLanding(cfg Config, level Level, lo, hi Point) *worldGen {
 	side := 2*(max(1, cfg.WorldgenHalo)+genHorizon) + 1
 	g.cacheSize = 2 * side * side
 	g.forget()
+	g.pickMotherLode()
 	return g
+}
+
+// pickMotherLode chooses the level's mother lode: one chunk, a pure function
+// of the seed, the map and the level, that always grows a full-size uranium
+// vein. Uranium is rare enough (see docs/power.md) that a small map would
+// otherwise hold none about half the time. The candidates are the chunks with
+// some tile outside the landing box, in raster order, so the vein can start
+// where the landing cavern will not carve it away.
+func (g *worldGen) pickMotherLode() {
+	if share, _ := veinShare(&g.cfg, uraniumVeinLevel); share <= 0 {
+		return
+	}
+	var cands []chunkKey
+	for cy := 0; cy < g.chunkRows(); cy++ {
+		for cx := 0; cx < g.chunkCols(); cx++ {
+			k := chunkKey{int32(cx), int32(cy)}
+			lo, hi, ok := g.chunkBounds(k)
+			if ok && !(g.nearLanding(lo) && g.nearLanding(hi)) {
+				cands = append(cands, k)
+			}
+		}
+	}
+	if len(cands) == 0 {
+		return
+	}
+	rng := g.featureRand(genStreamMotherLode)
+	g.motherLode, g.hasMotherLode = cands[rng.IntN(len(cands))], true
 }
 
 // withCacheSize resizes the plan caches, for a caller that generates far more
@@ -412,16 +462,16 @@ func (g *worldGen) veinPlan(level int, k chunkKey) []Point {
 		return v
 	}
 	var tiles []Point
-	pct := veinPercent(&g.cfg, level)
+	share, per := veinShare(&g.cfg, level)
 	lo, hi, ok := g.chunkBounds(k)
-	if ok && pct > 0 {
-		tiles = g.growVeins(level, k, lo, hi, pct)
+	if ok && share > 0 {
+		tiles = g.growVeins(level, k, lo, hi, share, per)
 	}
 	g.veins[level].put(k, tiles)
 	return tiles
 }
 
-func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, pct int) []Point {
+func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, share, per int) []Point {
 	minSize := max(2, g.cfg.RockVeinMin) // a one-tile vein is an isolated deposit
 	maxSize := max(minSize, g.cfg.RockVeinMax)
 
@@ -433,6 +483,20 @@ func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, pct int) []Poi
 	var earlier [][]Point
 	for l := 0; l < level; l++ {
 		g.forNeighbours(k, 1, func(n chunkKey) { earlier = append(earlier, g.veinPlan(l, n)) })
+	}
+	// The mother lode also steers around every tile that will be open floor:
+	// a cavern or passage over it would leave a promise of a few tiles. Plans
+	// up to two chunks out can reach this window. Caverns never read veins,
+	// so this adds no cycle.
+	isLode := level == uraniumVeinLevel && g.hasMotherLode && k == g.motherLode
+	var floor [][]Point
+	if isLode {
+		g.forNeighbours(k, 2, func(n chunkKey) {
+			for _, c := range g.keptCaverns(n) {
+				floor = append(floor, c.tiles)
+			}
+			floor = append(floor, g.passagePlan(n)...)
+		})
 	}
 	g.mark = resetBools(g.mark, ww*wh)
 	taken := g.mark
@@ -446,38 +510,16 @@ func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, pct int) []Poi
 
 	rng := g.featureRand(genStreamVein+uint64(level), int64(k.cx), int64(k.cy))
 	area := int64(hi.X-lo.X+1) * int64(hi.Y-lo.Y+1)
-	count := stratified(rng, area*int64(pct)*2, 100*int64(minSize+maxSize))
+	count := stratified(rng, area*int64(share)*2, int64(per)*int64(minSize+maxSize))
 
 	const box = 2*veinReach + 1
 	g.own = resetBools(g.own, box*box)
 	var tiles []Point
-	for v := 0; v < count; v++ {
-		size := minSize + rng.IntN(maxSize-minSize+1)
-		var origin Point
-		found := false
-		for try := 0; try < veinOriginTries && !found; try++ {
-			origin = Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1), g.level}
-			free := func(p Point) bool {
-				x, y := p.X-wlo.X, p.Y-wlo.Y
-				return g.inMap(p) && !taken[y*ww+x]
-			}
-			if !free(origin) {
-				continue
-			}
-			for _, d := range veinNeighbors {
-				if free(origin.Add(d.X, d.Y)) {
-					found = true
-					break
-				}
-			}
-		}
-		if !found {
-			continue
-		}
-		vein := g.walkVein(rng, origin, size, func(p Point) bool {
-			x, y := p.X-wlo.X, p.Y-wlo.Y
-			return g.inMap(p) && !taken[y*ww+x]
-		})
+	free := func(p Point) bool {
+		x, y := p.X-wlo.X, p.Y-wlo.Y
+		return g.inMap(p) && !taken[y*ww+x]
+	}
+	claim := func(vein []Point) {
 		// Later veins of this chunk steer around this one, so they do not
 		// spend their tiles re-covering it. Veins from other chunks of the
 		// same level can still overlap it; that costs a little abundance
@@ -487,7 +529,61 @@ func (g *worldGen) growVeins(level int, k chunkKey, lo, hi Point, pct int) []Poi
 		}
 		tiles = append(tiles, vein...)
 	}
+
+	// The mother lode grows first, from its own stream, at full size and
+	// outside the landing box, so the landing carve leaves it standing and
+	// the colony has to dig to it.
+	if isLode {
+		open := make([]bool, ww*wh)
+		for _, tiles := range floor {
+			for _, p := range tiles {
+				if x, y := p.X-wlo.X, p.Y-wlo.Y; x >= 0 && y >= 0 && x < ww && y < wh {
+					open[y*ww+x] = true
+				}
+			}
+		}
+		lodeFree := func(p Point) bool {
+			return free(p) && !g.nearLanding(p) && !open[(p.Y-wlo.Y)*ww+(p.X-wlo.X)]
+		}
+		lode := g.featureRand(genStreamMotherLode, int64(k.cx), int64(k.cy))
+		for try := 0; try < motherLodeTries; try++ {
+			origin := Point{lo.X + lode.IntN(hi.X-lo.X+1), lo.Y + lode.IntN(hi.Y-lo.Y+1), g.level}
+			if lodeFree(origin) && hasFreeNeighbor(origin, lodeFree) {
+				claim(g.walkVein(lode, origin, maxSize, lodeFree))
+				// It stands in for one of the chunk's own veins, so a big
+				// map's abundance barely moves; a small map gains the vein
+				// it was promised.
+				count = max(0, count-1)
+				break
+			}
+		}
+	}
+
+	for v := 0; v < count; v++ {
+		size := minSize + rng.IntN(maxSize-minSize+1)
+		var origin Point
+		found := false
+		for try := 0; try < veinOriginTries && !found; try++ {
+			origin = Point{lo.X + rng.IntN(hi.X-lo.X+1), lo.Y + rng.IntN(hi.Y-lo.Y+1), g.level}
+			found = free(origin) && hasFreeNeighbor(origin, free)
+		}
+		if !found {
+			continue
+		}
+		claim(g.walkVein(rng, origin, size, free))
+	}
 	return tiles
+}
+
+// hasFreeNeighbor reports whether a vein starting at p has room for a second
+// tile, so it is never an isolated deposit.
+func hasFreeNeighbor(p Point, free func(Point) bool) bool {
+	for _, d := range veinNeighbors {
+		if free(p.Add(d.X, d.Y)) {
+			return true
+		}
+	}
+	return false
 }
 
 // walkVein grows one vein of up to size orthogonally connected tiles from

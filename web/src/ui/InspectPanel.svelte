@@ -5,7 +5,7 @@
   // cursor's. Names of kin, acquaintances, owners and creatures on a tile
   // inspect them in turn.
   import { pickGlyph } from '../emoji';
-  import { centerOn, inspect, selectionTopic, setPanel, subscribe, topics, ui } from '../game.svelte';
+  import { centerOn, follow, inspect, selectionTopic, setPanel, subscribe, topics, ui } from '../game.svelte';
   import Bar from './Bar.svelte';
   import Section from './Section.svelte';
   import type { EntityInfo, TileInfo } from './inspect';
@@ -22,9 +22,6 @@
   const tile = $derived(ui.selected && 'tile' in ui.selected ? (data as TileInfo | undefined) : undefined);
   const c = $derived(entity?.colonist);
 
-  function memoryTick(m: { tick: number; lastTick: number; count: number }): string {
-    return m.count > 1 ? `t${m.tick}–${m.lastTick} (×${m.count})` : `t${m.tick}`;
-  }
 </script>
 
 {#if ui.inspectFrom && backLabels[ui.inspectFrom]}
@@ -41,7 +38,12 @@
     <header>
       <h3><span class="glyph">{pickGlyph(entity.look, entity.glyph)}</span> {entity.name}</h3>
       {#if !entity.dead}
+        <span class="actions">
         <button type="button" class="small" title="Center the map on it" onclick={() => centerOn(entity.x, entity.y, entity.level)}>Find</button>
+        <button type="button" class="small" class:on={ui.follow === entity.id} aria-pressed={ui.follow === entity.id}
+          title={ui.follow === entity.id ? 'Stop following' : 'Keep the map centered on it as it moves (a pan stops it)'}
+          onclick={() => follow(ui.follow === entity.id ? null : entity.id)}>{ui.follow === entity.id ? 'Following' : 'Follow'}</button>
+        </span>
       {/if}
     </header>
     {#if c}
@@ -56,7 +58,7 @@
 
     <Section id="inspect.status" title="Status">
       {#if entity.dead}
-        <p>Dead at tick {entity.diedTick} — {entity.cause}</p>
+        <p>Died {entity.diedAt} — {entity.cause}</p>
       {:else}
         <p>{entity.state}{entity.focus && entity.focus !== 'idle' ? ` · focus: ${entity.focus}` : ''}</p>
         <div class="bars"><Bar label="health" value={entity.hp} max={entity.maxHp} /></div>
@@ -87,6 +89,7 @@
               danger={d.consequence === 'death'} title={d.consequence === 'none' ? undefined : `When full: ${d.consequence}`} />
           {/each}
         </div>
+        {#if c.want}<p class="want">{c.want}</p>{/if}
       </Section>
 
       <Section id="inspect.inventory" title="Inventory">
@@ -158,7 +161,7 @@
           <p class="muted">no memories yet</p>
         {:else}
           <ul class="memories">
-            {#each c.memories as m, i (i)}<li><span class="tick">{memoryTick(m)}</span> {m.text}</li>{/each}
+            {#each c.memories as m, i (i)}<li><span class="tick">{m.when}{m.count > 1 ? ` (×${m.count})` : ''}</span> {m.text}</li>{/each}
           </ul>
         {/if}
       </Section>
@@ -211,7 +214,7 @@
       <ul class="plain">
         {#each named as b (b.id)}
           <li>
-            <button type="button" class="link" onclick={() => inspect({ entity: b.id }, ui.inspectFrom)}>{pickGlyph(b.look, b.glyph)} {b.name}</button>{#if b.cause} · {b.cause}{/if}{#if b.diedTick !== undefined} <span class="tick">tick {b.diedTick}</span>{/if}
+            <button type="button" class="link" onclick={() => inspect({ entity: b.id }, ui.inspectFrom)}>{pickGlyph(b.look, b.glyph)} {b.name}</button>{#if b.cause}<span class="detail">· {b.cause}</span>{/if}{#if b.diedAt}<span class="detail when">· {b.diedAt}</span>{/if}
           </li>
         {/each}
         {#if unnamed > 0}<li class="muted">{unnamed === 1 ? 'one' : unnamed} unidentified</li>{/if}
@@ -261,10 +264,16 @@
   .plain li { line-height: 1.5; }
   .memories li { line-height: 1.4; margin-bottom: 4px; }
   .tick { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 4px; }
+  /* A space before each "· detail" by margin: Svelte drops the whitespace at an {#if} block's edges. */
+  .detail { margin-left: 0.3em; }
+  .when { color: var(--muted); font-variant-numeric: tabular-nums; }
   .link {
     border: none; background: none; padding: 0; color: #8fd0ff; cursor: pointer;
   }
   .link:hover { text-decoration: underline; }
   .small { padding: 2px 8px; font-size: 12px; }
+  .actions { display: flex; gap: 4px; flex: none; }
+  .small.on { background: var(--accent); color: #fff; }
   .back { display: block; margin-bottom: 8px; }
+  .want { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 </style>

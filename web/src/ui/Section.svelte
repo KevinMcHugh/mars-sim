@@ -3,28 +3,31 @@
   // folded ones are remembered in this browser by id (ui.collapsed, saved by
   // toggleSection), not per colonist or per game: fold Skills once and it
   // stays shut on every inspector until it is opened again. Ids are
-  // "<tab>.<section>", so the same title in two tabs folds separately. A
+  // "<tab>.<section>", so the same title in two tabs folds separately. One
+  // marked `shut` starts folded until it is opened (and then stays open). A
   // `help` snippet puts a (?) after the title that shows it (Help.svelte).
   import type { Snippet } from 'svelte';
   import { toggleSection, ui } from '../game.svelte';
   import Help from './Help.svelte';
 
-  let { id, title, note, tag = 'h4', help, children }: {
+  let { id, title, note, tag = 'h4', shut = false, help, children }: {
     id: string;
     title: string;
     /** Shown after the title, in plain case (e.g. "(chain depth 3)"). */
     note?: string;
     tag?: 'h2' | 'h4';
+    /** Folded shut until the player opens it. */
+    shut?: boolean;
     /** An explanation, shown under the heading by its (?). */
     help?: Snippet;
     children: Snippet;
   } = $props();
-  const open = $derived(!ui.collapsed[id]);
+  const open = $derived(!(ui.collapsed[id] ?? shut));
   let helpOpen = $state(false);
 </script>
 
 <svelte:element this={tag} class="section-head">
-  <button type="button" aria-expanded={open} onclick={() => toggleSection(id)}>
+  <button type="button" aria-expanded={open} onclick={() => toggleSection(id, shut)}>
     <span class="caret" aria-hidden="true">{open ? '▾' : '▸'}</span>{title}{#if note}<span class="note">{note}</span>{/if}
   </button>{#if help}<Help bind:open={helpOpen} label="What is {title}?" />{/if}
 </svelte:element>

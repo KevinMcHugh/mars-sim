@@ -17,6 +17,7 @@ func (w *World) step() {
 		w.landRestAloft() // nobody is left in orbit once the game starts
 	}
 	w.tick++
+	w.airNews()
 	for _, id := range w.entityTurnOrder() {
 		e := w.entities[id]
 		if e == nil || !e.Alive() {
@@ -35,8 +36,11 @@ func (w *World) step() {
 		switch e.Kind {
 		case Colonist:
 			w.colonistTurn(e)
+			w.hearNews(e)          // the evening news, once it is awake to hear it
+			w.postWants(e)         // what a pressing drive would buy (wants.go)
 			w.syncDriveActivity(e) // drives grow at the rate of what it is now doing
-			w.tallyActivity(e)     // the Activity tab's tally (read-only bookkeeping)
+
+			w.tallyActivity(e) // the Activity tab's tally (read-only bookkeeping)
 		default:
 			w.animalTurn(e)
 		}
@@ -160,7 +164,7 @@ func (w *World) colonistTurn(e *Entity) {
 		w.clearJob(e) // release any board claim before removal
 		w.leaveBody(e, e.Pos, ColonistCorpse)
 		w.remove(e.ID, cause)
-		w.logEvent(LogDeath, fmt.Sprintf(line, e.displayName()))
+		w.logEventAt(LogDeath, e.Pos, fmt.Sprintf(line, e.displayName()))
 		return
 	}
 	w.healWounds(e)
@@ -513,7 +517,7 @@ func (w *World) stomp(colonist, rat *Entity) {
 	w.leaveBody(rat, rat.Pos, AnimalCorpse) // a crushed pest still has to be carried off
 	w.remove(rat.ID, fmt.Sprintf("crushed by %s", colonist.displayName()))
 	w.emitOccurrence(o)
-	w.logEvent(LogDeath, fmt.Sprintf("Colonist #%d stomps rat #%d.", colonist.ID, rat.ID))
+	w.logEventAt(LogDeath, rat.Pos, fmt.Sprintf("Colonist #%d stomps rat #%d.", colonist.ID, rat.ID))
 }
 
 // idleWouldBlock reports whether an idle colonist resting at p would get in the
@@ -828,6 +832,8 @@ func (w *World) runJob(e *Entity) {
 		w.jobTend(e)
 	case JobGuard:
 		w.jobGuard(e)
+	case JobFetch:
+		w.jobFetch(e)
 	default:
 		e.State = Idle
 		w.wanderStep(e)
@@ -1053,7 +1059,10 @@ func (w *World) finishTalk(a, b *Entity) {
 		{Observer: b.ID, Target: conversationMoodVector(outcome + w.noteConversation(b))},
 	}
 	w.emitOccurrence(o)
+	// What the speaker recalled reaches the listener as hearsay.
+	w.tellHearsay(topic, listener)
 	// Company sought while lonely is its own experience, on top of how the
+
 	// talk went: a colonist who came to it with its social drive at seek-at
 	// or above "socialized". Read before jobTalk resets the drive.
 	for _, e := range []*Entity{a, b} {
@@ -1074,6 +1083,12 @@ func (w *World) assignWorkJob(e *Entity) {
 	// A colonist looking for work takes an open place on the EMT detail and
 	// goes on looking: being on call is not a job (see emt.go).
 	w.tryTakeOnCall(e)
+	// A gun it bought, waiting at a depot, before anything else: it goes out
+	// to the frontier armed.
+	if w.tryFetchGun(e) {
+		return
+	}
+
 	// A meal in its pockets before it's hungry, so hunger never starts with a
 	// walk across the colony (see food.go).
 	if w.tryPocketMeal(e) {
@@ -1328,7 +1343,7 @@ func (w *World) jobStore(e *Entity) {
 		e.Inventory.RemoveAll(stack.Kind)
 	}
 	e.State = Storing
-	w.logEvent(LogHaul, fmt.Sprintf("%s unloads materials into storage at (%d, %d).",
+	w.logEventAt(LogHaul, e.Target, fmt.Sprintf("%s unloads materials into storage at (%d, %d).",
 		e.displayName(), e.Target.X, e.Target.Y))
 	if atSilo {
 		kinds := make([]ItemKind, 0, len(stacks))
@@ -1482,7 +1497,7 @@ func (w *World) jobDemolish(e *Entity) {
 			}
 			w.SetTerrain(e.Target, Floor)
 			w.practise(e, SkillMining, w.cfg.MineTicks)
-			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d digs through rock to escape a sealed pocket.", e.ID))
+			w.logEventAt(LogEscape, e.Target, fmt.Sprintf("Colonist #%d digs through rock to escape a sealed pocket.", e.ID))
 			w.clearJob(e)
 			return
 		}
@@ -1490,7 +1505,7 @@ func (w *World) jobDemolish(e *Entity) {
 		e.Progress++
 		if e.Progress >= scaleTicks(w.cfg.DemolishTicks, e.workScale) {
 			w.SetTerrain(e.Target, Floor)
-			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a wall to escape a sealed room.", e.ID))
+			w.logEventAt(LogEscape, e.Target, fmt.Sprintf("Colonist #%d breaks through a wall to escape a sealed room.", e.ID))
 			w.clearJob(e)
 		}
 		return
@@ -1574,16 +1589,16 @@ func (w *World) jobBuild(e *Entity) {
 			// whose it is go to its new place before the old comes down.
 			w.relocateFixture(e.Target, *e.task.moveTo)
 			w.demolish(e.Target)
-			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d moves a %s from (%d, %d) to (%d, %d).",
+			w.logEventAt(LogBuildStart, *e.task.moveTo, fmt.Sprintf("Colonist #%d moves a %s from (%d, %d) to (%d, %d).",
 				e.ID, prereq, e.Target.X, e.Target.Y, e.task.moveTo.X, e.task.moveTo.Y))
 		case p != nil && p.room != nil:
 			// A wall coming down as a room grows or joins another (see roomplan.go).
 			w.demolish(e.Target)
-			w.logEvent(LogBuildStart, fmt.Sprintf("Colonist #%d tears down a wall at (%d, %d) to enlarge the %s.",
+			w.logEventAt(LogBuildStart, e.Target, fmt.Sprintf("Colonist #%d tears down a wall at (%d, %d) to enlarge the %s.",
 				e.ID, e.Target.X, e.Target.Y, w.roomTitle(p.room)))
 		default:
 			w.demolish(e.Target)
-			w.logEvent(LogEscape, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
+			w.logEventAt(LogEscape, e.Target, fmt.Sprintf("Colonist #%d breaks through a %s at (%d, %d) to reach a cut-off part of the colony.",
 				e.ID, prereq, e.Target.X, e.Target.Y))
 		}
 		w.payWork(e.task.order, e)
@@ -1654,7 +1669,7 @@ func (w *World) jobBuild(e *Entity) {
 	} else {
 		w.registerLone(e.Target, e.BuildKind) // an emergency build: a structure of its own
 	}
-	w.noteBuild(e.BuildKind)
+	w.noteBuild(e.BuildKind, e.Target)
 	o := w.occurrence(e, ActionConstruct, nil, e.Target, "Finished construction of %s at (%d, %d).",
 		e.BuildKind, e.Target.X, e.Target.Y)
 	o.Object = FactRef{Noun: NounStructure, Label: e.BuildKind.String()}
@@ -1854,26 +1869,26 @@ func (w *World) buildTicks(kind Terrain) int {
 }
 
 // noteBuild logs the completion of notable structures.
-func (w *World) noteBuild(kind Terrain) {
+func (w *World) noteBuild(kind Terrain, at Point) {
 	switch kind {
 	case NutrientPod:
-		w.logEvent(LogBuildComplete, "A nutrient pod comes online.")
+		w.logEventAt(LogBuildComplete, at, "A nutrient pod comes online.")
 	case Toilet:
-		w.logEvent(LogBuildComplete, "A latrine is installed.")
+		w.logEventAt(LogBuildComplete, at, "A latrine is installed.")
 	case Bed:
-		w.logEvent(LogBuildComplete, "A bunk is bolted into the dormitory.")
+		w.logEventAt(LogBuildComplete, at, "A bunk is bolted into the dormitory.")
 	case Incinerator:
-		w.logEvent(LogBuildComplete, "The incinerator roars to life.")
+		w.logEventAt(LogBuildComplete, at, "The incinerator roars to life.")
 	case Forge:
-		w.logEvent(LogBuildComplete, "The forge is lit.")
+		w.logEventAt(LogBuildComplete, at, "The forge is lit.")
 	case GunBench:
-		w.logEvent(LogBuildComplete, "A gun bench is set up in the foundry.")
+		w.logEventAt(LogBuildComplete, at, "A gun bench is set up in the foundry.")
 	case Chair:
-		w.logEvent(LogBuildComplete, "A chair is set out in the meeting hall.")
+		w.logEventAt(LogBuildComplete, at, "A chair is set out in the meeting hall.")
 	case Cot:
-		w.logEvent(LogBuildComplete, "A cot is made up in the infirmary.")
+		w.logEventAt(LogBuildComplete, at, "A cot is made up in the infirmary.")
 	case Incubator:
-		w.logEvent(LogBuildComplete, "A scum incubator hums to life.")
+		w.logEventAt(LogBuildComplete, at, "A scum incubator hums to life.")
 	}
 }
 
@@ -2130,7 +2145,7 @@ func (w *World) strike(alien, prey *Entity) {
 		w.addGore(prey.Pos)
 		w.emitOccurrence(o)
 		w.remove(prey.ID, fmt.Sprintf("%s to death by %s", verb.past, noun))
-		w.logEvent(LogDeath, fmt.Sprintf("%s %s %s to death and devours the remains.",
+		w.logEventAt(LogDeath, prey.Pos, fmt.Sprintf("%s %s %s to death and devours the remains.",
 			capitalizeFirst(noun), verb.third, name))
 	} else {
 		alien.State = Hunting
@@ -2195,7 +2210,7 @@ func (w *World) pounce(cat, prey *Entity) {
 	o.WitnessText = fmt.Sprintf("Watched a cat catch rat #%d.", prey.ID)
 	w.remove(prey.ID, "caught by a cat")
 	w.emitOccurrence(o)
-	w.logEvent(LogDeath, fmt.Sprintf("A cat catches rat #%d.", prey.ID))
+	w.logEventAt(LogDeath, prey.Pos, fmt.Sprintf("A cat catches rat #%d.", prey.ID))
 }
 
 // ---- Rats --------------------------------------------------------------------
@@ -2239,7 +2254,7 @@ func (w *World) tryMate(e *Entity) bool {
 		e.breeding.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
 		mate.breeding.mateReadyTick = w.tick + w.cfg.RatBreedCooldown
 		e.State, mate.State = Idle, Idle
-		w.logEvent(LogMate, fmt.Sprintf("Rats #%d and #%d mate.", male.ID, female.ID))
+		w.logEventAt(LogMate, female.Pos, fmt.Sprintf("Rats #%d and #%d mate.", male.ID, female.ID))
 		return true
 	}
 	return false
@@ -2270,7 +2285,7 @@ func (w *World) giveBirth(e *Entity) {
 		born++
 	}
 	if born > 0 {
-		w.logEvent(LogBirth, fmt.Sprintf("Rat #%d gives birth to a litter of %d.", e.ID, born))
+		w.logEventAt(LogBirth, e.Pos, fmt.Sprintf("Rat #%d gives birth to a litter of %d.", e.ID, born))
 	}
 }
 

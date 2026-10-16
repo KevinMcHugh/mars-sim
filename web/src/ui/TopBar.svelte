@@ -5,6 +5,7 @@
   import SpeedControl from './SpeedControl.svelte';
   import FlowControl from './FlowControl.svelte';
   import LevelControl from './LevelControl.svelte';
+  import FollowChip from './FollowChip.svelte';
   import { clock } from './format';
 
   // Creatures: their generic glyph (glyphs.ForKind), as the TUI's header shows them.
@@ -41,6 +42,7 @@
   <SpeedControl />
   <FlowControl />
   <LevelControl />
+  <FollowChip />
   {#if ui.hello}
     <span class="counts">
       {#each creatures as [stat, kind] (stat)}

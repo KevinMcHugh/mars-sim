@@ -44,6 +44,17 @@ A species' description (its "field notes", what a player reads in the game's Lor
 - **Limit:** a rewrite is capped at `MaxDescription` (4000 characters; the generated text runs a few hundred). Line breaks are kept and shown.
 - **The game shows them.** A species pack carries the rewrite (`description`, only when `descriptionEdited`) and the lab notes (`notes`), and the game's lore tab shows the rewrite in place of the generated field notes, with the lab notes under it. See [species-pack.md](./species-pack.md#the-lore-tab).
 
+### Common names
+
+The roster code picks a species' common name from a small pool (`alien-names.yaml`), so catalog species often share a name or sound alike, and only the scientific name tells them apart. A species can be renamed so it is distinct: `set_species_name` over MCP, `PATCH /api/species/{id}` with `singular` (and optionally `plural`), or "Rename the species" on the species page. It works like the field notes:
+
+- **The rolled name is never overwritten.** It stays in `species.singular`/`plural` and in `data`, and a rename goes in `singular_override`/`plural_override`. `creaturelab.CommonName` picks the rename when there is one. An empty singular goes back to the rolled name, and so does a "rename" to the rolled name itself, so `nameEdited` only ever means the name differs.
+- **The rename is what shows everywhere:** `traits.singular`/`plural` from the API and MCP, the catalog list's `singular`/`plural`, the form labels ("vent wraith egg"), the pages, Scum Lab, the sprite brief, and the export's `singular`/`plural`. `creaturelab.DecodeSpecies` puts the rename into the decoded species, so everything built from it follows without knowing. A species detail also carries `generatedSingular`, `generatedPlural` and `nameEdited`.
+- **Generated field notes follow the rename; rewritten ones do not.** `FieldNotes` swaps every whole-word mention of the rolled name, plural first, for the new one in the generated text (`creaturelab.Renamed`), keeping a capital where there was one. It does not regenerate the text, for the reason the generated text is stored at all. A rewrite is somebody's words, so it is left alone; the MCP tool's description tells the agent to fix a rewrite that names the species.
+- **Limits:** up to `MaxName` (40) characters each, printable characters only, inner whitespace squeezed. The plural is optional: left out, it is `sim.PluralName` of the singular (an s, or y to ies), which is right for most names; send it for anything irregular. A plural without a singular is refused. Uniqueness is not checked: two species may end up with the same name, and a world simply never picks both (see [species-pack.md](./species-pack.md#playing)).
+- **The scientific name stays.** It is the species' identity across renames, and what a person checks a rename against.
+- **The game plays under it.** A pull packs the rename beside the species, which stays as rolled, and the game applies it when it picks the roster. See [species-pack.md](./species-pack.md).
+
 ### Who pays for drawing
 
 The server never calls a model. Over MCP, the person's own Claude draws, so a sprite costs whatever their Claude plan costs, when they choose to spend it. Without MCP, the species page has **Brief as text** (`/brief/{id}/{form}`) to paste into any chat, and a **Paste an SVG** box for the answer. Contrast the Scum Lab [Sprite Designer](./sprite-designer.md), which bills a Console API key per token from the browser.
@@ -64,7 +75,7 @@ The schema is dedicated to this job: purpose-built tables, not inventory's gener
 
 | table | holds |
 | --- | --- |
-| `species` | `seed`, `generator_rev` (the commit that rolled it), `data` (the whole `sim.AlienSpecies` as JSONB), copies of the name, temperament and generated description for listing, `description_override` (rewritten field notes; `''` for none), `form_count` (its sprite slots), `notes` |
+| `species` | `seed`, `generator_rev` (the commit that rolled it), `data` (the whole `sim.AlienSpecies` as JSONB), copies of the name, temperament and generated description for listing, `description_override` (rewritten field notes; `''` for none), `singular_override` and `plural_override` (a new common name; `''` for none), `form_count` (its sprite slots), `notes` |
 | `sprite_candidates` | `(species_id, form)` slot, `svg` in a `text` column, `note`, `author`, `accepted_at`. A partial unique index allows one accepted per live slot. |
 | `api_keys`, `oauth_*`, `invites` | auth (below) |
 

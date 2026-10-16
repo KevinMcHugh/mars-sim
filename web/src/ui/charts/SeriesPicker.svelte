@@ -52,7 +52,7 @@
           {#each subjects as s (s.key)}<option value={s.key}>{s.subject}{s.ended ? ' (gone)' : ''}</option>{/each}
         </select>
       {:else}
-        <p class="doc">{filter ? 'No match.' : m.per === 'fixture' ? 'Nothing measured yet: a kind appears once one is built.' : m.per === 'skill-rank' ? 'Nothing measured yet: a rank appears once a colonist holds it.' : 'Nothing measured yet: a good appears once it has been traded or stored.'}</p>
+        <p class="doc">{filter ? 'No match.' : m.per === 'fixture' ? 'Nothing measured yet: a kind appears once one is built.' : m.per === 'skill-rank' ? 'Nothing measured yet: a rank appears once a colonist holds it.' : m.per === 'activity' ? 'Nothing measured yet: an activity appears once a colonist is seen doing it.' : 'Nothing measured yet: a good appears once it has been traded or stored.'}</p>
       {/if}
     {:else if !subjects.length}
       <p class="doc">Already on this chart, or no reading yet: the first sample comes at the top of the hour.</p>

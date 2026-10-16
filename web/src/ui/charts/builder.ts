@@ -12,12 +12,13 @@ export interface MetricLine {
   /** A level is a reading; a total is a running total since the landing. */
   kind: 'level' | 'total';
   unit: 'count' | 'dollars';
-  per: 'colony' | 'item' | 'account' | 'fixture' | 'skill-rank';
+  per: 'colony' | 'item' | 'account' | 'fixture' | 'skill-rank' | 'activity';
 }
 
 /** What a metric's subjects are, for the picker: "good" for a per-item metric. */
 export const SUBJECT_NOUN: Record<MetricLine['per'], string> = {
   colony: '', item: 'good', account: 'account', fixture: 'kind', 'skill-rank': 'rank',
+  activity: 'activity',
 };
 
 /**
@@ -25,10 +26,11 @@ export const SUBJECT_NOUN: Record<MetricLine['per'], string> = {
  * order they started, which for ranks is the order colonists happened to
  * reach them. Fixture kinds go alphabetically, and skill ranks by skill and
  * then by rank as a number ("cooking 0: untrained", "cooking 2: cook", …,
- * "mining 0: untrained"). Goods and accounts keep the catalog's order.
+ * "mining 0: untrained"). Activities go alphabetically too. Goods and
+ * accounts keep the catalog's order.
  */
 export function pickerOrder(per: MetricLine['per'], series: SeriesLine[]): SeriesLine[] {
-  if (per !== 'fixture' && per !== 'skill-rank') return series;
+  if (per !== 'fixture' && per !== 'skill-rank' && per !== 'activity') return series;
   return [...series].sort((a, b) => (a.subject ?? '').localeCompare(b.subject ?? '', 'en', { numeric: true }));
 }
 

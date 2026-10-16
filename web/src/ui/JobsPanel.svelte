@@ -3,11 +3,12 @@
   // the TUI's shows it. Selecting a project lays its tiles over the map:
   // yellow queued, orange being built, green done.
   import { centerOn, highlight, inspect, subscribe, topics, ui } from '../game.svelte';
+  import { span } from './format';
   import { JOB_BUILDING, JOB_DONE, JOB_QUEUED } from '../map/palette';
 
   interface Person { id: number; name: string }
   interface Task { x: number; y: number; level: number; terrain: string; phase: number; done: boolean; builder?: Person }
-  interface Project { id: number; name: string; queuedTick: number; done: number; tasks: Task[]; assignees: Person[] }
+  interface Project { id: number; name: string; queuedTick: number; queuedAt: string; queuedMinutes: number; done: number; tasks: Task[]; assignees: Person[] }
   interface Jobs { projects: Project[]; pending: Record<string, number> }
 
   $effect(() => subscribe('jobs'));
@@ -59,7 +60,7 @@
           <span class="name">{p.name}</span>
           <span class="frac">{p.done}/{p.tasks.length}</span>
           <span class="bar"><span style="width: {p.tasks.length ? (p.done * 100) / p.tasks.length : 0}%"></span></span>
-          <span class="sub">{p.assignees.length} assigned · queued t{p.queuedTick}, {Math.max(0, ui.tick - p.queuedTick).toLocaleString()} ticks ago</span>
+          <span class="sub">{p.assignees.length} assigned · queued {p.queuedAt}, {span(p.queuedMinutes)} ago</span>
         </button>
         {#if p.id === openId}
           <div class="detail">

@@ -42,7 +42,8 @@ readout. Around it is a Svelte chrome:
   once, then in the way every time. Text that says what is happening now
   ("the colony is zoning for itself", "Deepest allowed: level 3") stays out.
 - **A log ticker** over the map's bottom-left corner: the last few colony-log
-  lines, fading after a few seconds.
+  lines, fading after a few seconds. A line about a place, here and in the
+  Log tab, takes the map there when clicked.
 
 The rest of the TUI's tabs are planned in
 [browser-frontend.md](./browser-frontend.md), "Parity with the TUI". The plan it is part of is
@@ -61,7 +62,7 @@ The rest of the TUI's tabs are planned in
   `TopBar`, `SpeedControl`, `SidePanel`, `FloatingPanels` and `PanelHead`
   (popped-out tabs, see [floating-panels.md](./floating-panels.md)), `tabs.ts`
   (the tab list both share), `Bar` (a gauge), and one component
-  per tab (`InspectPanel`, `RosterPanel`, `LogPanel`, `JobsPanel`,
+  per tab (`InspectPanel`, `FollowChip` (see [follow.md](./follow.md)), `RosterPanel`, `LogPanel`, `NewsPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail`, `TradePanel` with `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `PerfPanel`, `ShipsPanel`,
   `RecruitPanel`, `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `Help` (a (?) that shows an explanation), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
@@ -103,16 +104,20 @@ The rest of the TUI's tabs are planned in
 **Running it:** from `web/`, run `npm install` once, then `npm run dev`, which
 rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL fills the
-new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true`. `npm run build`
+new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&alien-species-count=2`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's, the activity chart's, the ship count's, the Storage tab's and the shared number and time formats' tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
 
 **The new-game form.** A cold load starts no game: it opens the **Game**
-tab, filled from the URL over the defaults (10000×10000, 6
-colonists, fog of war on, deepest level 3, no seed, so the engine picks
-one), and **Start**
-goes straight to the Ships tab. The page used to generate a 10000×10000
+tab, filled from the URL over the defaults (10000×10000, 20
+colonists — one full ship — 3 alien species, fog of war on, deepest level
+3, no seed, so the engine picks one), and **Start**
+goes straight to the Ships tab. The fields sit in an **Options** fold that
+starts shut (`Section`'s `shut`), with a line above Start saying what the
+defaults give ("20 colonists in 1 ship, 3 alien species"): most players
+start on the defaults, and a wall of inputs made the tab read as a chore.
+Opening Options is remembered like any fold. The page used to generate a 10000×10000
 world on load, so the first thing a player saw was a game they had not
 chosen, and changing it meant generating a second world. Under the colonist
 count the form says how many ships that is to land ("2 ships of 15"):
@@ -300,7 +305,8 @@ Inspect tab:
   tile gets its terrain, its fixture's owner and access, a container's contents
   and ledger, and who stands on it. Names (kin, acquaintances, an owner, a
   creature on a tile) are links that inspect them in turn; **Find** centers the
-  map on the creature.
+  map on the creature, and **Follow** keeps it centered as the creature moves,
+  with a chip in the top bar to stop (see [follow.md](./follow.md)).
 - **The marker** is a square ring on the selected tile, or on the selected
   creature wherever the latest frame puts it (`MapRenderer.setMark`, its own
   small shader). It is at least 14 CSS pixels across, so it still rings a dot
@@ -334,11 +340,18 @@ says `reset`, and the page starts over. `main.ts` subscribes to it for the
 page's whole life, like `names`, because the ticker needs it with the tab
 closed.
 
+- **The News tab** lists the colony's evening broadcasts, newest first,
+  each story with its kind (colored as in the log) and, for one about a
+  place, a click that takes the map there. See [safety.md](./safety.md).
 - **The Log tab** shows each line with its type (colored), its tick, and the
   sentence, wrapped, never cut: the TUI found a cut sentence reads as a
   finished one. It follows the tail while scrolled to the bottom; scrolled
   back, it stays put and offers "↓ N new". A type menu and a search filter
-  it. Wrapped lines have no fixed height, so it is not a virtual list like
+  it. A line with a `place` (most of them; see "Where a line points" in
+  [frontend-tui.md](./frontend-tui.md)) is a button: clicking it centers the
+  map on that tile and switches to its level (`goToLogLine`, through
+  `centerOn`). A line without one stays plain text, so a reader can tell
+  which lines go somewhere. Wrapped lines have no fixed height, so it is not a virtual list like
   the roster's. Two things keep it cheap instead:
   - **A window by count.** Only the newest 200 matching lines are in the DOM
     while it follows the tail; scrolling near the top adds 200 older ones
@@ -355,7 +368,9 @@ closed.
     anchoring); turning anchoring off to do it by hand everywhere made the
     view drift.
 - **The ticker** (`LogTicker.svelte`) shows the last four lines for 12
-  seconds after they arrive, fading out; a click opens the Log tab, and it
+  seconds after they arrive, fading out. Each line is its own button:
+  clicking one with a `place` centers the map there, and clicking one
+  without opens the Log tab (as a click anywhere on it used to). It
   hides while that tab is open. Its fade timer stops once the newest line has
   faded, so a quiet colony runs no timer.
   - **×** hides it, remembered in this browser (`ui.ticker`, saved to

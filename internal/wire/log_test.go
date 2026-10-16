@@ -96,3 +96,42 @@ func TestLogLinesCarryTickAndSeq(t *testing.T) {
 		t.Errorf("first line's seq = %d", first.Seq)
 	}
 }
+
+// A line about a tile carries it as place; a line about the colony as a
+// whole has none.
+func TestLogTopicCarriesPlace(t *testing.T) {
+	snap := fixture(true)
+	tp := NewTopics()
+	if err := tp.Subscribe("log"); err != nil {
+		t.Fatal(err)
+	}
+	snap.Log = []sim.LogEntry{
+		{Seq: 0, Kind: sim.LogNote, Text: "colony-wide"},
+		{Seq: 1, Kind: sim.LogDeath, Text: "here", At: sim.Point{X: 3, Y: 4, Level: 2}, HasAt: true},
+	}
+	raw := tp.Due(snap, time.Unix(1, 0))["log"]
+	var lt LogTopic
+	if err := json.Unmarshal(raw, &lt); err != nil {
+		t.Fatal(err)
+	}
+	if len(lt.Entries) != 2 {
+		t.Fatalf("entries = %d, want 2", len(lt.Entries))
+	}
+	if lt.Entries[0].Place != nil {
+		t.Errorf("colony-wide line has place %+v", *lt.Entries[0].Place)
+	}
+	if p := lt.Entries[1].Place; p == nil || *p != (LogPlace{X: 3, Y: 4, Level: 2}) {
+		t.Errorf("place = %+v, want 3,4 on level 2", p)
+	}
+}
+
+// Each line carries its time as the colony calendar reads it, so the page
+// never turns a tick into a date itself.
+func TestLogEntryCarriesItsColonyTime(t *testing.T) {
+	snap := fixture(true)
+	snap.TicksPerDay, snap.Log = 740, []sim.LogEntry{{Seq: 0, Tick: 555, Kind: sim.LogDeath, Text: "line"}}
+	lt := newLogTopic().build(snap).(LogTopic)
+	if len(lt.Entries) != 1 || lt.Entries[0].When != "Day 2 00:00" {
+		t.Errorf("entries = %+v", lt.Entries)
+	}
+}

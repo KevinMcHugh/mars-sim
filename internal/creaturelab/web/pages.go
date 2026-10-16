@@ -247,6 +247,29 @@ func (s *Server) saveDescription(w http.ResponseWriter, r *http.Request) {
 	back(w, r, id, "field-notes", msg, false)
 }
 
+// saveName renames the species; the reset button sends an empty name,
+// which goes back to the rolled one.
+func (s *Server) saveName(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	singular, plural, msg := r.FormValue("singular"), r.FormValue("plural"), "Renamed."
+	if r.FormValue("reset") != "" {
+		singular, plural, msg = "", "", "Name reset to the rolled one."
+	}
+	_, err := server.BuildViewModel(r.Context(), species.UpdateEndpoint{Store: s.Store, Links: s.Links}, apigen.UpdateSpeciesRequestObject{
+		SpeciesId: id,
+		Body:      &apigen.SpeciesUpdate{Singular: &singular, Plural: plural},
+	})
+	if errors.Is(err, creaturelab.ErrBadInput) {
+		back(w, r, id, "name", err.Error(), true)
+		return
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	back(w, r, id, "name", msg, false)
+}
+
 func ptr[T any](v T) *T { return &v }
 
 func (s *Server) deleteSpecies(w http.ResponseWriter, r *http.Request) {

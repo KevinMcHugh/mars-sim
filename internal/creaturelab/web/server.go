@@ -105,6 +105,7 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/species", s.createSpecies)
 		r.Post("/species/{id}/notes", s.saveNotes)
 		r.Post("/species/{id}/description", s.saveDescription)
+		r.Post("/species/{id}/name", s.saveName)
 		r.Post("/species/{id}/delete", s.deleteSpecies)
 		r.Post("/species/{id}/forms/{form}/candidates", s.pasteCandidate)
 		r.Post("/candidates/{id}/accept", s.acceptCandidate)

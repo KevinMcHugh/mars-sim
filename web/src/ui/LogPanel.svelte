@@ -3,6 +3,10 @@
   // (a type column beside each sentence, wrapped, never cut short), from
   // colonyLog (the log topic, held for the page's life in main.ts).
   //
+  // A line about a place (most are: a death, a finished room, a fall) is a
+  // button that centers the map there, switching level if it must; a line
+  // about the colony as a whole (a recruiter, an order) is plain text.
+  //
   // It follows the live tail while scrolled to the bottom. Scrolled back, it
   // stays put and counts what arrived meanwhile.
   //
@@ -12,7 +16,7 @@
   // count keeps the page from diffing and laying out all LOG_KEEP lines four
   // times a second.
   import { tick } from 'svelte';
-  import { colonyLog, LOG_KEEP, setTicker, ui } from '../game.svelte';
+  import { colonyLog, goToLogLine, LOG_KEEP, setTicker, ui } from '../game.svelte';
   import { logKindColor } from './logkinds';
 
   let kind = $state('');
@@ -120,11 +124,17 @@
       <p class="muted">{colonyLog.lines.length === 0 ? 'Nothing logged yet.' : 'Nothing matches.'}</p>
     {/if}
     {#each shown as l (l.seq)}
-      <div class="line" class:odd={l.seq % 2 === 1}>
+      {#snippet body()}
         <span class="kind" style="color: {logKindColor(l.kind)}">{l.kind}</span>
-        <span class="tick">t{l.tick}</span>
+        <span class="tick">{l.when}</span>
         <span class="text">{l.text}</span>
-      </div>
+      {/snippet}
+      {#if l.place}
+        <button type="button" class="line go" class:odd={l.seq % 2 === 1}
+          title="Show on the map ({l.place.x}, {l.place.y})" onclick={() => goToLogLine(l)}>{@render body()}</button>
+      {:else}
+        <div class="line" class:odd={l.seq % 2 === 1}>{@render body()}</div>
+      {/if}
     {/each}
   </div>
   {#if !live}
@@ -148,6 +158,13 @@
     content-visibility: auto; contain-intrinsic-size: auto 40px;
   }
   .line.odd { background: rgba(255, 255, 255, 0.035); }
+  .line.go {
+    width: 100%; text-align: left; font: inherit; color: inherit;
+    background: none; border: none; cursor: pointer;
+  }
+  .line.go.odd { background: rgba(255, 255, 255, 0.035); }
+  .line.go:hover { background: rgba(255, 255, 255, 0.09); }
+  .line.go:hover .text { text-decoration: underline; text-decoration-color: var(--muted); }
   .kind { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-top: 1px; }
   .tick { grid-column: 1; grid-row: 2; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .text { grid-column: 2; grid-row: 1 / 3; overflow-wrap: anywhere; }

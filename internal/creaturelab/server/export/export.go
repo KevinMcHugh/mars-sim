@@ -26,9 +26,13 @@ type Species struct {
 	Complete     bool   `json:"complete"`
 	// Description is the field notes to show, rewritten or generated. A
 	// rewrite is not part of Species, the struct the game rolled.
-	Description string          `json:"description"`
-	Species     json.RawMessage `json:"species"`
-	Sprites     []Sprite        `json:"sprites"`
+	Description string `json:"description"`
+	// Singular and Plural are the common name to show, renamed or rolled. A
+	// rename is not part of Species either.
+	Singular string          `json:"singular"`
+	Plural   string          `json:"plural"`
+	Species  json.RawMessage `json:"species"`
+	Sprites  []Sprite        `json:"sprites"`
 }
 
 // Sprite is one accepted sprite.
@@ -71,10 +75,16 @@ func (e Endpoint) Interact(ctx context.Context, req apigen.ExportCatalogRequestO
 			return Export{}, err
 		}
 		forms := creaturelab.Forms(sp)
+		row := db.Species{
+			Singular: r.Singular, Plural: r.Plural, SingularOverride: r.SingularOverride, PluralOverride: r.PluralOverride,
+			Description: r.Description, DescriptionOverride: r.DescriptionOverride,
+		}
+		singular, plural := creaturelab.CommonName(row)
 		es := Species{
 			ID: r.ID, Seed: r.Seed, GeneratorRev: r.GeneratorRev, Complete: complete,
-			Description: creaturelab.FieldNotes(db.Species{Description: r.Description, DescriptionOverride: r.DescriptionOverride}),
-			Species:     r.Data, Sprites: []Sprite{},
+			Description: creaturelab.FieldNotes(row),
+			Singular:    singular, Plural: plural,
+			Species: r.Data, Sprites: []Sprite{},
 		}
 		for _, c := range sprites[r.ID] {
 			name := ""
@@ -103,6 +113,8 @@ func (Endpoint) Render(x Export) apigen.ExportCatalogResponseObject {
 			GeneratorRev: s.GeneratorRev,
 			Complete:     s.Complete,
 			Description:  s.Description,
+			Singular:     s.Singular,
+			Plural:       s.Plural,
 			Species:      s.Species,
 			Sprites:      sprites,
 		}

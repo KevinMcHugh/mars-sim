@@ -55,9 +55,9 @@ import (
 // no order-wide-set or order-wide-clear; 19 took no species-pack in start;
 // 20 showed only the landing level (no level in interest, dig or clear, no
 // dig-down); 21 had no defend, defend-detail or defend-cancel; 22 sited
-// every dig-down itself (no x, y); 23 had no emt-detail; 24 no emt-wage;
-// 25 no emt-fee.
-const hostAPI = 26
+// every dig-down itself (no x, y); 23 dated topics by tick only (no when,
+// diedAt, queuedAt); 24 had no emt-detail; 25 no emt-wage; 26 no emt-fee.
+const hostAPI = 27
 
 var (
 	eng *sim.Engine

@@ -170,11 +170,11 @@ func (w *World) fireAlienSwarm(ev scheduledEvent) {
 	// a swarm can be a mix; naming it after whichever spawned first is a
 	// deliberate simplification for one flavor line rather than a precise
 	// species-by-species breakdown.
-	noun := "aliens"
-	if first != nil {
-		noun = w.alienPluralFor(first)
+	if first == nil {
+		w.logEvent(LogArrival, fmt.Sprintf("%s: a swarm of aliens stirs below (%d).", ev.Name, spawned))
+		return
 	}
-	w.logEvent(LogArrival, fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, noun, spawned))
+	w.logEventAt(LogArrival, first.Pos, fmt.Sprintf("%s: a swarm of %s stirs below (%d).", ev.Name, w.alienPluralFor(first), spawned))
 }
 
 // fireArrival brings a wave of new colonists down in colony ships, through

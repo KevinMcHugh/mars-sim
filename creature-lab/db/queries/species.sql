@@ -19,13 +19,16 @@ FROM species
 WHERE deleted_at IS NULL
 ORDER BY created_at DESC;
 
--- Sets whichever of notes and description_override are given (non-null)
--- and leaves the other alone. An empty description_override resets the
--- field notes to the generated text.
+-- Sets whichever of notes, description_override and the name overrides are
+-- given (non-null) and leaves the rest alone. An empty description_override
+-- resets the field notes to the generated text, and empty name overrides
+-- reset the common name to the rolled one.
 -- name: UpdateSpecies :one
 UPDATE species SET
     notes = COALESCE(sqlc.narg(notes), notes),
     description_override = COALESCE(sqlc.narg(description_override), description_override),
+    singular_override = COALESCE(sqlc.narg(singular_override), singular_override),
+    plural_override = COALESCE(sqlc.narg(plural_override), plural_override),
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;

@@ -71,7 +71,8 @@ func (u MetricUnit) String() string {
 // MetricPer is the set of subjects a metric is read for: once for the
 // colony, once per item kind (plus all goods together), once per account
 // (the treasury and each living colonist), once per kind of fixture
-// (metricFixtures), or once per rank of each skill (metricSkillRanks).
+// (metricFixtures), once per rank of each skill (metricSkillRanks), or once
+// per Activity (metricActivities).
 type MetricPer uint8
 
 const (
@@ -80,6 +81,7 @@ const (
 	PerAccount
 	PerFixture
 	PerSkillRank
+	PerActivity
 )
 
 func (p MetricPer) String() string {
@@ -92,6 +94,8 @@ func (p MetricPer) String() string {
 		return "fixture"
 	case PerSkillRank:
 		return "skill-rank"
+	case PerActivity:
+		return "activity"
 	default:
 		return "colony"
 	}
@@ -155,6 +159,14 @@ var metricDefs = []MetricDef{
 			}
 			return n, true
 		}},
+
+	// Activity
+	{Key: "activity", Label: "Colonists doing an activity", Group: "Activity", Per: PerActivity,
+		Doc:  "living colonists doing one thing at the hour (cooking, mining, sleeping…), walking to it included",
+		read: func(c *metricCtx, a int64) (int64, bool) { return c.doing[a], true }},
+	{Key: "activity-walking", Label: "Colonists on their way to an activity", Group: "Activity", Per: PerActivity,
+		Doc:  "living colonists walking to do one thing at the hour: the walking part of the activity count",
+		read: func(c *metricCtx, a int64) (int64, bool) { return c.walking[a], true }},
 
 	// Money
 	{Key: "balance", Label: "Balance", Group: "Money", Unit: UnitDollars, Per: PerAccount,
@@ -231,6 +243,10 @@ type metricCtx struct {
 	open      [2][numItemKinds]int64 // open orders per side
 	// ranks counts living colonists by their rank in each skill.
 	ranks [numSkills][maxSkillRanks]int64
+	// doing counts living colonists by what they are doing at the sample
+	// (activityOf, as the Activity tab classifies them), and walking the
+	// part of each that is on its way there.
+	doing, walking [NumActivities]int64
 }
 
 // newMetricCtx fills the store's scratch context for this sample. It is
@@ -244,6 +260,13 @@ func (w *World) newMetricCtx() *metricCtx {
 			c.accounts = append(c.accounts, int64(id))
 			for k := SkillKind(1); k < numSkills; k++ {
 				c.ranks[k][e.rank(k)]++
+			}
+			if e.Alive() {
+				a, walk := activityOf(e)
+				c.doing[a]++
+				if walk {
+					c.walking[a]++
+				}
 			}
 		}
 	}
@@ -307,6 +330,16 @@ var metricSkillRanks = func() []int64 {
 // skillRankOf unpacks it.
 func skillRankSubject(k SkillKind, r int) int64 { return int64(k)<<8 | int64(r) }
 func skillRankOf(sr int64) (SkillKind, int)     { return SkillKind(sr >> 8), int(sr & 0xff) }
+
+// metricActivities is every Activity as a subject, in the Activity tab's
+// order.
+var metricActivities = func() []int64 {
+	out := make([]int64, NumActivities)
+	for a := range out {
+		out[a] = int64(a)
+	}
+	return out
+}()
 
 // metricHistory is the most samples kept before the resolution halves, as
 // with the Population history: the chart always spans the whole game.
@@ -394,16 +427,18 @@ func (w *World) sampleMetrics() {
 			subjects = metricFixtures
 		case PerSkillRank:
 			subjects = metricSkillRanks
+		case PerActivity:
+			subjects = metricActivities
 		}
 		for _, subj := range subjects {
 			v, ok := def.read(c, subj)
 			key := metricKey{uint16(d), subj}
 			i, have := m.index[key]
 			if !have {
-				// A per-item, per-fixture or per-rank series waits for its
-				// first non-zero reading, so goods nobody has touched,
-				// fixtures never built and ranks nobody has reached add
-				// nothing to the picker.
+				// A per-item, per-fixture, per-rank or per-activity series
+				// waits for its first non-zero reading, so goods nobody has
+				// touched, fixtures never built, ranks nobody has reached
+				// and things nobody has done add nothing to the picker.
 				if !ok || (v == 0 && waitsForReading(def.Per, subj)) {
 					continue
 				}
@@ -438,7 +473,7 @@ func waitsForReading(per MetricPer, subj int64) bool {
 	switch per {
 	case PerItem:
 		return subj != int64(ItemNone)
-	case PerFixture, PerSkillRank:
+	case PerFixture, PerSkillRank, PerActivity:
 		return true
 	}
 	return false
@@ -517,6 +552,8 @@ func (w *World) metricSubjectKey(per MetricPer, subj int64) string {
 	case PerSkillRank:
 		k, r := skillRankOf(subj)
 		return k.String() + "-" + strconv.Itoa(r)
+	case PerActivity:
+		return Activity(subj).String()
 	}
 	return ""
 }
@@ -545,6 +582,8 @@ func (w *World) metricSubjectLabel(per MetricPer, subj int64) string {
 			title = "untrained"
 		}
 		return fmt.Sprintf("%s %d: %s", k, r, title)
+	case PerActivity:
+		return Activity(subj).String()
 	}
 	return ""
 }

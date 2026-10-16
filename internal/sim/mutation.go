@@ -99,7 +99,7 @@ func (w *World) mutate(e *Entity) {
 	o.ActorText = fmt.Sprintf("The uranium changed them: %s.", what)
 	o.WitnessText = fmt.Sprintf("Watched %s mutate: %s.", e.displayName(), what)
 	w.emitOccurrence(o)
-	w.logEvent(LogMutation, fmt.Sprintf("%s has mutated — %s.", e.displayName(), what))
+	w.logEventAt(LogMutation, e.Pos, fmt.Sprintf("%s has mutated — %s.", e.displayName(), what))
 }
 
 // resize grows or shrinks a mutating colonist by MutationStaturePercent of the

@@ -100,7 +100,7 @@ func (w *World) placeColonyOrder(c PlaceColonyOrder) bool {
 		verb = "offer"
 	}
 	refuse := func(why string) bool {
-		w.logEvent(LogNote, fmt.Sprintf("The colony cannot %s %d %s at (%d, %d): %s.", verb, c.Qty, c.Item, c.Depot.X, c.Depot.Y, why))
+		w.logEventAt(LogNote, c.Depot, fmt.Sprintf("The colony cannot %s %d %s at (%d, %d): %s.", verb, c.Qty, c.Item, c.Depot.X, c.Depot.Y, why))
 		return false
 	}
 	switch {
@@ -130,7 +130,7 @@ func (w *World) placeColonyOrder(c PlaceColonyOrder) bool {
 		return refuse("the order could not be placed")
 	}
 	o.manual = true
-	w.logEvent(LogNote, fmt.Sprintf("The colony posts an order to %s %d %s at %v each at (%d, %d)%s.",
+	w.logEventAt(LogNote, c.Depot, fmt.Sprintf("The colony posts an order to %s %d %s at %v each at (%d, %d)%s.",
 		verb, c.Qty, c.Item, c.Price, c.Depot.X, c.Depot.Y, filledNote(filled, c.Qty)))
 	return true
 }
@@ -165,7 +165,7 @@ func (w *World) repriceColonyOrder(c RepriceColonyOrder) bool {
 	}
 	n.manual = true
 	n.inherit(o)
-	w.logEvent(LogNote, fmt.Sprintf("The colony reprices its %s of %d %s at (%d, %d) from %v to %v%s.",
+	w.logEventAt(LogNote, depot, fmt.Sprintf("The colony reprices its %s of %d %s at (%d, %d) from %v to %v%s.",
 		side, qty, item, depot.X, depot.Y, was, c.Price, filledNote(filled, qty)))
 	return true
 }
@@ -178,7 +178,7 @@ func (w *World) cancelColonyOrder(id OrderID) bool {
 		w.logEvent(LogNote, "That order is no longer on the book.")
 		return false
 	}
-	w.logEvent(LogNote, fmt.Sprintf("The colony withdraws its %s of %d %s at %v at (%d, %d).",
+	w.logEventAt(LogNote, o.Depot, fmt.Sprintf("The colony withdraws its %s of %d %s at %v at (%d, %d).",
 		o.Side, o.Qty, o.Item, o.Price, o.Depot.X, o.Depot.Y))
 	w.cancel(o)
 	return true

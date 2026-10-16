@@ -30,6 +30,7 @@ Typical session:
 2. create_species with that seed to save it.
 3. For each form that has no accepted sprite: get_sprite_brief, draw an SVG that follows it exactly, and submit_sprite_candidate. Show the user the svgUrl or the SVG itself, revise and resubmit as they ask (each submission is a new candidate), then accept_sprite_candidate on the one they approve.
 A species' field notes (traits.description) start as the roster code's generated text, which is accurate but reads alike across species. When asked to, rewrite them with set_species_description in a voice of their own, keeping every fact consistent with the traits; get_species shows the generated text alongside.
+Species often roll the same or similar common names. When asked to, give one a more distinct name with set_species_name; it shows everywhere, in the game too, and get_species keeps the rolled name alongside.
 Forms are numbered from 0 in stage order. A species is complete when every form has an accepted sprite. Do not accept a sprite the user has not approved unless they asked you to.`
 
 // NewServer builds the MCP server with every tool registered.
@@ -107,6 +108,12 @@ type NotesInput struct {
 type DescriptionInput struct {
 	ID          string `json:"id" jsonschema:"species id"`
 	Description string `json:"description" jsonschema:"the new field notes, up to 4000 characters; an empty string goes back to the generated text"`
+}
+
+type NameInput struct {
+	ID       string `json:"id" jsonschema:"species id"`
+	Singular string `json:"singular" jsonschema:"the new common name, singular and lowercase like the rolled ones (e.g. glass krell), up to 40 characters; an empty string goes back to the rolled name"`
+	Plural   string `json:"plural,omitempty" jsonschema:"its plural (e.g. glass krells); omit to add an s, or turn a final consonant-y into ies"`
 }
 
 type SubmitInput struct {
@@ -197,6 +204,17 @@ func registerWrite(s *mcpsdk.Server, store server.Store, links creaturelab.Links
 		vm, err := server.BuildViewModel(ctx, species.UpdateEndpoint{Store: store, Links: links}, apigen.UpdateSpeciesRequestObject{
 			SpeciesId: in.ID,
 			Body:      &apigen.SpeciesUpdate{Notes: &in.Notes},
+		})
+		return nil, SpeciesOutput{Species: vm}, err
+	})
+
+	mcpsdk.AddTool(s, &mcpsdk.Tool{
+		Name:        "set_species_name",
+		Description: "Rename a species: change its common name, the one the game uses for it everywhere (map, log, lore tab). Use it to make a species easier to tell apart from others in the catalog with the same or a similar name. Pick a name that fits the species' traits (color, covering, build, temperament, features), e.g. a color or habit word in front of the rolled name or a new coinage. The scientific name stays. Generated field notes follow the new name on their own; rewritten ones do not, so fix those with set_species_description if they name it. The rolled name is kept and comes back if you send an empty singular.",
+	}, func(ctx context.Context, _ *mcpsdk.CallToolRequest, in NameInput) (*mcpsdk.CallToolResult, SpeciesOutput, error) {
+		vm, err := server.BuildViewModel(ctx, species.UpdateEndpoint{Store: store, Links: links}, apigen.UpdateSpeciesRequestObject{
+			SpeciesId: in.ID,
+			Body:      &apigen.SpeciesUpdate{Singular: &in.Singular, Plural: in.Plural},
 		})
 		return nil, SpeciesOutput{Species: vm}, err
 	})

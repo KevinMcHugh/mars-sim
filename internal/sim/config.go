@@ -57,13 +57,15 @@ type Config struct {
 	DepthHostility      int `cfg:"depth-hostility" doc:"percent more likely a nest is of a hostile species, per level below the landing level"`
 	NaturalShaftPercent int `cfg:"natural-shaft-percent" doc:"chance (percent) that a cavern the colony breaks into holds a natural shaft down into a cavern below it"`
 	SinkholePercent     int `cfg:"sinkhole-percent" doc:"chance (percent) that a cavern the colony breaks into has a sinkhole to the level below"`
-	// Rock composition percentages. The remainder is ordinary rock.
-	IronRockPercent    int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
-	IceRockPercent     int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
-	UraniumRockPercent int `cfg:"uranium-rock-percent" doc:"percent of the map's tiles bearing uranium"`
-	ClayRockPercent    int `cfg:"clay-rock-percent" doc:"percent of the map's tiles bearing clay"`
-	RockVeinMin        int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
-	RockVeinMax        int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
+	// Rock composition shares. The remainder is ordinary rock. Uranium is
+	// per mille, not percent: it is rarer than a whole percent can say (see
+	// docs/power.md).
+	IronRockPercent     int `cfg:"iron-rock-percent" doc:"percent of the map's tiles bearing iron"`
+	IceRockPercent      int `cfg:"ice-rock-percent" doc:"percent of the map's tiles bearing water ice"`
+	UraniumRockPermille int `cfg:"uranium-rock-permille" doc:"tiles per thousand of the map bearing uranium"`
+	ClayRockPercent     int `cfg:"clay-rock-percent" doc:"percent of the map's tiles bearing clay"`
+	RockVeinMin         int `cfg:"rock-vein-min" doc:"minimum tiles in a generated rock deposit vein"`
+	RockVeinMax         int `cfg:"rock-vein-max" doc:"maximum tiles in a generated rock deposit vein"`
 	// Salt rides on the rock like cave scum, never on a tile that carries
 	// scum, and never comes back once taken or built over. See docs/salt.md.
 	SaltPercent int `cfg:"salt-percent" doc:"percent of the map's tiles carrying a deposit of salt"`
@@ -281,6 +283,10 @@ type Config struct {
 	// docs/foundry.md.
 	ArmoryRifles      int   `cfg:"armory-rifles" sec:"Foundry" doc:"assault rifles the colony wants in its armory (0: it builds no foundry and buys none)"`
 	PriceAssaultRifle int64 `cfg:"price-assault-rifle" doc:"what the colony pays for an assault rifle at its silo"`
+	// What the other guns are worth to a colonist who wants one, before any
+	// has traded. Nobody makes them yet: they come to market secondhand.
+	PricePistol  int64 `cfg:"price-pistol" doc:"what a pistol is worth before one has traded"`
+	PriceShotgun int64 `cfg:"price-shotgun" doc:"what a shotgun is worth before one has traded"`
 
 	// Colony standing orders. With StandingOrdersBuildOnly, the colony posts
 	// no standing orders but its silo bids for building materials
@@ -562,6 +568,29 @@ type Config struct {
 	TalkTopicLoreWeight     int `cfg:"talk-topic-lore-weight" doc:"relative weight of talking about lore, such as an alien species or a corporation (0 never)"`
 	TalkGossipPercent       int `cfg:"talk-gossip-percent" doc:"percent of the gap a good chat about a colonist closes between the listener's affinity toward them and the speaker's"`
 
+	// Hearsay and the news. A memory recounted in conversation reaches the
+	// listener as hearsay, and can be retold up to HearsayMaxHops times, each
+	// retelling past the first landing HearsayHopPercent as hard. Every
+	// evening at NewsHour the colony hears the day's major news (deaths,
+	// arrivals). See news.go and docs/safety.md.
+	HearsayMaxHops    int `cfg:"hearsay-max-hops" doc:"how many retellings news survives in conversation (0: hearsay off)"`
+	HearsayHopPercent int `cfg:"hearsay-hop-percent" doc:"percent of its weight hearsay keeps at each retelling after the first"`
+	NewsHour          int `cfg:"news-hour" doc:"clock hour of the evening news broadcast (-1: no news)"`
+	NewsDays          int `cfg:"news-days" doc:"days of news the colony keeps for the News panel"`
+
+	// Wants: what a pressing drive buys (wants.go). A want's order rests for
+	// WantTTL, and on lapsing the colonist decides again; after WantPatience
+	// lapses on one rung it may look past it. A rung just taken is given
+	// WantSettleTicks to work before the next is wanted. A gun is worth up
+	// to GunWillingness percent of its price at the drive's ceiling.
+	WantTTL         int `cfg:"want-ttl" doc:"ticks a want's order rests on the book before the colonist decides again"`
+	WantPatience    int `cfg:"want-patience" doc:"lapsed orders on one rung before a colonist that can afford the next looks past it"`
+	WantSettleTicks int `cfg:"want-settle-ticks" doc:"ticks a rung just taken is given to work before the next is wanted"`
+	GunWillingness  int `cfg:"gun-willingness" doc:"percent of a gun's price a colonist will pay at its safety drive's ceiling"`
+	// WantReserveMeals is how many meals' worth of money a colonist keeps
+	// back from any want: food comes first.
+	WantReserveMeals int `cfg:"want-reserve-meals" doc:"meals' worth of money a colonist keeps back from anything a want would buy"`
+
 	// The meeting hall: a room of chairs the colony commissions, where
 	// colonists go to socialize and to eat. See docs/meeting-hall.md.
 	ColonistsPerChair int `cfg:"colonists-per-chair" sec:"Meeting hall" doc:"the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)"`
@@ -798,7 +827,7 @@ func DefaultConfig() Config {
 		SinkholePercent:      10,
 		IronRockPercent:      10,
 		IceRockPercent:       5,
-		UraniumRockPercent:   1,
+		UraniumRockPermille:  3,
 		ClayRockPercent:      5,
 		RockVeinMin:          8,
 		RockVeinMax:          24,
@@ -914,6 +943,8 @@ func DefaultConfig() Config {
 		// walk (see docs/foundry.md for the arithmetic).
 		ArmoryRifles:      4,
 		PriceAssaultRifle: 60,
+		PricePistol:       20,
+		PriceShotgun:      35,
 		WageDig:           2,
 		WageWall:          2,
 		WageFixture:       5,
@@ -1072,6 +1103,17 @@ func DefaultConfig() Config {
 		TalkTopicColonistWeight: 3,
 		TalkTopicLoreWeight:     2,
 		TalkGossipPercent:       10,
+
+		HearsayMaxHops:    2,
+		HearsayHopPercent: 50,
+		NewsHour:          21,
+		NewsDays:          30,
+
+		WantTTL:          1080,
+		WantPatience:     3,
+		WantSettleTicks:  1080,
+		GunWillingness:   150,
+		WantReserveMeals: 4,
 
 		MoodMax:                   defaultMoodMax,
 		ConversationCompanyWeight: 6,

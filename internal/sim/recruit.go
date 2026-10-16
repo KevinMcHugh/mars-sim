@@ -107,7 +107,11 @@ func (w *World) rollCandidate(taken map[string]bool) *recruitCandidate {
 	}
 	// Last, so it moves none of the draws above (see ownStreamGroup).
 	addCompassion(p, r, w.cfg.TraitChance)
+	// Daring arrived after recruiting, so it draws from its own stream and
+	// moves no recruit card any seed already rolls.
+	addDaring(p, w.daringRNG, w.cfg.TraitChance)
 	return c
+
 }
 
 // rollSavings draws what a candidate brings: log-normal, with mean
@@ -172,15 +176,19 @@ func (w *World) hireRecruits(c HireRecruits) bool {
 		return false
 	}
 	names := make([]string, 0, len(picks))
+	ids := make([]EntityID, 0, len(picks))
 	brought := Money(0)
 	for i, pick := range picks {
 		e := w.arriveRecruit(o.candidates[pick], at[i])
 		names = append(names, e.displayName())
+		ids = append(ids, e.ID)
 		brought += e.wallet
 	}
+	w.reportRecruits(ids, names)
+
 	w.recruits = nil
 	w.recruitsHired += len(picks)
-	w.logEvent(LogArrival, fmt.Sprintf("%s from off-world for %v, bringing %v: %s.",
+	w.logEventAt(LogArrival, at[0], fmt.Sprintf("%s from off-world for %v, bringing %v: %s.",
 		pluralize(len(picks), "recruit arrives", "recruits arrive"), cost, brought, strings.Join(names, ", ")))
 	return true
 }

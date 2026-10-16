@@ -21,11 +21,13 @@ export interface Colonist {
   profession?: string; professionLabel?: string;
   /** Who it worked for back home, "Worked as a drill operator for MarsCorp."; flavor only. */
   backstory?: string;
+  /** What a pressing drive would have it buy, and what it will pay (sim wants.go). */
+  want?: string;
   family: { relation: string; id: number; name: string }[];
   affinities: { id: number; name: string; value: number }[];
   affinityMax: number;
   /** Newest first. count > 1 is a run of the same event, tick to lastTick. */
-  memories: { tick: number; lastTick: number; count: number; text: string }[];
+  memories: { tick: number; lastTick: number; when: string; count: number; text: string }[];
 }
 
 export interface EntityInfo {
@@ -36,7 +38,7 @@ export interface EntityInfo {
   look?: string[];
   x: number; y: number; level: number; state: string; focus: string;
   hp: number; maxHp: number; parts: PartHP[];
-  dead: boolean; diedTick?: number; cause?: string;
+  dead: boolean; diedTick?: number; diedAt?: string; cause?: string;
   species?: string;
   colonist?: Colonist;
 }
@@ -58,6 +60,6 @@ export interface TileInfo {
   scum?: number; scumMax?: number;
   salt?: boolean;
   bodies?: number;
-  /** The bodies here whose death is on record, oldest first (docs/remains.md). cause and diedTick are absent once the record has aged out. */
-  remains?: { id: number; glyph: string; look?: string[]; name: string; cause?: string; diedTick?: number }[];
+  /** The bodies here whose death is on record, oldest first (docs/remains.md). cause, diedTick and diedAt are absent once the record has aged out. */
+  remains?: { id: number; glyph: string; look?: string[]; name: string; cause?: string; diedTick?: number; diedAt?: string }[];
 }

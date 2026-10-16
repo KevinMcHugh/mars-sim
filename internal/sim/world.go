@@ -46,13 +46,16 @@ func (w *World) rememberPercept(e *Entity, percept Percept) {
 	}
 	text := renderMemoryTemplate(reaction.Memory.Template, percept)
 	if !w.collapseRepeat(e, reaction, text) {
+		o := percept.Occurrence
 		e.Memories = append(e.Memories, Memory{
 			Tick:     w.tick,
 			LastTick: w.tick,
 			Count:    1,
 			Text:     text,
 			Rule:     reaction.ID,
+			Gist:     &MemoryGist{Actor: o.Actor, Action: o.Action, Object: o.Object, Text: text, Hops: percept.Hops},
 		})
+
 		if len(e.Memories) > maxColonistMemories {
 			e.Memories = e.Memories[len(e.Memories)-maxColonistMemories:]
 		}
@@ -995,6 +998,8 @@ type World struct {
 	topicRNG        *rand.Rand // conversation topics (topics.go): gossip moves affinity, so not prng, and not rng so they shift no other draw
 	recruitRNG      *rand.Rand // the recruiter's candidates and where recruits arrive (recruit.go): player-driven, so rolling a set shifts no other stream
 	compassionRNG   *rand.Rand // the compassion trait group (casualty.go): it changes behavior, and arrived after the other groups, so it shifts none of their draws
+	daringRNG       *rand.Rand // the daring trait group (Bold, Timid; place.go), apart for the same reason
+
 	// rngSrc holds the PCG sources behind rng, prng, agePRNG, nestRNG,
 	// skillRNG, topicRNG, recruitRNG and compassionRNG, so
 	// their state can be saved. See rng.go.
@@ -1012,6 +1017,20 @@ type World struct {
 
 	// driveTables are the drives' compiled bands (drive_bands.go).
 	driveTables [numDrives]driveTable
+	// homeRoomsBy indexes every standing room by the colonist that
+	// commissioned it, as of homeRoomsRev-1 == structureRev (see place.go).
+	homeRoomsBy  map[EntityID][]*roomRecord
+	homeRoomsRev uint64
+	// news is the nightly news (news.go): items in Seq order, newsSeq the
+	// next Seq to report, newsAired how many have been broadcast.
+	news      []NewsItem
+	newsSeq   int
+	newsAired int
+	// newsRev moves whenever a broadcast airs or old news is dropped, and
+	// publishedNews is the News tab's view as of publishedNewsRev-1.
+	newsRev          int
+	publishedNews    []NewsBroadcast
+	publishedNewsRev int
 
 	// alienSpecies is this world's roster of rolled alien species -- each
 	// one's build, colloquial name, temperament, and the combat stats (bite
@@ -1124,6 +1143,8 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.emtCallRate = cfg.EMTCallRate
 	w.rngSrc.compassion = newPCG(cfg.Seed ^ compassionSeed)
 	w.compassionRNG = rand.New(w.rngSrc.compassion)
+	w.rngSrc.daring = newPCG(cfg.Seed ^ daringSeed)
+	w.daringRNG = rand.New(w.rngSrc.daring)
 	if len(cfg.SpeciesPack) > 0 {
 		var picked []int
 		w.alienSpecies, picked = packedRoster(newRand(cfg.Seed^alienLoreSeed), cfg, cfg.SpeciesPack, max(1, cfg.AlienSpeciesCount))
@@ -1404,7 +1425,7 @@ func (w *World) revealAround(p Point) {
 	}
 	if found > 0 {
 		w.cavernBreaches++
-		w.logEvent(LogCavern, fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
+		w.logEventAt(LogCavern, p, fmt.Sprintf("The colony breaks through into a natural cavern (%d tiles of open floor).", found))
 		// Nests are rolled only now, once the whole system is revealed, so
 		// their aliens land on discovered floor, awake -- or, under a landing
 		// ship, once its passengers are out (see landShip).
@@ -1580,12 +1601,17 @@ func (w *World) spawnAs(kind Kind, p Point, species int) *Entity {
 // recruit.go.
 func (w *World) spawnWith(kind Kind, p Point, species int, rec *recruitCandidate) *Entity {
 	e := w.species[kind].newEntity(w.nextID, p, w.cfg)
+	e.newsHeard = w.newsSeq // a newcomer starts with no old news
+
 	// Stagger starting drive levels so a freshly settled colony does not all
-	// get hungry on the same tick and stampede the facilities at once.
+	// get hungry on the same tick and stampede the facilities at once. An
+	// unsought drive (safety) starts at 0: everyone lands calm, and drawing
+	// for it would move every seed's stream for nothing.
 	var levels [numDrives]int
 	if kind == Colonist {
 		for i := range levels {
-			if seek := w.cfg.Drives[i].SeekAt; seek > 0 {
+			if seek := w.cfg.Drives[i].SeekAt; seek > 0 && !w.cfg.Drives[i].Unsought {
+
 				levels[i] = w.rng.IntN(seek)
 			}
 		}
@@ -1657,6 +1683,7 @@ func (w *World) remove(id EntityID, cause string) {
 		// its name and family can still be read.
 		w.casualtyDied(e)
 		w.releaseOnCall(e)
+		w.reportDeath(e, cause)
 		// Open orders go first, so a bid's escrow is back in the wallet
 		// before the wallet freezes.
 		w.cancelOrdersOf(ColonistOwner(e.ID))

@@ -179,6 +179,7 @@ async function showDetail(host, lab, id, signal) {
   fact("Features", (t.features || []).join(", "));
   fact("Attacks", (t.attacks || []).join(", "));
   fact("Lab notes", sp.notes);
+  if (sp.nameEdited) fact("Rolled as", `${sp.generatedSingular} / ${sp.generatedPlural}`);
   fact("Rolled by", `seed ${sp.seed} on ${sp.generatorRev}`);
 
   detail.replaceChildren(

@@ -61,7 +61,16 @@ old employer in both memories. That is text only: the draw is the same
 uniform pick over `loreItems`, so a colonist is no likelier to bring up its
 old employer than any other company.
 
-**Gossip.** For a colonist topic, `applyGossip` moves the listener's affinity
+**Hearsay.** For a memory topic, the listener also perceives what was
+recalled, as a percept on the `hearsay` channel (`tellHearsay`), unless it
+already knows; reactions decide what hearing it does (a killing makes a
+colonist feel unsafe). Its memory of the conversation then carries the gist
+one hop on, and `recountableMemories` lets it retell it, in the first-hand
+words, up to `hearsay-max-hops`. A conversation memory is otherwise still
+never retold. See [safety.md](./safety.md).
+
+**Gossip.** For a colonist topic,
+ `applyGossip` moves the listener's affinity
 toward the subject `talk-gossip-percent` (10%) of the way to the speaker's —
 but only when the conversation's quality was positive. A bad chat convinces
 nobody.

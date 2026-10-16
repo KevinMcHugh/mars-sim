@@ -257,14 +257,14 @@ func (w *World) paintZone(c PaintZone) bool {
 	z := w.planZonePaint(c)
 	if len(z.tiles) == 0 && len(z.dig) == 0 {
 		if z.locked > 0 {
-			w.logEvent(LogBuildStart, "That ground is held as residence by the colony ship on it.")
+			w.logEventAt(LogBuildStart, rectSite(c.X0, c.Y0, c.X1, c.Y1, LandingLevel), "That ground is held as residence by the colony ship on it.")
 		} else {
-			w.logEvent(LogBuildStart, fmt.Sprintf("That area is already zoned %s.", c.Kind))
+			w.logEventAt(LogBuildStart, rectSite(c.X0, c.Y0, c.X1, c.Y1, LandingLevel), fmt.Sprintf("That area is already zoned %s.", c.Kind))
 		}
 		return false
 	}
 	if cost := z.cost(w); cost > 0 && w.balance(Community) < cost {
-		w.logEvent(LogBuildStart, fmt.Sprintf("The treasury cannot pay %v for the work that zoning would take (%s).",
+		w.logEventAt(LogBuildStart, rectSite(c.X0, c.Y0, c.X1, c.Y1, LandingLevel), fmt.Sprintf("The treasury cannot pay %v for the work that zoning would take (%s).",
 			cost, z.workPhrase(w)))
 		return false
 	}
@@ -301,7 +301,7 @@ func (w *World) paintZone(c PaintZone) bool {
 	if z.locked > 0 {
 		msg += fmt.Sprintf(" (%d tiles around colony ships stay residence)", z.locked)
 	}
-	w.logEvent(LogBuildStart, msg+".")
+	w.logEventAt(LogBuildStart, rectSite(c.X0, c.Y0, c.X1, c.Y1, LandingLevel), msg+".")
 	return true
 }
 
@@ -473,7 +473,7 @@ func (w *World) clearArea(c ClearArea) bool {
 		return false
 	}
 	if cost := Money(len(tiles)) * Money(w.cfg.WageDemolish); w.balance(Community) < cost {
-		w.logEvent(LogBuildStart, fmt.Sprintf("The treasury cannot pay %v to clear %d tiles.", cost, len(tiles)))
+		w.logEventAt(LogBuildStart, rectSite(x0, y0, x1, y1, level), fmt.Sprintf("The treasury cannot pay %v to clear %d tiles.", cost, len(tiles)))
 		return false
 	}
 	w.playerZoned = true
@@ -493,7 +493,7 @@ func (w *World) clearArea(c ClearArea) bool {
 		msg = strings.TrimSpace(msg + fmt.Sprintf(" %s under construction there %s called off.",
 			capitalizeFirst(plural(len(rooms), "room")), isAre(len(rooms))))
 	}
-	w.logEvent(LogBuildStart, msg)
+	w.logEventAt(LogBuildStart, rectSite(x0, y0, x1, y1, level), msg)
 	return true
 }
 

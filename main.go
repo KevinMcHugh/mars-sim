@@ -603,9 +603,12 @@ func fetchSpeciesPack(lab, path string) error {
 		return err
 	}
 	names := make([]string, len(res.Pack.Species))
-	notes, rewrites := 0, 0
+	notes, rewrites, renames := 0, 0, 0
 	for i, ps := range res.Pack.Species {
 		names[i] = ps.Species.Plural
+		if ps.Plural != "" {
+			names[i], renames = ps.Plural, renames+1
+		}
 		if ps.Notes != "" {
 			notes++
 		}
@@ -613,7 +616,7 @@ func fetchSpeciesPack(lab, path string) error {
 			rewrites++
 		}
 	}
-	fmt.Printf("wrote %s: %d species (%s), %d with lab notes, %d with rewritten field notes", path, len(names), strings.Join(names, ", "), notes, rewrites)
+	fmt.Printf("wrote %s: %d species (%s), %d with lab notes, %d with rewritten field notes, %d renamed", path, len(names), strings.Join(names, ", "), notes, rewrites, renames)
 	if res.Incomplete > 0 {
 		fmt.Printf("; %d more still missing sprites", res.Incomplete)
 	}
@@ -640,10 +643,10 @@ func validateConfig(cfg sim.Config) error {
 	switch {
 	case cfg.Width < 10 || cfg.Height < 10:
 		return fmt.Errorf("world must be at least 10x10 (got %dx%d)", cfg.Width, cfg.Height)
-	case cfg.IronRockPercent < 0 || cfg.IceRockPercent < 0 || cfg.UraniumRockPercent < 0 || cfg.ClayRockPercent < 0 ||
-		cfg.IronRockPercent+cfg.IceRockPercent+cfg.UraniumRockPercent+cfg.ClayRockPercent > 100:
-		return fmt.Errorf("rock composition percentages must be non-negative and total at most 100 (got iron %d + ice %d + uranium %d + clay %d)",
-			cfg.IronRockPercent, cfg.IceRockPercent, cfg.UraniumRockPercent, cfg.ClayRockPercent)
+	case cfg.IronRockPercent < 0 || cfg.IceRockPercent < 0 || cfg.UraniumRockPermille < 0 || cfg.ClayRockPercent < 0 ||
+		10*(cfg.IronRockPercent+cfg.IceRockPercent+cfg.ClayRockPercent)+cfg.UraniumRockPermille > 1000:
+		return fmt.Errorf("rock compositions must be non-negative and cover at most the whole map (got iron %d%% + ice %d%% + clay %d%% + uranium %d per mille)",
+			cfg.IronRockPercent, cfg.IceRockPercent, cfg.ClayRockPercent, cfg.UraniumRockPermille)
 	case cfg.RockVeinMin < 1 || cfg.RockVeinMax < cfg.RockVeinMin:
 		return fmt.Errorf("rock vein range is invalid: min %d, max %d", cfg.RockVeinMin, cfg.RockVeinMax)
 	case cfg.WorldgenHalo < 1:

@@ -613,10 +613,10 @@ func (w *World) emptyDepot(p Point) {
 	}
 	switch {
 	case lost > 0:
-		w.logEvent(LogBuildStart, fmt.Sprintf("Clearing the %s at (%d, %d): %d goods moved to other chests, %d lost with nowhere to go.",
+		w.logEventAt(LogBuildStart, p, fmt.Sprintf("Clearing the %s at (%d, %d): %d goods moved to other chests, %d lost with nowhere to go.",
 			c.Terrain, p.X, p.Y, moved, lost))
 	case moved > 0:
-		w.logEvent(LogBuildStart, fmt.Sprintf("Clearing the %s at (%d, %d): %d goods moved to other chests.",
+		w.logEventAt(LogBuildStart, p, fmt.Sprintf("Clearing the %s at (%d, %d): %d goods moved to other chests.",
 			c.Terrain, p.X, p.Y, moved))
 	}
 }

@@ -63,6 +63,12 @@ export const ui = $state({
   floats: loadPref('floats', [] as FloatWin[]),
   /** What the Inspect tab shows, and the map marks. */
   selected: null as Selection | null,
+  /**
+   * The creature the camera follows (FollowChip.svelte, docs/follow.md), or
+   * null. Separate from the selection: closing the inspector to see the map
+   * keeps following.
+   */
+  follow: null as number | null,
   /** The tab a selection was made from, for the inspector's way back. */
   inspectFrom: null as string | null,
   /** The roster's filters, kept while the tab is closed (the TUI's f). */
@@ -108,8 +114,9 @@ export const ui = $state({
  * over (a frame of the new level resets them), and the area tools put down
  * their areas, which were marked on the old level.
  */
-export function setLevel(l: number): void {
+export function setLevel(l: number, keepFollow = false): void {
   if (l === ui.level || !ui.levels.includes(l)) return;
+  if (!keepFollow) ui.follow = null; // looking elsewhere: the camera is the player's again
   ui.level = l;
   if (ui.dig.rect) clearDig();
   if (ui.zone.rect) clearZoneTool();
@@ -415,8 +422,10 @@ class TopicData {
 }
 export const topics = new TopicData();
 
+/** A colony-log line's tile: where clicking the line takes the map. */
+export interface LogPlace { x: number; y: number; level: number }
 /** One colony-log line (internal/wire/log.go), and when the page got it. */
-export interface LogLine { seq: number; tick: number; kind: string; text: string; at: number }
+export interface LogLine { seq: number; tick: number; when: string; kind: string; text: string; place?: LogPlace; at: number }
 
 /** How many log lines the page keeps. The engine keeps only -log-size (64). */
 export const LOG_KEEP = 2000;
@@ -450,6 +459,8 @@ export interface Controller {
   saveGame(): void;
   /** Center the map on a tile. */
   centerOn(x: number, y: number): void;
+  /** ui.follow changed: center on the creature now, from the last frame. */
+  followChanged(): void;
   /** ui.level changed: ask the worker for that level. */
   levelChanged(): void;
   /** ui.selected changed: move the map's marker. */
@@ -491,8 +502,31 @@ export function loadGame(file: File): void { ctl?.loadGame(file); }
 export function saveGame(): void { ctl?.saveGame(); }
 /** Center the map on a tile, on level l if given (switching to it, if the colony has broken into it). */
 export function centerOn(x: number, y: number, l?: number): void {
+  ui.follow = null; // going somewhere stops following
   if (l !== undefined) setLevel(l);
   ctl?.centerOn(x, y);
+}
+
+/** Keep the camera on a creature as it moves (null stops). Panning, a level change or any centerOn stops it too. */
+export function follow(id: number | null): void {
+  ui.follow = id;
+  ctl?.followChanged();
+}
+
+/**
+ * The followed creature is on another level (it took a stair, a shaft or a
+ * ladder): take the map there and center on it, still following.
+ */
+export function followTo(x: number, y: number, l: number): void {
+  if (ui.follow === null) return;
+  setLevel(l, true);
+  ctl?.centerOn(x, y);
+}
+/** Center the map on a log line's tile, if it has one; reports whether it did. */
+export function goToLogLine(l: { place?: LogPlace }): boolean {
+  if (!l.place) return false;
+  centerOn(l.place.x, l.place.y, l.place.level);
+  return true;
 }
 export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void { ctl?.highlight(tiles); }
 
@@ -717,9 +751,14 @@ export function setTicker(on: boolean): void {
   savePref('ticker', on);
 }
 
-/** Fold a tab section (Section.svelte) shut or open it, and remember it in this browser. */
-export function toggleSection(id: string): void {
-  if (ui.collapsed[id]) delete ui.collapsed[id];
-  else ui.collapsed[id] = true;
+/**
+ * Fold a tab section (Section.svelte) shut or open it, and remember it in this
+ * browser. ui.collapsed keeps only the sections not in their default state:
+ * true for one folded shut, false for one opened that starts shut.
+ */
+export function toggleSection(id: string, shutByDefault = false): void {
+  const shut = !(ui.collapsed[id] ?? shutByDefault);
+  if (shut === shutByDefault) delete ui.collapsed[id];
+  else ui.collapsed[id] = shut;
   savePref('collapsed', $state.snapshot(ui.collapsed));
 }

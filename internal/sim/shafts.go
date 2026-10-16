@@ -127,7 +127,7 @@ func (w *World) digShaft(top Point, bottom Level) bool {
 	} else {
 		w.SetTerrain(top, ShaftTop)
 	}
-	w.logEvent(LogBuildComplete, fmt.Sprintf("A shaft is sunk from level %d down to level %d.", top.Level, bottom))
+	w.logEventAt(LogBuildComplete, top, fmt.Sprintf("A shaft is sunk from level %d down to level %d.", top.Level, bottom))
 	return true
 }
 
@@ -198,7 +198,7 @@ func (w *World) designateShaft(top Point, bottom Level, issuer Owner) bool {
 	}
 	w.nextProjectID++
 	w.projects = append(w.projects, pr)
-	w.logEvent(LogBuildStart, fmt.Sprintf("The colony marks out a shaft from level %d down to level %d.", top.Level, bottom))
+	w.logEventAt(LogBuildStart, top, fmt.Sprintf("The colony marks out a shaft from level %d down to level %d.", top.Level, bottom))
 	return true
 }
 
