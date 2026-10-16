@@ -249,7 +249,7 @@ it.
 **Built** ([frontend-web.md](./frontend-web.md)). The map stays a canvas, and
 the chrome around it is Svelte 5:
 
-- **A top bar:** the clock, the speed selector, and the TUI header's counts.
+- **A top bar:** the clock, the speed selector, and the colonist and alien counts.
 - **A side panel:** one tab open at a time, beside the map, so the map stays
   visible.
 

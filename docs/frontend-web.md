@@ -10,7 +10,9 @@ zoomed out and in the TUI's emoji when zoomed in, with pan, zoom and a hover
 readout. Around it is a Svelte chrome:
 
 - **A top bar:** the clock (colony day and time of day, see [days.md](./days.md), then tick), a Pause / Normal / Fast / Faster / Max speed selector, and
-  the TUI header's counts, as emoji (👷 👽 🐈 🐀, then each fixture's glyph).
+  the colonist and alien counts, as emoji (👷 👽). The rest of the TUI header's
+  counts (pets, fixtures, refuse, rooms, floor dug) used to follow them; they
+  were noise there and were dropped.
 - **A side panel,** whose tab strip has two labelled rows. **View** holds the
   tabs that show the colony: the Inspect tab (click the map), the Roster, the
   Log, Jobs, Storage, Market, Charts, Perf and the Lore tab. **Act** holds the tabs
