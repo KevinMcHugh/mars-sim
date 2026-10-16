@@ -75,6 +75,13 @@ shifts: guards go to eat and sleep and others step in, and a guard comes back
 to any post still short once it is free again. A guard that loses its weapon,
 or whose zone is cancelled or cut below it, goes back to other work.
 
+
+**Calm to serve.** Only a colonist whose own safety drive is calm takes a
+post, and a guard whose safety reaches pressing gives it up for the next calm
+one (`calmEnoughToGuard`). Time on station inside the area is guarding
+practice (`SkillGuarding`), and each rank makes a guard slower to feel unsafe.
+Bodyguards' escort contracts, which pay more, are offered before posts. See
+[safety.md](./safety.md).
 ### On station
 
 `guardStation` picks the walkable, seen tile of the area nearest the guard,

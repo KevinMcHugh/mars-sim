@@ -42,3 +42,24 @@ func TestNewsTopic(t *testing.T) {
 		t.Fatalf("aired %q", news.Broadcasts[0].When)
 	}
 }
+
+// The market topic lists each bodyguard's contract: client, who is on
+// station, the rate, and the hours served and left.
+func TestMarketTopicListsEscorts(t *testing.T) {
+	snap := fixture(true)
+	snap.Entities = append(snap.Entities,
+		sim.EntityView{ID: 901, Kind: sim.Colonist, Profile: &sim.Profile{Name: "Ada Rich"}},
+		sim.EntityView{ID: 902, Kind: sim.Colonist, Profile: &sim.Profile{Name: "Bo Guard"}})
+	snap.Economy.WorkOrders = []sim.WorkOrderView{
+		{ID: 1, Kind: sim.WorkEscort, Issuer: sim.ColonistOwner(901), Pay: 7, Units: 5, Escort: 902, Served: 3},
+		{ID: 2, Kind: sim.WorkEscort, Issuer: sim.ColonistOwner(902), Pay: 6, Units: 8},
+	}
+	m := marketTopic(snap)
+	want := []EscortLine{
+		{Client: Person{ID: 901, Name: "Ada Rich"}, Escort: &Person{ID: 902, Name: "Bo Guard"}, Rate: 7, Served: 3, Left: 5, Held: 35},
+		{Client: Person{ID: 902, Name: "Bo Guard"}, Rate: 6, Left: 8, Held: 48},
+	}
+	if !reflect.DeepEqual(m.Escorts, want) {
+		t.Fatalf("escorts %+v", m.Escorts)
+	}
+}

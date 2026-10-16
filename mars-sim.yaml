@@ -1163,6 +1163,24 @@ siting-auto: true
 ## meals' worth of money a colonist keeps back from anything a want would buy
 # want-reserve-meals: 4
 
+## hours in a bodyguard's contract
+# escort-hours: 8
+
+## tiles a bodyguard keeps within of its client, and counts as guarding it
+# escort-radius: 3
+
+## the least an escort contract may pay an hour
+# escort-wage: 6
+
+## percent of escort-wage a client will pay an hour at its safety drive's ceiling
+# escort-willingness: 150
+
+## the most of its spare money a client spends on one shift of a bodyguard
+# escort-budget-percent: 10
+
+## percent less safety a colonist feels for each rank of guarding, up to four
+# guarding-nerve-percent: 15
+
 # ── Meeting hall ────────────────────────────────────────────────────────
 ## the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)
 # colonists-per-chair: 4

@@ -283,6 +283,7 @@ const (
 	JobGuard            // hold a station in a defense zone and shoot what threatens it (see defense.go)
 	JobAid              // walk to a casualty and bring it round (see casualty.go)
 	JobFetch            // collect a gun it bought from the depot at Target (see wants.go)
+	JobEscort           // walk with a client as its bodyguard, on an escort contract (see escort.go)
 )
 
 // cleanStage is where a JobClean colonist is in the haul. The job is two legs
@@ -407,6 +408,12 @@ type Entity struct {
 	// gunWaiting is the weaponRank of a gun it bought and has not yet
 	// fetched from the depot it was bought at (0: none).
 	gunWaiting int
+	// escortWork is the escort contract a JobEscort colonist serves, and
+	// escortedBy the bodyguard on a client's contract now (escort.go).
+	escortWork OrderID
+	escortedBy EntityID
+	// nerveRank is the guarding rank its safety rate was last composed for.
+	nerveRank int
 
 	// Aid (colonists only; see casualty.go). aidTarget is the casualty this
 	// colonist holds the claim on while it helps; aidedBy, on a casualty, is

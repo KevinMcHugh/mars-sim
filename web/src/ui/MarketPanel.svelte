@@ -20,6 +20,7 @@
     plans: { actor: { id: number; name: string }; summary: string; waiting: boolean }[];
     chainDepth: number;
     work: { issuer: string; kind: string; units: number; held: number }[];
+    escorts: { client: { id: number; name: string }; escort?: { id: number; name: string }; rate: number; served: number; left: number; held: number }[];
     trades: { tick: number; when: string; seller: string; buyer: string; qty: number; item: string; price: number }[];
   }
 
@@ -124,6 +125,19 @@
       <ul class="lines">
         {#each m.work as w, i (i)}
           <li>{w.issuer}: {w.units} {w.kind === 'haul' ? 'units to haul' : w.kind === 'dig' ? 'tiles to dig' : `${w.kind} tasks`}, {money(w.held)} held</li>
+        {/each}
+      </ul>
+    {/if}
+  </Section>
+
+  <Section id="market.escorts" tag="h2" title="Bodyguards">
+    {#if m.escorts.length === 0}
+      <p class="muted">nobody has hired one</p>
+    {:else}
+      <ul class="lines">
+        {#each m.escorts as c (c.client.id)}
+          <li>{c.client.name}: {c.escort ? `${c.escort.name} on station` : 'waiting for a calm, armed colonist'},
+            {money(c.rate)} an hour, {c.served} served, {c.left} left, {money(c.held)} held</li>
         {/each}
       </ul>
     {/if}

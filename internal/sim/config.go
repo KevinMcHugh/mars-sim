@@ -591,6 +591,19 @@ type Config struct {
 	// back from any want: food comes first.
 	WantReserveMeals int `cfg:"want-reserve-meals" doc:"meals' worth of money a colonist keeps back from anything a want would buy"`
 
+	// Bodyguards (escort.go): an escort contract is EscortHours hours at an
+	// hourly rate of at least EscortWage, up to EscortWillingness percent of
+	// it at the drive's ceiling, and a whole shift may cost at most
+	// EscortBudgetPercent of what the client has beyond its food money. A
+	// bodyguard keeps within EscortRadius of its client. Each guarding rank
+	// cuts the safety a colonist feels by GuardingNervePercent.
+	EscortHours          int `cfg:"escort-hours" doc:"hours in a bodyguard's contract"`
+	EscortRadius         int `cfg:"escort-radius" doc:"tiles a bodyguard keeps within of its client, and counts as guarding it"`
+	EscortWage           int `cfg:"escort-wage" doc:"the least an escort contract may pay an hour"`
+	EscortWillingness    int `cfg:"escort-willingness" doc:"percent of escort-wage a client will pay an hour at its safety drive's ceiling"`
+	EscortBudgetPercent  int `cfg:"escort-budget-percent" doc:"the most of its spare money a client spends on one shift of a bodyguard"`
+	GuardingNervePercent int `cfg:"guarding-nerve-percent" doc:"percent less safety a colonist feels for each rank of guarding, up to four"`
+
 	// The meeting hall: a room of chairs the colony commissions, where
 	// colonists go to socialize and to eat. See docs/meeting-hall.md.
 	ColonistsPerChair int `cfg:"colonists-per-chair" sec:"Meeting hall" doc:"the colony commissions meeting-hall chairs, one for each this many colonists (0: no hall, and talk and meals stay wherever they happen)"`
@@ -1114,6 +1127,13 @@ func DefaultConfig() Config {
 		WantSettleTicks:  1080,
 		GunWillingness:   150,
 		WantReserveMeals: 4,
+
+		EscortHours:          8,
+		EscortRadius:         3,
+		EscortWage:           6,
+		EscortWillingness:    150,
+		EscortBudgetPercent:  10,
+		GuardingNervePercent: 15,
 
 		MoodMax:                   defaultMoodMax,
 		ConversationCompanyWeight: 6,

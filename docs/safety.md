@@ -19,9 +19,10 @@ book: a bid for a gun, a bid for a better one, and at the top, an escort
 contract an armed colonist takes the way it takes a post in a
 [defense zone](./defense.md).
 
-S1 to S3 are built: the safety drive, what moves it, the traits that temper
-it, hearsay, the nightly news, and wants, with safety's first two rungs (a
-gun, a better gun). From S4 on (bodyguards) it is a proposal. *Built so far* below records where the build departed from the
+S1 to S4 are built: the safety drive, what moves it, the traits and the
+guarding skill that temper it, hearsay, the nightly news, and wants, with
+safety's whole ladder (a gun, a better gun, a bodyguard). S5 (what an afraid
+colonist does) and S6 are proposals. *Built so far* below records where the build departed from the
 plan and what it measured.
 
 ## Decisions already made
@@ -41,7 +42,7 @@ plan and what it measured.
 | S1 | The safety drive: a place-dependent rate (home, settled, frontier, guarded), bumps from percepts through a `drives` field on reactions in `cognition.yaml`, the felt-unsafe experience at the ceiling, and the disposition traits (Bold/Timid, and safety rules on nerve and outlook). No behavior beyond affect. | Shipped |
 | S2 | Hearsay and the nightly news: a recounted memory reaches the listener as a percept on a new `hearsay` channel, so hearing about a killing or a sighting is a reaction row; an evening broadcast on a `broadcast` channel reports the day's deaths and arrivals. | Shipped |
 | S3 | Wants: one willingness-to-pay rule for any drive, ladders of rungs, the hook that posts an order when a drive presses, and the inspector line that explains it. Safety's first two rungs: a gun, then a better gun, with the old one sold on; pistols and shotguns machined at the gun bench (pulled forward from S6). | Shipped |
-| S4 | Bodyguards: `WorkEscort` contracts escrowed from the client, `JobEscort` as a guard post that follows a colonist, protection as a place class, the calm-to-serve rule for every guard post, the guarding skill, and escorts on the Market tab. | Proposed |
+| S4 | Bodyguards: `WorkEscort` contracts escrowed from the client, `JobEscort` as a guard post that follows a colonist, protection as a place class, the calm-to-serve rule for every guard post, the guarding skill, and escorts on the Market tab. | Shipped |
 | S5 | Critical safety: retreating home, turning down frontier work, restless nights. | Proposed |
 | S6 | Chipping in to a defense zone's wages. | Proposed |
 
@@ -108,17 +109,30 @@ Built (S3):
   `EntityView.Want`, the entity topic's `want`, shown under Drives.
 - [`internal/sim/wants_test.go`](../internal/sim/wants_test.go).
 
-Proposed (S4 on):
+Built (S4):
 
+- [`internal/sim/escort.go`](../internal/sim/escort.go): `tryAssignEscort`,
+  `jobEscort`, `serveEscort`, `releaseEscort`, `escortedNow`,
+  `hireBodyguard`, `escortRate`, `lapseEscort`, `calmEnoughToGuard`,
+  `nervePercent`.
+- [`internal/sim/workorder.go`](../internal/sim/workorder.go): `WorkEscort`,
+  and the contract's escort, hours served and lapse tick.
+- [`internal/sim/wants.go`](../internal/sim/wants.go): the bodyguard rung;
+  a rung may post a work order (`wantPosted`) and have a budget rule
+  (`afford`).
 - [`internal/sim/skills.go`](../internal/sim/skills.go): `SkillGuarding`.
-- [`internal/sim/workorder.go`](../internal/sim/workorder.go): `WorkEscort`.
-- [`internal/sim/defense.go`](../internal/sim/defense.go): the post grows a
-  second shape, an area that follows a client; `tryAssignEscort`,
-  `serveEscort`.
-- [`cognition.yaml`](../cognition.yaml): the safety bumps, the hearsay
-  reactions, `felt-unsafe`, `guarded`, `hired-bodyguard`.
-- [`internal/sim/config.go`](../internal/sim/config.go): the settings below,
-  and `mars-sim.yaml` regenerated.
+- [`internal/sim/defense.go`](../internal/sim/defense.go): calm to serve,
+  and guarding practice for time on station.
+- [`internal/sim/place.go`](../internal/sim/place.go),
+  [`drives.go`](../internal/sim/drives.go),
+  [`affect.go`](../internal/sim/affect.go): beside one's bodyguard is
+  guarded; a guarding rank cuts safety's growth and sight bumps.
+- [`cognition.yaml`](../cognition.yaml): `guarded-client`,
+  `hired-bodyguard`.
+- [`internal/wire/boards.go`](../internal/wire/boards.go),
+  [`web/src/ui/MarketPanel.svelte`](../web/src/ui/MarketPanel.svelte): the
+  market topic's `escorts`, and the Market tab's Bodyguards section.
+- [`internal/sim/escort_test.go`](../internal/sim/escort_test.go).
 
 ## How it works
 
@@ -227,17 +241,19 @@ colonist carrying a rifle on level 1's frontier builds safety at a quarter
 of an unarmed ordinary colonist's rate there (60% × 80% × 50%): about 28
 hours from calm to uneasy, against seven.
 
-**Skill (S4).** `SkillGuarding` is practised by every tick on station, as a guard
-or an escort, and by every alien a guard fights. Base 4, the baseline: there
-is plenty of it once a colony keeps a detail, and a veteran should be
-plainly better than a recruit. Each rank cuts the frontier and guarded
-rates and the sight bumps by `guarding-nerve-percent` (15) per rank, up to
-four ranks. It is not wear: wear rolls off when the memories do, and a
+**Skill.** `SkillGuarding` is practised by every tick on station, as a
+defense guard inside its area or a bodyguard beside its client. Base 4, the
+baseline, rank 1 at a shift (360 ticks): there is plenty of it once a colony
+keeps a detail, and a veteran should be plainly better than a recruit. Its
+labels run lookout, guard, sentinel, veteran guard. Each rank cuts safety's
+growth (whenever it is growing) and the fear in what it sees by
+`guarding-nerve-percent` (15), up to four ranks. Nobody arrives with it
+(its background weight is 0, so no arrival's rolled skills moved). It is not wear: wear rolls off when the memories do, and a
 veteran who has been home a month is still a veteran.
 
-Skill feeds the market the usual way (see [skills.md](./skills.md)): a
-ranked guard's reservation is what it has been earning, so veterans hold
-out for better-paying contracts and recruits take the cheap ones.
+Planned and not built: skill feeding a guard's reservation, so veterans
+hold out for better-paying contracts. Guards today take the best-paid
+contract open, then defense posts.
 
 ### What a colonist sees
 
@@ -529,17 +545,15 @@ pay from the treasury as they go because a detail has no end
 ([defense.md](./defense.md)); a contract has one, so it escrows like every
 other work order, and the money audit already counts it.
 
-A contract is a **post that follows a colonist**. The guard code generalizes
-rather than forks: `defensePost` gets a second shape, an area of
-`escort-radius` (3) round its client's position, and everything else is
-shared. `JobEscort` is `JobGuard` on a moving area:
+A contract is **guard duty that follows a colonist**. As built it did not
+generalize `defensePost` (a post is a rectangle the colony owns; a contract
+is a client's), but `JobEscort` keeps every rule of `JobGuard`:
 
 - **Who takes it.** An armed colonist looking for work whose own safety is
-  calm (below `SeekAt`), in `assignWorkJob` where `tryAssignGuard` is, and
-  in one comparison with it: open defense posts and escort contracts ranked
-  by hourly pay, then id. Not the client itself, and only if the client is
-  reachable. A contract is open only while its client is out of its home;
-  a colonist at home needs no guard.
+  calm (below `SeekAt`), in `assignWorkJob`, before defense posts: a
+  contract never pays less than `escort-wage`, above `wage-guard`. It takes
+  the best-paid open contract, then the oldest, whose client is alive, out
+  of its home, and in its room. Never its own.
 - **Only the market.** What an escort weighs is what the book shows: the
   contract's rate, hours left, escrow, and where its client stands. Where
   the client stands is public, the way any colonist is visible on the map.
@@ -548,40 +562,44 @@ shared. `JobEscort` is `JobGuard` on a moving area:
   price it chose to post. That rules out the shortcut `companyInReach`
   takes for conversation ([drives.md](./drives.md), *Known problem*).
 - **Calm to serve.** The same rule holds on station, for defense posts as
-  well as contracts: a guard whose own safety reaches pressing gives the
-  post up (`currentFocusEligible` for `JobGuard` and `JobEscort`), and the
-  post is released for the next calm, armed colonist. Guards out on the
-  frontier still feel it, more slowly for being armed, Bold or skilled, so
-  a detail turns over as its guards get uneasy, the way it already turns
-  over for food and sleep. That is why guards never need guards: whoever
-  is on station is, by construction, not afraid.
-- **On station.** The escort walks to within `escort-radius` of the client
-  and keeps there, re-pathing when the client moves (a target it already
-  follows the way a hauler follows a route). Every tick it looks for an
-  alien within `guard-sight` of itself and of the client and fights it with
-  `fightAlien`. The area bound is the client, so an escort does not chase.
+  well as contracts (`calmEnoughToGuard`): a guard whose own safety reaches
+  pressing gives the post up, and it is released for the next calm, armed
+  colonist. Guards out on the frontier still feel it, more slowly for being
+  armed, Bold or skilled, so a detail turns over as its guards get uneasy,
+  the way it already turns over for food and sleep. That is why guards
+  never need guards: whoever is on station is, by construction, not afraid.
+- **On station.** The escort walks to within `escort-radius` (3) of the
+  client, on its level, re-pathing when the client moves, and stands by
+  there. Every tick it looks for an alien within `guard-sight` of itself
+  and of the client and fights it with `fightAlien`. The client is the area
+  bound, so an escort does not chase.
 - **Pay.** `serveEscort` counts ticks within the radius and calls `payWork`
-  for each full hour, from the contract's escrow. Hours at home or with no
-  escort on station are not billed.
-- **Released on leaving, like a guard.** An escort leaves for a pressing
-  drive or its own fight; leaving clears the job and releases the post, and
-  the next armed colonist looking for work can take it. So a contract is
-  "this client guarded for eight hours", not "these people".
-- **Ending.** The contract closes when its hours are served, its client
-  dies (`cancelWorkOf` already closes a dead issuer's orders), or its client
-  cancels it. Any remainder goes back to the client. When it closes, the
-  client's want re-checks and may post the next one.
+  for each full hour, from the contract's escrow. Time walking to the
+  client is not billed, nor time the client spends at home: the escort
+  gives the contract up when the client goes home, and the next one takes
+  it when the client is out again.
+- **Released on leaving, like a guard.** An escort that leaves (a drive, its
+  own fight, unease) releases the contract for the next armed colonist. So
+  a contract is "this client guarded for eight hours", not "these people".
+- **Ending.** The contract closes when its hours are served, or its client
+  dies (`cancelWorkOf` closes a dead issuer's orders). One nobody has taken
+  by its lapse tick (`want-ttl` after posting) closes too, its escrow comes
+  back, and the client's want decides again. Any remainder goes back to the
+  client.
 
-Protection is felt, not read: the client gets a persistent percept,
-`colonist / guard / colonist` on the proximity channel, entering when its
-escort comes within radius (`guarded`: grip up, "Walked with Bo as a
-bodyguard.") and leaving when it goes. That same transition sets the place
-class to guarded. The escort remembers it too (`guarded-client`), and both
-take affinity from time together the way a conversation gives it, slowly.
+Protection is felt, not read. While its escort is beside it on station
+(`escortedNow`), the client's place class is guarded, so its safety falls.
+When a bodyguard takes a client, one occurrence, `colonist / guard /
+colonist`, reaches both: the guard remembers taking the client on
+(`guarded-client`, a little pride) and the client hiring the guard
+(`hired-bodyguard`, grip up, and safety eased by 60). The planned
+persistent "guarded" percept and the affinity from time together are not
+built.
 
-Escort contracts show on the Market tab beside the order book (client,
-escort, rate, hours served, escrow), on a new `escorts` topic, and the map
-draws a thin line from escort to client while the client is selected.
+Escort contracts show on the Market tab's **Bodyguards** section (client,
+who is on station, rate, hours served and left, escrow), from the market
+topic's `escorts`, and in its work orders as kind `escort`. The planned map
+line from escort to client is not built.
 
 ### Critical safety (S5)
 
@@ -605,6 +623,24 @@ shifts at the rock face, and a defense zone over the mine or a bodyguard
 for each miner buys them back.
 
 ## Built so far
+
+### S4: bodyguards
+
+Measured on three seeds of the 20-colonist game (zoning-auto, food safety
+net on), two colonists given $5,000:
+
+- **Nobody hired a guard** as the game played: the rich spent down to about
+  $840 within the run, and spent their time at home and in the settled
+  colony, where fear falls. Given rifles too, the richest was never even
+  uneasy. As tuned, a bodyguard is rare: the frontier is where fear builds,
+  and the rich are seldom there.
+- **With one rich colonist held afraid** (the drive set to 900 each tick, a
+  smoke test of the whole path), each game posted 8 to 10 contracts, served
+  50 to 63 paid hours, and 4 to 7 colonists earned a guarding rank.
+- **A bug the bodyguard probe found in S3**: a trade-in credited the old gun
+  to the depot's ledger without putting it in the container, so a colonist
+  who bought it paid and could never collect it. Fixed, and the trade-in
+  test checks the depot's ledger against what it holds.
 
 ### S3: wants and guns
 
@@ -763,7 +799,7 @@ default game for 10,800 ticks each (about 140 colonist-days):
 
 ## Settings
 
-Built settings first; the rest arrive with S4.
+Every setting below is built.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -787,7 +823,7 @@ Built settings first; the rest arrive with S4.
 | `escort-radius` | 3 | how close an escort keeps, and counts as guarding |
 | `escort-wage` | 6 | the least an escort contract may pay an hour |
 | `escort-willingness` | 150 | percent of `escort-wage` a client will pay at the ceiling |
-| `escort-budget-percent` | 10 | the most of its wallet a client spends on one shift |
+| `escort-budget-percent` | 10 | the most of its spare money (beyond its food money) a client spends on one shift |
 | `guarding-nerve-percent` | 15 | how much each `SkillGuarding` rank cuts safety's frontier rate and sight bumps |
 
 ## Extending it

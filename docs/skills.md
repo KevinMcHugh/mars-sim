@@ -169,7 +169,8 @@ these problems. Each has an answer in the design below.
 | `SkillForaging` | scraping cave scum | 3 | Mostly walking; not much to master. |
 | `SkillCooking` | every scumhouse recipe | 4 | The baseline. |
 | `SkillConstruction` | raising walls and fixtures | 4 | The baseline. There's little of it, so `Unit` is small. |
-| `SkillSmithing` | smelting steel, machining rifles | 6 | Steep, rare and very rewarding. |
+| `SkillSmithing` | smelting steel, machining rifles, pistols and shotguns | 6 | Steep, rare and very rewarding. |
+| `SkillGuarding` | a tick on station as a defense guard or a bodyguard | 4 | Nerve, not speed: no work goes faster; each rank makes the colonist slower to feel unsafe (see [safety.md](./safety.md)). Never rolled at arrival (background weight 0), so adding it moved no seed's skills. |
 | `SkillMedicine` | dressing wounds, bringing colonists round, dragging them to a cot | 3 | Faster dressing, and what the medic dressed heals faster (its yield). Nobody arrives with it: `backgroundWeights` leaves it out, so adding it moved no seed's arrival rolls. See [emergency-services.md](./emergency-services.md). |
 
 Hauling and cleaning aren't skills. Hauling is walking, and a skill that made

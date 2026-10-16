@@ -97,8 +97,10 @@ func (w *World) syncDriveActivity(e *Entity) {
 		return
 	}
 	a, place, rank := driveActivityOf(e), w.placeOf(e), weaponRank(bestWeapon(e.Inventory))
-	if a != e.driveActivity || place != e.place || rank != e.weaponRank {
-		e.driveActivity, e.place, e.weaponRank = a, place, rank
+	nerve := e.rank(SkillGuarding)
+	if a != e.driveActivity || place != e.place || rank != e.weaponRank || nerve != e.nerveRank {
+		e.driveActivity, e.place, e.weaponRank, e.nerveRank = a, place, rank, nerve
 		w.refreshDrives(e)
 	}
+
 }
