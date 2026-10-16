@@ -240,7 +240,9 @@ func (w *World) fixtureAccess(p *project, t Terrain) (Access, Money) {
 	if p.name == houseRoom.name && t == Toilet && w.cfg.ToiletFee > 0 {
 		return AccessPaid, Money(w.cfg.ToiletFee)
 	}
-	if p.name == scumhouseRoom.name {
+	if p.name == scumhouseRoom.name || p.name == reactorRoom.name {
+		// Others sell their goods into it, so it is communal; only its
+		// owner works it (mayCookAt).
 		return AccessCommunal, 0
 	}
 	return AccessPrivate, 0

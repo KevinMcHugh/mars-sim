@@ -570,7 +570,10 @@ type Entity struct {
 	// own, and kitchen where its stove stands once built (hasKitchen). See
 	// commissionKitchens.
 	kitchenCommissioned, hasKitchen bool
-	kitchen                         Point
+	// reactorCommissioned records that it has commissioned a reactor of its
+	// own, under the market or the public option (see power.go).
+	reactorCommissioned bool
+	kitchen             Point
 	// cargo records which carried units are not the carrier's own: the
 	// colony's ore a builder fetched, the meals a hauler is moving. Every unit
 	// on no line is the carrier's. See cargo.go and docs/property.md.

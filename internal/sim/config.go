@@ -160,6 +160,15 @@ type Config struct {
 	UraniumReserve  int   `cfg:"uranium-reserve" doc:"units of uranium ore the colony keeps a standing bid at its silo to hold, counting what its reactors hold"`
 	ReactorIceStock int   `cfg:"reactor-ice-stock" doc:"units of water ice the colony keeps at each reactor, hauled in for hire"`
 	ReactorExposure bool  `cfg:"reactor-exposure" doc:"a reactor holding uranium ore or fuel pellets doses whoever stands beside it, as a uranium vein does"`
+	// PowerPolicy is who runs the reactors (docs/power.md, P3). Under the
+	// market and the public option the colony buys batteries for its stoves
+	// at PriceBattery, and a colonist with ReactorSavings may commission a
+	// reactor of its own; under the public option the colony also builds
+	// one of its own once it has gone PublicOptionDays without a battery.
+	PowerPolicy      PowerPolicy `cfg:"power-policy" doc:"who runs the reactors: monopoly (the colony), market (colonists who can afford one), or public-option (a market, and a colony reactor of last resort)"`
+	PriceBattery     int64       `cfg:"price-battery" doc:"what the colony bids for a battery at its stoves, under the market and the public option"`
+	ReactorSavings   int64       `cfg:"reactor-savings" doc:"dollars a colonist needs to commission a reactor of its own, under the market and the public option (0 disables)"`
+	PublicOptionDays int         `cfg:"public-option-days" doc:"days the colony goes without a battery before it builds a reactor of its own, under the public option"`
 	// ZoningAuto is who decides where the colony builds. Off (the game's
 	// default), the player draws zones and colonists build a structure only
 	// inside a zone of its kind; with no such zone they build nothing. On,
@@ -892,15 +901,19 @@ func DefaultConfig() Config {
 		// Scarcity is on (economy phase E8): food is made, not conjured, and
 		// building costs materials. The safety net stays a setting, for tests
 		// and for balancing. See docs/economy.md.
-		InfiniteFood:    false,
-		Power:           true,
-		PowerTariff:     3,
-		WageReactor:     2,
-		BatteryReserve:  60,
-		UraniumReserve:  2,
-		ReactorIceStock: 8,
-		ReactorExposure: true,
-		CrashPodPurse:   100,
+		InfiniteFood:     false,
+		Power:            true,
+		PowerTariff:      3,
+		WageReactor:      2,
+		BatteryReserve:   60,
+		UraniumReserve:   2,
+		ReactorIceStock:  8,
+		ReactorExposure:  true,
+		PowerPolicy:      PolicyMonopoly,
+		PriceBattery:     4,
+		ReactorSavings:   300,
+		PublicOptionDays: 3,
+		CrashPodPurse:    100,
 		// Scum is tuned so a small colony that keeps digging can feed itself
 		// once its crash-pod meals run out: see the sustain test in
 		// scumhouse_test.go before changing these.

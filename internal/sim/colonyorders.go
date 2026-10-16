@@ -210,8 +210,8 @@ func (w *World) standingAllowed(side Side, item ItemKind) bool {
 	if side != Bid {
 		return false
 	}
-	if w.reactorFuel(item) {
-		return true // the reactor's fuel, which the colony needs like building stone
+	if w.reactorFuel(item) || (item == Battery && w.colonyBuysBatteries()) {
+		return true // the stoves' power, which the colony needs like building stone
 	}
 	for _, k := range buildGoods {
 		if k == item {

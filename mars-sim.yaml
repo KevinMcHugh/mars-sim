@@ -185,6 +185,18 @@
 ## a reactor holding uranium ore or fuel pellets doses whoever stands beside it, as a uranium vein does
 # reactor-exposure: true
 
+## who runs the reactors: monopoly (the colony), market (colonists who can afford one), or public-option (a market, and a colony reactor of last resort)
+# power-policy: monopoly
+
+## what the colony bids for a battery at its stoves, under the market and the public option
+# price-battery: 4
+
+## dollars a colonist needs to commission a reactor of its own, under the market and the public option (0 disables)
+# reactor-savings: 300
+
+## days the colony goes without a battery before it builds a reactor of its own, under the public option
+# public-option-days: 3
+
 ## colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)
 ## Set here because the terminal and headless runs have no way to draw a
 ## zone: with it off, their colonies would never build. The browser game

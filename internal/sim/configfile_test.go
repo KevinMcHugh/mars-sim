@@ -41,6 +41,8 @@ func TestTemplateRoundTrip(t *testing.T) {
 			*p += 7
 		case *bool:
 			*p = !*p
+		case *PowerPolicy:
+			*p = (*p + 1) % numPowerPolicies
 		default:
 			t.Fatalf("knob %q has unsupported type %T", k.Name, k.Ptr)
 		}

@@ -718,6 +718,12 @@ type World struct {
 	// batteriesTick/batteriesCache memoize colonyBatteries for one tick; see
 	// batteriesWanted.
 	batteriesTick, batteriesCache int
+	// publicReactor latches once, under the public option, the colony has
+	// gone public-option-days without a battery: from then on it runs a
+	// reactor of its own. powerDrySince is the tick it last ran out (-1
+	// while it has some). See power.go.
+	publicReactor bool
+	powerDrySince int
 	// colonyMealAsk is the price the colony's meal asks were last posted at,
 	// so they're reposted only when colonyMealPrice moves (see scumhouse.go).
 	colonyMealAsk       Money
@@ -1222,6 +1228,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.storedMealsTick = -1
 	w.hungryTick = -1
 	w.batteriesTick = -1
+	w.powerDrySince = -1
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			w.refreshScumExposure(tc.Pos)
