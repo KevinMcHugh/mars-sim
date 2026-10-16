@@ -660,10 +660,12 @@ default game for 10,800 ticks each (about 140 colonist-days):
   draw toward what a colonist would bring up (a high-impact memory) would
   make hearsay matter; it is left as a decision, since it changes what every
   conversation is about.
-- **Not built from the plan:** the dead as gossip subjects, Optimists
-  recovering faster at home, and Scum Lab's copy of the
-  cognition defaults (`tools/scum-lab/shared/defaults.js`), which does not
-  know the `drives` field or the new reactions.
+- **Not built from the plan:** the dead as gossip subjects, and Optimists
+  recovering faster at home.
+- **Scum Lab** edits the `drives` rows: the Grammar Builder's reaction form
+  has a drive and its fresh and worn bump, and its import and export carry
+  them. Its baked-in defaults are now generated from the Go defaults (see
+  [scum-lab.md](./scum-lab.md)).
 - **Every seed's game changes.** The tick-0 world is untouched (an unsought
   drive starts at 0 without a draw, and the daring traits have their own
   stream), but fear moves affect and so focus, and topics now retell heard

@@ -58,7 +58,6 @@ func TestFoodComesFirst(t *testing.T) {
 	}
 }
 
-
 // An unarmed colonist that feels unsafe bids for a gun at the silo, for a day;
 // a calm one does not. A bid nobody fills lapses, and it bids again.
 func TestAnUneasyColonistBidsForAGun(t *testing.T) {

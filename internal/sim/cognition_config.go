@@ -1435,6 +1435,8 @@ func CognitionVocabularyJSON(configs ...CognitionConfig) []byte {
 			WearPolicies    []string `json:"wear_policies"`
 			Traits          []string `json:"traits"`
 			Focuses         []string `json:"focuses"`
+			// Drives are the names a reaction's drives row may use.
+			Drives []string `json:"drives"`
 		} `json:"vocabulary"`
 		Schema map[string][]string `json:"schema"`
 	}{SchemaVersion: 1}
@@ -1452,6 +1454,10 @@ func CognitionVocabularyJSON(configs ...CognitionConfig) []byte {
 	for focus := FocusKind(0); focus < numFocusKinds; focus++ {
 		v.Vocabulary.Focuses = append(v.Vocabulary.Focuses, focus.String())
 	}
+	for d := DriveKind(0); d < numDrives; d++ {
+		v.Vocabulary.Drives = append(v.Vocabulary.Drives, d.String())
+	}
+
 	v.Schema = map[string][]string{
 		"perception": {"id", "match", "sense"},
 		"reaction":   {"id", "priority", "match", "memory", "affect", "wear_policy", "stimulus", "drives"},
