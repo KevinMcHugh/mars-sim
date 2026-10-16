@@ -446,7 +446,38 @@ it.
 - **The tariff as a ceiling** isn't built: the colony doesn't sell batteries
   yet, so its tariff can't cap a baron's price.
 
-PUBLIC_MEASURE
+### What P3 measured
+
+Eight seeds of a 120×60 map, 20 colonists, zoning and siting automatic, run
+to 80,000 ticks (76 days), because a baron appears only once the landing
+batteries run low:
+
+| | monopoly | market | public option |
+| --- | --- | --- | --- |
+| starved | 22 | 35 | 34 |
+| seeds with a baron's reactor | 0 | 7 | 7 |
+| seeds with a colony reactor | 7 | 0 | 0 |
+| seeds where batteries traded | 0 | 7 | 7 |
+
+- **The market works without a script.** On 7 of 8 seeds a colonist
+  commissioned a reactor, between about tick 35,000 and 54,000, once the
+  stoves' bids went unfilled. Every one of those barons bought its uranium
+  and ice at the silo, pressed pellets, charged up to `battery-reserve`, and
+  sold into the colony's bids. Barons ended with $120 to $430. Where two
+  colonists built reactors, both ran.
+- **Starvation leans worse under the market, and 8 seeds can't say how
+  much.** The colony goes weeks without power between the lockers running dry
+  and the first baron. A few seeds diverge widely, so it needs the 72-seed
+  treatment P2 got before anyone tunes on it. The obvious levers are a lower
+  `reactor-savings`, so a baron arrives sooner, and a commission that starts
+  when the stoves' stock is low rather than empty.
+- **The public option rarely triggers.** Under these defaults a baron
+  usually arrives before the colony has gone three days without a battery.
+  It latched on one seed, at tick 62,779, and the colony hadn't bought
+  uranium by the end of the run. Its bid is at the reference price, and the
+  barons' bids are above it. So the last resort works as written but comes
+  late. If it should be a real safety net, the colony's own fuel bids under
+  the public option want the barons' premium too.
 
 ### Policy: charter
 
