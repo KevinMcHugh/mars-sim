@@ -1,17 +1,19 @@
 <script lang="ts">
-  // The Trade tab: the colony's order desk (ColonyOrders, docs/colony-orders.md),
+  // The Trade tab: the power policy (PowerDesk, docs/power.md), then the
+  // colony's order desk (ColonyOrders, docs/colony-orders.md),
   // buying and selling in the colony's name. It reads the market topic, as the
   // Market tab does, but sits under Act: placing orders changes the colony,
   // while the Market tab only shows prices, books and accounts.
   import { subscribe, topics } from '../game.svelte';
   import ColonyOrders from './ColonyOrders.svelte';
+  import PowerDesk, { type Power } from './PowerDesk.svelte';
   import type { ComponentProps } from 'svelte';
 
   interface Market {
     supply: { treasury: number };
     books: ComponentProps<typeof ColonyOrders>['books'];
     prices: ComponentProps<typeof ColonyOrders>['prices'];
-    colony: ComponentProps<typeof ColonyOrders>['desk'];
+    colony: ComponentProps<typeof ColonyOrders>['desk'] & { power: Power };
   }
 
   $effect(() => subscribe('market'));
@@ -24,6 +26,7 @@
 {#if !m}
   <p class="muted">Loading…</p>
 {:else}
+  <PowerDesk power={m.colony.power} />
   <ColonyOrders desk={m.colony} treasury={m.supply.treasury} prices={m.prices} books={m.books} />
 {/if}
 

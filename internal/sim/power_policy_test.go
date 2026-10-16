@@ -23,7 +23,7 @@ func policyWorld(t *testing.T, policy PowerPolicy) (w *World, silo, kitchen Poin
 	t.Helper()
 	w = propertyWorld(t)
 	w.cfg.Power = true
-	w.cfg.PowerPolicy = policy
+	w.cfg.PowerPolicy, w.powerPolicy = policy, policy
 	silo, kitchen = Point{8, 8, LandingLevel}, Point{20, 12, LandingLevel}
 	w.SetTerrain(silo, Storage)
 	w.SetTerrain(kitchen, Scumhouse)

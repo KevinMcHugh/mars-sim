@@ -37,6 +37,10 @@ func (w *World) balance(o Owner) Money {
 		if wo := w.workOrders[OrderID(o.ID)]; wo != nil {
 			return wo.escrow
 		}
+	case OwnerCorporation:
+		if w.charter.granted && int(o.ID) == w.charter.corp {
+			return w.charter.wallet
+		}
 	}
 	return 0
 }
@@ -59,6 +63,10 @@ func (w *World) account(o Owner) *Money {
 	case ownerWork:
 		if wo := w.workOrders[OrderID(o.ID)]; wo != nil {
 			return &wo.escrow
+		}
+	case OwnerCorporation:
+		if w.charter.granted && int(o.ID) == w.charter.corp {
+			return &w.charter.wallet
 		}
 	}
 	return nil
@@ -179,13 +187,13 @@ func (w *World) freezeWallet(e *Entity) {
 	w.moneyFrozen += e.wallet
 }
 
-// moneyInCirculation is every spendable dollar: the treasury plus every living
-// colonist's wallet. It plus moneyFrozen, the money held by open bids
+// moneyInCirculation is every spendable dollar: the treasury, the charter
+// company's wallet, and every living colonist's wallet. It plus moneyFrozen, the money held by open bids
 // (moneyEscrowed) and the money paid off-world (moneyExported) always equals
 // moneyIssued;
 // TestMoneyIsConserved holds the colony to that.
 func (w *World) moneyInCirculation() Money {
-	total := w.treasury
+	total := w.treasury + w.charter.wallet
 	for _, e := range w.entities {
 		if e.Kind == Colonist {
 			total += e.wallet

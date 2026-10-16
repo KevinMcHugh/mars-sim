@@ -187,3 +187,13 @@ func TestAccountHoldings(t *testing.T) {
 		t.Errorf("holdings = %+v", a.Holdings)
 	}
 }
+
+// The order desk carries the power policy: the policy now, every one the
+// player may pick, and the reactors (none yet, a few hundred ticks in).
+func TestTheDeskCarriesThePowerPolicy(t *testing.T) {
+	snap := colony(t, 300)
+	d := colonyDesk(snap).Power
+	if !d.On || d.Policy != "monopoly" || len(d.Policies) != 4 || d.Reactors == nil || d.CooldownHours != 0 || d.Charter != nil {
+		t.Fatalf("power desk = %+v", d)
+	}
+}
