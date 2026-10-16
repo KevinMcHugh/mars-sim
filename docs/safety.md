@@ -604,7 +604,8 @@ percept on the proximity channel when the guard comes alongside (enter,
 "Walked with Bo as a bodyguard.") and when it leaves (exit). The `guarded`
 reaction records the enter: grip up, safety eased by 20, wearing in to 5 as
 the occasions pile up. The affinity from time together is not built; it is
-tracked as a GitHub issue.
+tracked in
+[#216](https://github.com/KevinMcHugh/mars-sim/issues/216).
 
 Escort contracts show on the Market tab's **Bodyguards** section (client,
 who is on station, rate, hours served and left, escrow), from the market
