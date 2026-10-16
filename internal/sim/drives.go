@@ -411,6 +411,11 @@ func (w *World) driveRate(e *Entity, d DriveKind) int {
 	for _, fx := range e.effects {
 		rate = rate * (100 + w.effectStage(fx).Drive[d].RateChange) / 100
 	}
+	// A casualty laid in an infirmary cot does not get hungry: the cot (a
+	// drip, in effect) holds it while it heals. See wounds.go.
+	if e.inCot && d == DriveFood && rate > 0 {
+		return 0
+	}
 	return rate
 }
 

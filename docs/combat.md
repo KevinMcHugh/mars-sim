@@ -87,9 +87,11 @@ pool than a two-foot one all the way down to the individual limb (see
 requires `Parts[Head] > 0 && Parts[Torso] > 0`. A called shot to a vital part
 kills outright even if the aggregate HP pool has plenty left — the whole
 point of tracking parts instead of one number. A destroyed limb
-(`Parts[LeftArm] == 0`, say) is not fatal by itself; today it has no further
-gameplay effect (no aim penalty, no bleed-out) beyond being visible in the
-roster — see Extending it.
+(`Parts[LeftArm] == 0`, say) is not fatal by itself, and has no aim or
+movement penalty — see Extending it. Every hit on a colonist's part also
+opens a wound there: it never heals until someone dresses it, can bleed
+with `bleeding` on, and makes the colonist a casualty others may see to
+(see [emergency-services.md](./emergency-services.md)).
 
 ### Landing a hit
 

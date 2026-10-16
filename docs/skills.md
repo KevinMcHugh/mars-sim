@@ -5,8 +5,9 @@
 ## What it is
 
 Colonists get better at work by doing it. Each colonist has **practice** in
-five skills (mining, foraging, cooking, construction, smithing), counted in
-base work ticks of completed work, and arrives with some from its past. A
+six skills (mining, foraging, cooking, construction, smithing, medicine),
+counted in base work ticks of completed work, and arrives with some from its
+past (all but medicine, which is only learned in play). A
 skill's **rank** is where that practice sits on the skill's logarithmic
 curve. Each rank has a label ("journeyman smith") and makes the work faster
 and, for recipes, more productive. A colonist's **profession** is the skill
@@ -170,6 +171,7 @@ these problems. Each has an answer in the design below.
 | `SkillConstruction` | raising walls and fixtures | 4 | The baseline. There's little of it, so `Unit` is small. |
 | `SkillSmithing` | smelting steel, machining rifles, pistols and shotguns | 6 | Steep, rare and very rewarding. |
 | `SkillGuarding` | a tick on station as a defense guard or a bodyguard | 4 | Nerve, not speed: no work goes faster; each rank makes the colonist slower to feel unsafe (see [safety.md](./safety.md)). Never rolled at arrival (background weight 0), so adding it moved no seed's skills. |
+| `SkillMedicine` | dressing wounds, bringing colonists round, dragging them to a cot | 3 | Faster dressing, and what the medic dressed heals faster (its yield). Nobody arrives with it: `backgroundWeights` leaves it out, so adding it moved no seed's arrival rolls. See [emergency-services.md](./emergency-services.md). |
 
 Hauling and cleaning aren't skills. Hauling is walking, and a skill that made
 walking faster would leak into everything (and would erase the constant-cost

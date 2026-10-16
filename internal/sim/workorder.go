@@ -28,6 +28,7 @@ const (
 	WorkDig                    // dig out one rock tile of an excavation order (see excavation.go)
 	WorkClear                  // clear one structure tile of a clearing order (see zones.go)
 	WorkEscort                 // walk with the issuer as its bodyguard for an hour (see escort.go)
+	WorkRescue                 // see one casualty to, for an on-call EMT (see emt.go)
 )
 
 func (k WorkKind) String() string {
@@ -40,6 +41,8 @@ func (k WorkKind) String() string {
 		return "clear"
 	case WorkEscort:
 		return "escort"
+	case WorkRescue:
+		return "rescue"
 	}
 	return "haul"
 }

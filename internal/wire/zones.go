@@ -132,6 +132,48 @@ type ZoningTopic struct {
 	Armed      int       `json:"armed"`
 	MaxDefense int       `json:"maxDefense"`
 	MaxDetail  int       `json:"maxDetail"`
+	// EMT is the colony's EMT detail (docs/emergency-services.md).
+	EMT EMT `json:"emt"`
+}
+
+// EMT is the EMT detail: how many the colony keeps on call, the most it may,
+// who is on call now, what one is paid an hour and what the colony has paid
+// in all, and how many infirmary cots stand.
+//
+// The wage is a market price in cents an hour: Share is the per-mille of
+// on-call time calls have lately taken, CheapestAsk the lowest price a
+// colonist not on call would take the place at (-1 with none), and Willing
+// how many of them would take it at the wage offered.
+type EMT struct {
+	Detail      int     `json:"detail"`
+	Max         int     `json:"max"`
+	OnCall      []Guard `json:"onCall"`
+	Wage        int     `json:"wage"`
+	MaxWage     int     `json:"maxWage"`
+	Paid        int64   `json:"paid"`
+	Cots        int     `json:"cots"`
+	Share       int     `json:"share"`
+	CheapestAsk int     `json:"cheapestAsk"`
+	Willing     int     `json:"willing"`
+	// Responses is how many casualties on-call EMTs have answered, and
+	// ResponseMinutes how long one waited for an EMT to set out to it, on
+	// average, in clock minutes.
+	Responses       int `json:"responses"`
+	ResponseMinutes int `json:"responseMinutes"`
+	// Fee is what the colony pays an EMT per casualty seen to, in dollars
+	// (MaxFee the most it may), FeesPaid what it has paid in fees, and
+	// CallRate the calls an EMT has lately answered per thousand hours on
+	// call.
+	Fee      int64 `json:"fee"`
+	MaxFee   int64 `json:"maxFee"`
+	FeesPaid int64 `json:"feesPaid"`
+	CallRate int   `json:"callRate"`
+	// Package is what the wage and the fee together pay an EMT, in cents
+	// an hour, at the calls an EMT has lately answered; Ethics is each
+	// on-call EMT's work ethic ("industrious", "lazy" or ""), in OnCall's
+	// order: who the package has drawn.
+	Package int      `json:"package"`
+	Ethics  []string `json:"ethics"`
 }
 
 // Defense is one defense zone: its area, the detail it asks for, the guards
@@ -179,6 +221,31 @@ type Structure struct {
 	Rising bool   `json:"rising"`
 }
 
+// workEthic is colonist id's work ethic trait, lowercase, or "" for none.
+func workEthic(s *sim.Snapshot, id sim.EntityID) string {
+	for _, e := range s.Entities {
+		if e.ID != id || e.Profile == nil {
+			continue
+		}
+		switch {
+		case e.Profile.HasTrait(sim.TraitIndustrious):
+			return "industrious"
+		case e.Profile.HasTrait(sim.TraitLazy):
+			return "lazy"
+		}
+		return ""
+	}
+	return ""
+}
+
+// emtMinutes is the EMTs' average response in clock minutes.
+func emtMinutes(s *sim.Snapshot) int {
+	if s.Config == nil {
+		return 0
+	}
+	return s.EMT.ResponseTicks * 60 / s.Config.TicksPerHour()
+}
+
 func zoningTopic(s *sim.Snapshot) ZoningTopic {
 	econ := s.Economy
 	t := ZoningTopic{
@@ -196,8 +263,29 @@ func zoningTopic(s *sim.Snapshot) ZoningTopic {
 		Armed:      s.Armed,
 		MaxDefense: sim.MaxDefenseTiles,
 		MaxDetail:  sim.MaxDefenseDetail,
+		EMT: EMT{Detail: s.EMT.Detail, Max: s.EMT.Max, OnCall: make([]Guard, 0, len(s.EMT.OnCall)),
+			Wage: s.EMT.Wage, MaxWage: s.EMT.MaxWage, Paid: int64(s.EMT.Paid), Cots: s.EMT.Cots,
+			Share: s.EMT.Share, CheapestAsk: s.EMT.CheapestAsk, Willing: s.EMT.Willing,
+			Responses: s.EMT.Responses, ResponseMinutes: emtMinutes(s),
+			Fee: int64(s.EMT.Fee), MaxFee: int64(s.EMT.MaxFee), FeesPaid: int64(s.EMT.FeesPaid), CallRate: s.EMT.CallRate},
 	}
 	var names map[sim.EntityID]string
+	nameOf := func(id sim.EntityID) string {
+		if names == nil {
+			names = map[sim.EntityID]string{}
+			for _, e := range s.Entities {
+				if e.Kind == sim.Colonist {
+					names[e.ID] = entityName(e)
+				}
+			}
+		}
+		return names[id]
+	}
+	t.EMT.Package, t.EMT.Ethics = s.EMT.Package, make([]string, 0, len(s.EMT.OnCall))
+	for _, id := range s.EMT.OnCall {
+		t.EMT.OnCall = append(t.EMT.OnCall, Guard{ID: uint64(id), Name: nameOf(id)})
+		t.EMT.Ethics = append(t.EMT.Ethics, workEthic(s, id))
+	}
 	for _, d := range s.Defense {
 		if names == nil && len(d.Guards) > 0 {
 			names = map[sim.EntityID]string{}

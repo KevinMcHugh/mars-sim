@@ -32,6 +32,11 @@ const (
 	// station as a guard or a bodyguard. It makes no work faster; each rank
 	// makes the colonist slower to feel unsafe (see docs/safety.md).
 	SkillGuarding
+	// SkillMedicine is learned by seeing to casualties: dressing wounds,
+	// bringing colonists round, dragging them to a cot. Nobody arrives with
+	// it (backgroundWeights leaves it out), so adding it moved no seed's
+	// arrival rolls. See casualty.go.
+	SkillMedicine
 	numSkills
 )
 
@@ -105,6 +110,13 @@ var skillSpecs = [numSkills]skillSpec{
 		Name: "guarding", Unit: 360, Base: 4, // rank 1 at a shift (8 hours) on station
 		Labels:  []string{"", "lookout", "guard", "sentinel", "veteran guard"},
 		Effects: []rankEffect{{100, 100}, {100, 100}, {100, 100}, {100, 100}, {100, 100}},
+	},
+	// Medicine: ticks to dress a wound, and (as yield) how fast what the
+	// medic dressed heals.
+	SkillMedicine: {
+		Name: "medicine", Unit: 30, Base: 3, // rank 1 at two dressings
+		Labels:  []string{"", "first-aider", "medic", "paramedic", "doctor"},
+		Effects: []rankEffect{{100, 100}, {100, 100}, {80, 110}, {65, 125}, {50, 150}},
 	},
 }
 

@@ -21,20 +21,21 @@ help arrives:
 Both go through the same focus arbiter as eating, fleeing and fighting.
 Neither one is a new rung on a ladder.
 
-Phases A1 and A2 are built: colonists help each other. A3 onward (wound
-care, paid EMTs, bleeding) are still proposals. *As built* at the end of
-this doc records where the code departed from the plan, and what aid did in
-measured runs. Issue:
+All five phases are built. Colonists help each other (A1, A2), wounds are
+dressed and heal (A3), the player can keep EMTs on call (A4, off until the
+player sets a detail), and bad wounds can bleed (A5, the `bleeding`
+setting, on by default). *As built* at the end of this doc records where the
+code departed from the plan, and what each phase did in measured runs. Issue:
 [KevinMcHugh/mars-sim#154](https://github.com/KevinMcHugh/mars-sim/issues/154).
 
 | Phase | What ships | Status |
 | --- | --- | --- |
 | A1 | The casualty model: a `Peril` enum, the casualty index, and the roster and map showing who is in trouble. No behavior changes. | Shipped |
 | A2 | Aid: `FocusAid` and `JobAid`. A bystander rouses a passed-out colonist and may give it a meal. The `Caring`/`Callous` traits. Aid leaves memories, affinity and guilt behind. Hunting aliens go for the helpless first. | Shipped |
-| A3 | Wound care: first aid dresses wounds, dressed wounds heal in bed, the infirmary cot fixture, and `SkillMedicine`. | Proposed |
-| A4 | EMTs: an on-call detail paid by the hour from the treasury. EMTs keep working while on call and drop it for a casualty anywhere in the colony. Dragging a casualty to the infirmary. | Proposed |
-| A5 | Bleeding: severe hits get a clock that aid can beat. Off by default until measured. | Proposed, optional |
-| Later | Prey preference as a per-species field. Medicine and prosthetics (limbs ordered on the next resupply), medkits as a supply chain, paying EMTs per call on the order book. | Not designed |
+| A3 | Wound care: first aid dresses wounds (a colonist can dress its own, slowly), dressed wounds heal lying down, the infirmary cot, and `SkillMedicine`. | Shipped |
+| A4 | EMTs: an on-call detail paid by the hour from the treasury. EMTs keep working while on call and drop it for a casualty anywhere in the colony. Dragging a casualty down from blood loss to an infirmary cot. | Shipped (detail 0 until the player sets one) |
+| A5 | Bleeding: bad open wounds drain HP until dressed, and a colonist that loses too much collapses. | Shipped, on by default |
+| Later | Prey preference as a per-species field ([#217](https://github.com/KevinMcHugh/mars-sim/issues/217)). Medicine and prosthetics (limbs ordered on the next resupply), medkits as a supply chain, paying EMTs per call on the order book. | Not designed |
 
 ## Decisions already made
 
@@ -43,7 +44,7 @@ measured runs. Issue:
 | Traits | Yes: a new `compassion` trait group holding `Caring` and `Callous`. |
 | EMTs between calls | They work elsewhere. Being on call is a status the colonist carries, not a job it stands at. |
 | Aliens and the helpless | Hunters prefer prey that cannot flee or fight back. All hostile species do this at first; it becomes a per-species setting later. |
-| Guilt | Yes, but only for colonists the arbiter actually offered the rescue to and who chose something they did not need. See *Guilt: who could have helped*. |
+| Guilt | Yes, but only for colonists the arbiter actually offered the rescue to and who chose something they did not need, at most 16 per death (`aid-passed-by-max`). See *Guilt: who could have helped*. |
 
 ## Source
 
@@ -88,14 +89,24 @@ Built (A1, A2):
   sequences ([colonist-looks.md](./colonist-looks.md)).
 - [`internal/sim/casualty_test.go`](../internal/sim/casualty_test.go).
 
-Still to come:
-
-- [`internal/sim/defense.go`](../internal/sim/defense.go): the template for
-  the EMT detail. `emt.go` should copy it, not generalize it on the first
-  pass.
-- [`internal/sim/skills.go`](../internal/sim/skills.go): `SkillMedicine`.
-- [`internal/sim/combat.go`](../internal/sim/combat.go): wounds record that
-  they need dressing, and later that they are bleeding.
+- [`internal/sim/wounds.go`](../internal/sim/wounds.go): `Wound`, opening
+  a wound (`Entity.wound`, from `applyDamage`) and `hurt`; `dressWound`,
+  `healWounds`; `bleedRate`, `bleed`, `collapseFromBloodLoss`,
+  `stillDownFromBloodLoss`; the infirmary (`Cot`, `infirmaryRoom`,
+  `cotsShort`, `freeCot`, `layInCot`, `leaveCot`); dragging (`dragStep`,
+  `releaseDrag`, `swapEntities`).
+- [`internal/sim/emt.go`](../internal/sim/emt.go): `SetEMTDetail`,
+  `tryTakeOnCall`, `releaseOnCall`, `serveOnCall` (pay), `EMTView`.
+- [`internal/sim/casualty.go`](../internal/sim/casualty.go) gained
+  `refreshCasualty`, `canHelp`, `comeRound`, `finishAid` and the
+  `aidDone` record; [`skills.go`](../internal/sim/skills.go)
+  `SkillMedicine`; [`drives.go`](../internal/sim/drives.go) holds hunger
+  in a cot (`driveRate`).
+- The Zones tab's *Emergency services* section and the `emt-detail`
+  command ([`ZonesPanel.svelte`](../web/src/ui/ZonesPanel.svelte),
+  [`zones.go`](../internal/wire/zones.go), `hostAPI` 24); each part's
+  wound in the inspector and the TUI roster; the 🏥 cot glyph (`+H`).
+- [`internal/sim/wounds_test.go`](../internal/sim/wounds_test.go).
 
 ## How it works
 
@@ -134,9 +145,9 @@ on the enum and never read HP or drive levels themselves:
 | `Peril` | Meaning | Today's cases |
 | --- | --- | --- |
 | `PerilNone` | Not a casualty | Everyone else |
-| `PerilStable` | Down, but not getting worse | Passed out, hunger well below its ceiling |
-| `PerilSerious` | Getting worse; death is hours away | Passed out with hunger past `SeekAt`; an undressed wound below half its part's HP (A3); bleeding (A5) |
-| `PerilCritical` | Death is close | Passed out with hunger at its ceiling (starving); aggregate HP under `peril-critical-hp`; heavy bleeding (A5) |
+| `PerilStable` | Needs someone, not getting worse | Passed out, hunger well below its ceiling; an open wound that is only a graze; down from blood loss but laid in a cot |
+| `PerilSerious` | Getting worse; death is hours away | Passed out with hunger past `SeekAt`; an open wound below half its part's HP, or a destroyed part; bleeding; down from blood loss on the floor |
+| `PerilCritical` | Death is close | Passed out with hunger at its ceiling (starving); HP under `peril-critical-hp` |
 
 `perilOf(e)` is the one place that maps state to `Peril`. It is read on
 demand, not stored: the hunger it reads is lazy anyway, and only casualties
@@ -144,12 +155,19 @@ are ever asked, so there is nothing to keep in step. Casualties sit in
 `World.casualties`, a slice sorted by `EntityID`. `passOut` adds one and
 coming to (on its own, or roused) or dying takes it out, so nothing has to
 scan the world to find casualties (principle 9). It is almost always empty or
-tiny. Today a casualty is exactly a colonist passed out where it fell; low HP
-makes one critical only while it is down.
+tiny. A casualty is a colonist passed out where it fell (from exhaustion or
+blood loss) or one with an open wound; `refreshCasualty` puts it in or takes
+it out whenever any of that changes.
 
-A walking wounded colonist (hurt, but conscious and mobile) is not a
-casualty. It can go to the infirmary itself (A3). This keeps aid for people
-who are actually helpless.
+**A walking wounded colonist is a casualty too** (the plan said not). It
+needs a dressing before its wound can heal, and the aid focus is how a
+dressing happens: a bystander offered it, or the colonist itself, which is
+always offered its own open wounds (distance 0, no regard) and dresses them
+at `aid-self-dress` (200%) of the time. Only what a helper can actually do
+is offered (`canHelp`): dress an open wound, rouse a colonist down from
+exhaustion, or, an on-call EMT only, drag one down from blood loss to a free
+cot. Nobody is offered a colonist it can do nothing for, so nobody stands
+over it.
 
 ### Noticing a casualty
 
@@ -320,17 +338,96 @@ colony pays nothing.
 ### Emergency services: the EMT detail (A4)
 
 This borrows from [defense.md](./defense.md). The player sets an **EMT
-detail**: the number of colonists to keep on call. It goes on the Zones tab
-next to defense, or in a small Medical section, and it is not tied to an
-area. The treasury pays each on-call colonist `wage-emt` per hour, as far as
-it goes. That is the guard and cook model: the detail has no end, so there
-is nothing to escrow.
+detail**: the number of colonists to keep on call (0 to `MaxEMTDetail`, 20;
+`emt-detail` sets where a game starts, 0 by default). It is the *Emergency
+services* section of the Zones tab, under the defense zones: − / + for the
+detail and for the wage, who is on call, what has been paid, how many cots
+stand, and the market (below). It is not tied to an area. The treasury pays
+each on-call colonist the wage for every hour on call and awake, as far as
+it goes: the guard and cook model, since the detail has no end and there is
+nothing to escrow.
+
+**The wage is a market price, not a rule.** The player offers it, in cents
+an hour (`SetEMTWage`, 0 to `MaxEMTWage`, `emt-wage` 25¢ where a game
+starts), and each colonist decides whether being on call is worth it to
+it. A colonist's **ask** (`emtAsk`) is:
+
+- the share of an hour calls take (`emtShare`, per mille), at what an hour
+  of its time is worth to it (its `reservation`, the same reckoning the
+  producer planner uses: `labor-price`, or more if it has lately earned
+  more), plus
+- `emt-premium` (10%) of that hour's worth, for being the one who has to
+  drop everything. A Caring colonist asks half the premium, a Callous one
+  double.
+
+At the defaults that is about 18¢ an hour (an hour of plain work is worth
+90¢; calls are reckoned at 10% of it, `emt-call-share` 100‰, until the
+colony has measured its own). `emtShare` is measured: once a day's worth of
+on-call ticks has gathered, the share of them EMTs spent on calls (`JobAid`)
+is folded in, a quarter new to three quarters old. A busier colony's EMTs
+ask more.
+
+A colonist looking for work takes an open place only if the wage meets its
+ask, and on each payday quits if it no longer does: a colonist whose time
+became worth more (a chef earning well) leaves the detail to someone
+cheaper. So a wage set too low leaves places empty, and the colonists who
+take them are those whose time is cheapest or who care most. Pay accrues in
+cents and is paid in whole dollars as it adds up (`emtOwed`). The tab shows
+the cheapest ask among colonists not on call, how many would take the place
+at the wage offered, the measured call share, and how long casualties have
+waited for an EMT to set out (`noteResponse`), so the player can price it.
+
+**Paying by the call.** The player can also set a fee per call (`SetEMTFee`,
+0 to `MaxEMTFee` $50, `emt-fee` where a game starts, $0). With a detail and
+a fee, the colony posts a `WorkRescue` order on the work book for every
+casualty as it goes down (`postRescue`), escrowing the fee from the
+treasury as any work order does. It is settled when the casualty stops being
+one (`settleRescue`, from `dropCasualty`, or from `finishAid` for one laid
+in a cot, which is still a casualty while it heals there): paid to the
+on-call EMT that saw it to, and otherwise, if it came round on its own, saw
+to itself, or a bystander helped, back to the treasury. **Bystanders are
+never paid**: a colonist who stops for a stranger does it for its own
+reasons, and the fee is the colony's price for coverage, not for kindness.
+
+The fee comes off the retainer a colonist asks. The colony measures how
+many calls an EMT answers per thousand hours on call (`emtCallRate`, folded
+in with `emtShare`, from a prior of `emt-call-rate` 20: without one, a
+detail paid only by the call never staffed, since nobody on call meant no
+calls measured and so no fee in anyone's reckoning), and a colonist's ask is cut by what that many calls
+would pay it at the fee, never below nothing. So a colony can staff its
+detail with a small retainer and pay mostly for what is done; a quiet
+colony's EMTs still want the retainer, since few calls come. The tab shows
+the fee, what has been paid in fees, and the call rate.
+
+**The pay package is gameplay.** The wage and the fee are two controls, and
+the player can set any mix of them. The mix changes who signs up and how
+hard they work, not only what it costs:
+
+- **Who signs up.** Fee income is earned call by call, so it is less sure
+  than a wage, and colonists count on it differently (`emtFeeTrust`):
+  `emt-fee-trust` (80%) of its expected value for most, 40 points more for
+  an Industrious colonist (it expects to earn it), 30 fewer for a Lazy one,
+  20 more for an Optimist and 20 fewer for a Pessimist. With no fee, work
+  ethic does not change anyone's ask, so a pure wage draws whoever is
+  cheapest, the lazy as readily as anyone; a fee-heavy package draws the
+  hard workers.
+- **How hard they work.** On call, an EMT adds `emtDuty` to helping any
+  casualty: the duty a wage buys (`aid-duty-bonus`, 80), felt at half
+  strength by a Lazy EMT and a quarter more by an Industrious one, plus the
+  pull of the fee itself, `emt-fee-incentive` (4) points a dollar up to
+  `emt-fee-incentive-max` (100), which every EMT feels alike. A wage pays
+  the same however hard an EMT answers; a fee pays for answering.
+
+The Zones tab shows the package (what wage and fee together pay an EMT an
+hour, at the measured call rate, and how much of it is by the call) and
+each on-call EMT's work ethic, so the player can see who a package draws.
 
 Unlike a guard post, **being on call is not a job.** It is a status
 (`Entity.onCall`) that a colonist carries while it does other work. A
 colonist looking for work takes an open place on the detail
-(`tryTakeOnCall`, in `EntityID` order) and then goes on choosing work as
-usual. It keeps the place until it goes to sleep, passes out, becomes a
+(`tryTakeOnCall`, first thing in `assignWorkJob`) and then goes on choosing
+work as usual. The roster (`World.onCall`) is kept sorted by ID, and a cut
+stands down the highest IDs first. It keeps the place until it goes to sleep, passes out, becomes a
 casualty, or the detail is cut below it. Then the place is released and the
 next colonist looking for work takes it. Pay is counted only while the
 colonist is awake and on call.
@@ -354,23 +451,30 @@ What being on call changes:
    Each EMT scores the casualties it knows about, and the claim makes sure
    only one gets each casualty. Distance in the score already sends the
    nearest one, and ties go by `EntityID` (determinism).
-4. **Dragging.** An EMT can move a casualty to the nearest infirmary cot.
-   The casualty stays an entity and keeps its tile in the occupancy index.
-   Each step, it moves into the tile the EMT just left. It is slow
-   (`drag-speed-pct`), but it never needs two entities on one tile, which is
-   the trap [sanitation.md](./sanitation.md) hit with corpse entities. A
-   second EMT can join the claim to restore full speed.
+4. **Dragging.** Only a casualty down from blood loss is dragged: one down
+   from exhaustion is roused, and a walking wounded one walks. Once its
+   wounds are dressed, the EMT claims the nearest free cot on its level and
+   in its room (`freeCot`, ties by point) and plans the *casualty's* route
+   to it. Each step at `drag-speed` (50%: one tile every other tick), the
+   casualty moves one tile along it and the EMT steps into the tile it left,
+   so the two stay side by side and nothing ever shares a tile; when the
+   next tile is the EMT's own, they swap (`swapEntities`, since `moveEntity`
+   needs its destination free). A blocked tile waits up to `StuckLimit`; a
+   route that leaves the level, or a shut way, gives up and frees the cot.
+   Beside the cot, the casualty is laid in it. The plan's second EMT
+   joining a drag is not built.
 5. **Between calls,** an EMT works like anyone else. The retainer pays for
    the promise to drop that work, not for standing by. Response time is the
    price: an EMT mining at the frontier is far from a collapse in the
-   dormitory. That has to be measured (time from entering the index to the
-   first aid tick). A later option is to have on-call EMTs give a small
-   preference to work near the infirmary, but only if the measurement says
-   it is needed.
+   dormitory. It is not measured yet (time from entering the index to the
+   first aid tick); a later option is to have on-call EMTs give a small
+   preference to work near the infirmary, if that measurement says so.
 
 Eating, the toilet and conversation do not release the place, since an EMT
-can answer a call from any of them. Sleep does, so the detail staffs itself
-in shifts across the colony's night.
+can answer a call from any of them. Sleep does (`serveOnCall` releases it
+once the colonist is `Sleeping`), and so does going down or becoming a
+casualty itself, so the detail staffs itself in shifts across the colony's
+night.
 
 **Why the colony pays at all**, when altruism exists: altruism is local,
 depends on the casualty's friendships, and is unreliable at night. A colony
@@ -407,36 +511,60 @@ from the roster stream.
 
 ### Wound care and the infirmary (A3)
 
-- Every hit `applyDamage` lands on a part marks that part's wound as
-  **undressed**. An undressed part never heals. That keeps today's behavior
-  ("injuries are permanent") as the default when no one helps.
-- **Dressing** a wound (first aid, by anyone) marks it dressed. A dressed
-  part heals `heal-rate` HP per hour, but only while the colonist is lying
-  down: in a bunk, or faster in an infirmary cot.
-- A **destroyed** part (0 HP) never regrows. Replacing one is medicine and
-  prosthetics, which the issue's comment imagines as limbs on the next
-  resupply. That is out of scope here.
-- The **infirmary cot** is a fixture like a bunk, and the room is a facility
-  room like any other ([construction.md](./construction.md)). A casualty in
-  a cot does not starve: the cot holds the food drive (an activity row in
-  the drive table, like sleep's). Wounds heal at `cot-heal-pct`. A
-  conscious colonist with an undressed or badly hurt part seeks a cot the
-  way a tired one seeks a bunk.
-- **`SkillMedicine`** is credited per tick of dressing, rousing, and
-  dragging. Rank shortens dressing and raises the heal rate of wounds the
-  medic dressed. It uses the same `rankEffect` curve as every other skill.
+- **Every hit opens a wound.** `applyDamage` marks the part `WoundOpen` (a
+  free function, so the two callers that can hit a colonist, `strike` and a
+  fall, then call `hurt` to put it in the casualty index). An open wound
+  never heals, which keeps the old rule ("injuries are permanent") for a
+  colonist nobody sees to.
+- **Dressing** a wound takes `aid-dress-ticks` (15), less with medicine
+  rank, twice that on oneself. A helper dresses every open wound, one at a
+  time, before it does anything else for the casualty. A destroyed part is
+  closed (`WoundNone`), and never grows back: replacing one is medicine and
+  prosthetics, out of scope here.
+- **Healing.** A dressed wound heals `heal-per-hour` (1) HP an hour while
+  the colonist lies down: asleep in a bunk at 100%, in an infirmary cot at
+  `heal-cot` (300%), down on the floor at `heal-floor` (50%). Points go one
+  at a time to the dressed part furthest from whole, and to the HP pool with
+  it. The accumulator counts in hundredths of an HP times ticks an hour, so
+  the rate is exact; the first version truncated a 45-tick hour's healing to
+  nothing.
+- **Walking wounded heal in their own bunks at night.** The plan had them
+  seek a cot like a bed; that would have meant a second sleep facility in
+  the facility-choice code for little gain. Cots are for casualties an EMT
+  brings, which is what makes them worth building.
+- **The infirmary** is a room of cots, commissioned like the meeting hall
+  (`infirmaryRoom`, `cotsShort`): one cot for each `colonists-per-cot` (8),
+  at least two, and **only while the EMT detail is above zero**. A cot is
+  furniture, like a chair: a casualty lies on the floor beside it.
+  `cotClaims` says which casualty lies at, or is being dragged to, each.
+  A casualty in a cot is not hungry (`driveRate` holds its food drive at 0,
+  a drip in effect) and heals at the cot's rate.
+- **`SkillMedicine`** is credited for every dressing, rousing and drag step.
+  Rank shortens dressing and raises the heal rate of the wounds the medic
+  dressed (its yield, kept as the casualty's `healPct`). Nobody arrives with
+  it: `backgroundWeights` leaves it out, so adding it moved no seed's
+  arrival rolls.
 
 ### Bleeding (A5, optional)
 
-Today a wound is either fatal at once (head or torso at 0) or harmless
-forever. There is no clock running in between, so aid has nothing to race
-against for wounds. **Bleeding** adds that clock. A hit that takes a part
-below `bleed-threshold-pct` of its max starts it bleeding, which drains
-aggregate HP at a rate set by the size of the wound until the wound is
-dressed. This would be the first thing to make combat more deadly, so it
-ships behind `bleeding: false`. It turns on by default only after a
-20-seed measurement shows that bleeding plus aid kills no more colonists
-than the current game does.
+Without bleeding, a wound is either fatal at once (head or torso at 0) or
+harmless forever, and aid has nothing to race. With `bleeding` on:
+
+- Every open wound on a part below `bleed-threshold` (50%) of its HP bleeds
+  `bleed-rate` (40) hundredths of an HP an hour for each point the part has
+  lost: a torso down 10 points bleeds 4 HP an hour, a death in a few hours
+  for a 40-HP colonist. A helper beside the casualty, aiding it, holds the
+  wound (no bleeding while it works); dressing stops it for good.
+- A colonist bled below `bleed-collapse` (30%) of its HP **collapses from
+  blood loss**: down where it stands like a pass-out, but nobody can rouse
+  it. It comes round on its own once healed (dressed, lying on the floor at
+  half a bunk's rate) to `bleed-wake` (40%) and not bleeding. Until then it
+  goes hungry on the floor, unless an EMT drags it to a cot.
+- A death from blood loss is "bled to death", in the log and the graveyard.
+
+It is on by default. Over 32 seeds it added no deaths (see the measurements
+under *As built*); turning it on was a call about how fights should feel:
+a wound left undressed now matters. Set `bleeding: false` to go back.
 
 ## Why it is this way
 
@@ -558,6 +686,165 @@ story rule more than a balance one for now; it will matter more once
 wounds keep colonists down (A3, A5). Aid itself saves colonists from aliens
 too: a colonist brought round can run.
 
+## As built (A3–A5)
+
+Where the build departed from the plan, and why:
+
+- **Walking wounded are casualties**, and a colonist can dress its own
+  wounds at half speed: a dressing is how a wound starts to heal, and the
+  aid focus is how a dressing happens. Guilt, though, is only for a
+  casualty that died lying helpless: a colonist killed in a fight did not
+  die for want of a dressing, so nobody who passed its graze is blamed.
+- **Only what a helper can do is offered** (`canHelp`). Without it a
+  bystander was offered a colonist down from blood loss whose wounds were
+  dressed, could do nothing, finished, and was offered it again.
+- **Walking wounded heal in their own bunks.** Cots are for casualties an
+  EMT brings; the plan's "seek a cot like a bed" would have needed a second
+  sleep facility in the facility-choice code.
+- **Dragging is only for a colonist down from blood loss**, so with
+  bleeding off an EMT dresses and rouses but never drags, and the infirmary
+  is built only while there is an EMT detail.
+- **A cot claimed for a casualty stays free for it.** The first build
+  counted it as taken, so an EMT halfway through a drag, thinking again,
+  found no free cot, dropped the drag and freed it, took it up again, and
+  so on, two tiles from the cot.
+- **A passed-out colonist is never nudged.** `nudgeLoiterer` steps aside
+  anyone with no job, and a colonist on the floor has none: casualties were
+  slid along the floor by passers-by. That was true before aid too; with
+  aid off and `helpless-prey-discount` 0, every golden run still matches.
+- **No arrivals with medicine**, so no seed's arrival rolls moved; it is
+  learned in play.
+- **Tests pin their seed.** `DefaultConfig` seeds from the clock, so a test
+  world differs every run; three runs in ten, the "stranger" beside a
+  casualty was its family. `aidConfig` fixes the seed and turns family off.
+
+### What A3–A5 do in a run
+
+Alien-heavy colonies: 30 colonists on 160×80, 12 aliens, seeds 1–32, to
+tick 20,000, totals over the 32 colonies. The modes add up: aid on means
+A2 and wound care; EMTs are a detail of 3.
+
+| | Alive at the end | Starved | Killed | Bled to death | Collapsed from blood loss | Rescues | EMT wages |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Aid off | 583 | 35 | 342 | – | – | 0 | – |
+| Aid on | 604 | 21 | 335 | – | – | 375 | – |
+| Aid on, bleeding | 619 | 21 | 316 | 4 | 94 | 374 | – |
+| Aid on, 3 EMTs | 596 | 23 | 341 | – | – | 409 | $71,418 |
+| Aid on, 3 EMTs unpaid | 613 | 26 | 321 | – | – | 493 | $0 |
+
+Eight-seed slices of this disagree with each other (on seeds 1–8 aid on
+beat aid off by 16 colonists; on seeds 9–16 it lost by 21): an alien-heavy
+colony's outcome is mostly the fights, and only the 32-seed totals say much.
+What they say:
+
+- **Wound care helps a little**, about as much as aid alone did here.
+- **Bleeding kills no more colonists.** Four bled to death in 32 colonies,
+  94 collapsed and were seen to, and fewer were killed. That is the bar this
+  doc set for turning it on by default. It stays off until the call is
+  made, because it also changes the game's feel: fights leave colonists
+  down, not just hurt.
+- **Wound care keeps what aid won in a hungry colony.** The A2 scarcity
+  scenario (100 colonists, 300×150, seeds 1–4, to tick 30,000) rerun with
+  A3: aid off 136 starved and 251 alive, aid on 36 and 349 (A2 alone: 40
+  and 359), bleeding on 39 and 347 with three collapses. Few wounds, little
+  change.
+- **A paid EMT detail at a fixed $2 an hour cost more than it saved** in
+  the first build: about $2,200 from each colony's treasury, and unpaid the
+  same detail did better. That is what turned the wage into a market price.
+
+### Market wages
+
+The wage is now the player's offer and each colonist's ask decides who
+takes it (see *Emergency services*). The same 32 alien-heavy colonies, with
+a detail of three at each wage. "Places filled" counts EMTs on call at the
+end, of 96 places; response is the average ticks from a colonist becoming a
+casualty to a helper setting out to it.
+
+| Wage offered | Places filled | Paid | Alive | Killed | Starved | EMT response | Bystander response |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| No detail | – | – | 604 | 335 | 21 | – | 14 |
+| 0¢ | 0 | $0 | 598 | 339 | 23 | – | 14 |
+| 25¢ | 22 | $3,912 | 582 | 348 | 30 | 2 | 10 |
+| 50¢ | 34 | $11,375 | 594 | 345 | 21 | 3 | 8 |
+| $1 | 61 | $30,614 | 595 | 336 | 29 | 2 | 7 |
+| $2 | 75 | $70,932 | 651 | 293 | 16 | 2 | 1 |
+
+- **The market does what a market does.** At 25¢, a little over the
+  default ask, fewer than a quarter of the places are filled by the end:
+  as the colony measures how much of an EMT's time calls take, and as
+  colonists earn more at their trades, their asks rise past the offer and
+  they quit. Places fill as the wage rises.
+- **Distance is not the problem.** An on-call EMT sets out to a casualty
+  within two or three ticks of it going down, wherever it is working;
+  bystanders, when they are the ones to go, take 7 to 14. Being far away
+  costs an EMT walking time after it sets out, which this does not measure.
+- **Survival barely moves.** Between no detail and $1 an hour every result
+  is within the spread 8-seed slices showed. Only $2 stands out, and the
+  first build's run at a fixed $2 (596 alive) differed from it only in
+  colonists being able to quit, so it is not safe to read it as the price
+  of survival. What an EMT adds over a bystander here is speed and reach,
+  and in colonies where bystanders already reach most casualties, that is
+  worth little. With bleeding on, where a casualty has a clock and only an
+  EMT can drag, the answer may differ; it is not measured yet.
+- **With bleeding on, the same.** The same colonies with `bleeding` on: no
+  detail 619 alive (4 bled to death), 25¢ 571 (6; 17 places filled at the
+  end), $1 628 (4; 60), $2 625 (2; 69). EMTs set out within one or two
+  ticks. Level from $1 up; 25¢ worst, as it was without bleeding. A guess,
+  not yet tested: at 25¢ the detail fills early, which commissions the
+  infirmary (every colony built its cots), then empties as asks rise past
+  the offer, so the colony pays for the rooms and gets little coverage.
+- **The infirmary follows the detail, not its staff.** At 0¢ nobody took a
+  place, and every colony still built its cots. That is intended: the
+  infirmary is built for the detail the player sets, not for whoever the
+  wage has drawn so far, so a player who raises the offer finds the cots
+  already standing.
+
+### Paying by the call
+
+The same 32 alien-heavy colonies with a detail of three and no retainer,
+paid only by the call (with `emt-call-rate` 20 as the prior). "Paid" is
+everything the colony paid its EMTs.
+
+| Fee per call | Places filled (of 96, at the end) | Calls EMTs answered | Paid | Alive |
+| --- | --- | --- | --- | --- |
+| $1, $3, $5 | 0 | 0 | $0 | 598 |
+| $10 | 8 | 324 | $1,970 | 622 |
+| $20 | 5 | 380 | $4,160 | 596 |
+| 25¢ an hour and $2 a call | 28 | 501 | $4,630 | 581 |
+
+- **Below about $10 a call nobody comes.** At 20 calls per thousand hours,
+  $5 a call is worth 10¢ an hour against an ask of about 18¢.
+- **Above it the detail staffs, answers, and thins out.** Each colony
+  measures fewer calls than the prior reckoned, so asks rise again and
+  most EMTs leave by the end; those who stay are the cheapest.
+- **It is cheap.** At $10 a call coverage cost about $62 a colony over the
+  run, against about $2,200 at the first build's fixed $2 an hour, with
+  survival as good as any measured. Survival differences are still within
+  the noise.
+
+### Pay packages
+
+The same 32 alien-heavy colonies, a detail of three, three packages of
+roughly comparable worth. EMT-hours are sampled each hour, by the on-call
+EMTs' work ethic.
+
+| Package | EMT-hours | Industrious | Lazy | Paid | Alive |
+| --- | --- | --- | --- | --- | --- |
+| $1 an hour | 30,866 | 14% | 17% | $29,565 | 575 |
+| $15 a call | 13,335 | 21% | 9% | $3,345 | 650 |
+| 50¢ an hour and $8 a call | 26,530 | 15% | 16% | $14,509 | 618 |
+
+- **The structure picks the people.** Paid by the call, the detail is half
+  as lazy and half again as industrious as on a wage; the mix sits with the
+  wage, since its wage alone already covers most asks.
+- **It trades coverage for cost.** By the call, the detail is on call for
+  under half the hours the wage buys (fees alone cover fewer colonists'
+  asks, and asks rise as the colony measures fewer calls), at about a ninth
+  of the cost.
+- **Survival leans the same way but is not settled.** The fee-only colonies
+  did best, but by about as much as 32-seed runs of the same package have
+  disagreed with each other before.
+
 ## Open questions
 
 1. **Response time with working EMTs.** Is the time from collapse to first
@@ -565,9 +852,16 @@ too: a colonist brought round can run.
    adding one.
 2. **Which existing species traits imply `PreyHelpless`?** This only matters
    if the per-species field is derived rather than set in Creature Lab.
-3. **Is guilt lopsided in big colonies?** With 2000 colonists, a death in a
-   busy corridor could add up to 16 guilty memories. The cap bounds it, but
-   whether 16 is the right number should come from a run.
+   Tracked in [#217](https://github.com/KevinMcHugh/mars-sim/issues/217).
+3. **What is an EMT worth?** Wages are now the player's offer and the
+   colonists' asks (*Market wages*). In alien-heavy colonies without
+   bleeding or with it, a detail barely changes survival from $1 an hour
+   up, and a detail priced too low to stay staffed does worse than none,
+   perhaps because its infirmary is built either way.
+4. **Cost at scale.** Walking wounded make the casualty index bigger in a
+   big fight, and `noticeCasualty` walks it for every colonist each turn
+   while it is not empty. Fine at tens of casualties; worth a benchmark
+   with a 2000-colonist battle before it is a problem.
 
 ## Related
 

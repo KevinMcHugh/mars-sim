@@ -94,6 +94,9 @@ type PartHP struct {
 	Name string `json:"name"`
 	HP   int    `json:"hp"`
 	Max  int    `json:"max"`
+	// Wound is "open" or "dressed" for a wounded colonist's part, empty for
+	// a whole one (docs/emergency-services.md).
+	Wound string `json:"wound,omitempty"`
 }
 
 // ColonistDetail is the colonist half of the inspector.
@@ -246,7 +249,7 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 	}
 	for i, hp := range e.Parts {
 		if e.MaxParts[i] > 0 {
-			t.Parts = append(t.Parts, PartHP{Name: sim.BodyPart(i).Short(), HP: hp, Max: e.MaxParts[i]})
+			t.Parts = append(t.Parts, PartHP{Name: sim.BodyPart(i).Short(), HP: hp, Max: e.MaxParts[i], Wound: e.Wounds[i].String()})
 		}
 	}
 	if e.Kind == sim.Alien {

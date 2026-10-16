@@ -76,7 +76,7 @@
     {#if entity.parts.length > 0}
       <Section id="inspect.body" title="Body">
         <div class="bars">
-          {#each entity.parts as p (p.name)}<Bar label={p.name} value={p.hp} max={p.max} />{/each}
+          {#each entity.parts as p (p.name)}<Bar label={p.wound ? `${p.name} (${p.wound})` : p.name} value={p.hp} max={p.max} />{/each}
         </div>
       </Section>
     {/if}
