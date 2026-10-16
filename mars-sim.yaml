@@ -167,6 +167,24 @@
 ## cooking spends batteries; a stove without one cooks cold, slower and on more scum
 # power: true
 
+## the colony's price for a battery, in dollars: what its power is worth, and part of every meal's cost
+# power-tariff: 3
+
+## what the colony pays its reactor operator per recipe
+# wage-reactor: 2
+
+## the reactor charges batteries while the colony holds fewer than this, anywhere
+# battery-reserve: 60
+
+## units of uranium ore the colony keeps a standing bid at its silo to hold, counting what its reactors hold
+# uranium-reserve: 2
+
+## units of water ice the colony keeps at each reactor, hauled in for hire
+# reactor-ice-stock: 8
+
+## a reactor holding uranium ore or fuel pellets doses whoever stands beside it, as a uranium vein does
+# reactor-exposure: true
+
 ## colonists choose where to build and zone it themselves; off, they build only inside zones the player draws (the browser's Zones tab)
 ## Set here because the terminal and headless runs have no way to draw a
 ## zone: with it off, their colonies would never build. The browser game
@@ -235,7 +253,7 @@ siting-auto: true
 # price-water-ice: 2
 
 ## what the colony pays for uranium ore at its silo
-# price-uranium-ore: 6
+# price-uranium-ore: 50
 
 ## what the colony pays for clay at its silo
 # price-clay: 2

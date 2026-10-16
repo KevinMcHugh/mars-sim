@@ -159,6 +159,7 @@ materials (`constructionCost`, `construction.go`):
 | scumhouse | 2 raw rock, 2 clay |
 | forge | 4 clay |
 | gun bench | 2 raw rock, 2 iron ore |
+| reactor | 4 raw rock, 4 iron ore, 2 clay |
 | chair | 2 raw rock |
 | scum incubator | 2 raw rock, 1 clay |
 

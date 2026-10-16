@@ -101,8 +101,8 @@ outputs**; the workshop's owner does not.
 | culture cave scum | 2 cave scum | 1 meal | 12 |
 
 With `power` on (the default), each of these also spends a **battery**, and
-each has a **cold** row, worked only when the stove has no battery: three
-times the ticks and two thirds of the meals for the inputs. Every powered row
+each has a **cold** row, worked only when the stove has no battery: the same
+inputs and meals, three times the ticks. Every powered row
 comes before every cold one, so a stove with a battery spends it. See
 [power.md](./power.md) for both tables and why.
 

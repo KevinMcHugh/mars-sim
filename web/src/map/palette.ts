@@ -31,6 +31,7 @@ const terrains: Record<string, string> = {
   chair: '#c9a24a',
   'scum incubator': '#5fd0a8',
   trough: '#8a6a3a',
+  reactor: '#e8d84a',
   // Under their arrow glyphs: the way down reads dark, the way up light.
   'stair down': '#5a2a1e',
   'stair up': '#f2b49e',

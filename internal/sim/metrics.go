@@ -304,7 +304,7 @@ var (
 var metricFixtures = func() []int64 {
 	var out []int64
 	for _, t := range []Terrain{Bed, Toilet, NutrientPod, Storage, Scumhouse, Incubator, Trough,
-		Forge, GunBench, Incinerator, Chair, Cot} {
+		Forge, GunBench, Incinerator, Chair, Cot, Reactor} {
 		out = append(out, int64(t))
 	}
 	return out

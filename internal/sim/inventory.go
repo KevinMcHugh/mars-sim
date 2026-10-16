@@ -59,6 +59,10 @@ const (
 	// and a stove without one cooks cold. The ships land the colony's first
 	// batteries; a reactor will charge more. See docs/power.md.
 	Battery
+	// FuelPellet is uranium ore pressed for the reactor: one ore makes a
+	// stock of pellets, and each pellet charges a batch of batteries with a
+	// unit of water ice. See docs/power.md.
+	FuelPellet
 
 	numItemKinds // keep last: the number of item kinds
 )
@@ -99,6 +103,8 @@ func (k ItemKind) String() string {
 		return "chicken feed"
 	case Battery:
 		return "battery"
+	case FuelPellet:
+		return "fuel pellet"
 	default:
 		return "empty"
 	}

@@ -149,6 +149,17 @@ type Config struct {
 	// every stove cooks as if powered and nothing spends a battery: the
 	// rules from before power, which the mechanics tests use.
 	Power bool `cfg:"power" doc:"cooking spends batteries; a stove without one cooks cold, slower and on more scum"`
+	// The reactor (docs/power.md, phase P2): the colony builds one once it
+	// holds uranium, buys its fuel at the silo, has it hauled over, and
+	// pays an operator WageReactor a recipe to charge batteries while it
+	// holds fewer than BatteryReserve. PowerTariff is what a battery is
+	// worth: the colony's price for its power, and part of a meal's cost.
+	PowerTariff     int64 `cfg:"power-tariff" doc:"the colony's price for a battery, in dollars: what its power is worth, and part of every meal's cost"`
+	WageReactor     int64 `cfg:"wage-reactor" doc:"what the colony pays its reactor operator per recipe"`
+	BatteryReserve  int   `cfg:"battery-reserve" doc:"the reactor charges batteries while the colony holds fewer than this, anywhere"`
+	UraniumReserve  int   `cfg:"uranium-reserve" doc:"units of uranium ore the colony keeps a standing bid at its silo to hold, counting what its reactors hold"`
+	ReactorIceStock int   `cfg:"reactor-ice-stock" doc:"units of water ice the colony keeps at each reactor, hauled in for hire"`
+	ReactorExposure bool  `cfg:"reactor-exposure" doc:"a reactor holding uranium ore or fuel pellets doses whoever stands beside it, as a uranium vein does"`
 	// ZoningAuto is who decides where the colony builds. Off (the game's
 	// default), the player draws zones and colonists build a structure only
 	// inside a zone of its kind; with no such zone they build nothing. On,
@@ -881,9 +892,15 @@ func DefaultConfig() Config {
 		// Scarcity is on (economy phase E8): food is made, not conjured, and
 		// building costs materials. The safety net stays a setting, for tests
 		// and for balancing. See docs/economy.md.
-		InfiniteFood:  false,
-		Power:         true,
-		CrashPodPurse: 100,
+		InfiniteFood:    false,
+		Power:           true,
+		PowerTariff:     3,
+		WageReactor:     2,
+		BatteryReserve:  60,
+		UraniumReserve:  2,
+		ReactorIceStock: 8,
+		ReactorExposure: true,
+		CrashPodPurse:   100,
 		// Scum is tuned so a small colony that keeps digging can feed itself
 		// once its crash-pod meals run out: see the sustain test in
 		// scumhouse_test.go before changing these.
@@ -909,7 +926,7 @@ func DefaultConfig() Config {
 		PriceRawRock:     0,
 		PriceIronOre:     3,
 		PriceWaterIce:    2,
-		PriceUraniumOre:  6,
+		PriceUraniumOre:  50,
 		PriceClay:        2,
 		SiloBidQty:       64,
 		OrderTTL:         2000,

@@ -471,6 +471,7 @@ func (w *World) runMarket() {
 	w.refreshArmoryBids()
 	w.refreshSiloStock()
 	w.refreshKitchenBatteries()
+	w.refreshReactorFuel()
 	w.refreshColonyMealAsks()
 }
 
@@ -510,8 +511,8 @@ func (w *World) refreshColonyBids() {
 	}
 	for _, k := range prospectingGoods {
 		price := w.refPrice(k)
-		if price <= 0 {
-			continue
+		if price <= 0 || w.reactorFuel(k) {
+			continue // the reactor's fuel is bid for by refreshReactorFuel
 		}
 		want := w.cfg.SiloBidQty - w.openQty(Bid, k, silo, Community)
 		if afford := int(w.treasury / price); want > afford {

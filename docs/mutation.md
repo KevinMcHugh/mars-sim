@@ -78,6 +78,10 @@ colonist is fleeing, eating, or digging.
 
 1. the colonist carries `UraniumOre` (`Inventory.Has`), or
 2. any of the eight neighboring tiles is unexcavated `UraniumBearingRock`.
+3. or, with `reactor-exposure` on (the default), any of them is a reactor
+   holding uranium ore or fuel pellets (`reactorFuelled`; see
+   [power.md](./power.md)). The reactor's operator is the colony's likeliest
+   mutant.
 
 Both are bounded, allocation-free checks (eight slots, eight neighbors), which
 matters because this runs for every colonist every tick.

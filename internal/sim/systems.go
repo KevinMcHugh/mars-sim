@@ -1167,6 +1167,11 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.foodWanted() && w.tryAssignCraft(e) {
 		return
 	}
+	// The colony's reactor, while it is short of batteries: the stoves'
+	// power, so straight after cooking.
+	if w.batteriesWanted() && w.tryAssignReactor(e) {
+		return
+	}
 	if w.tryAssignClean(e) {
 		return
 	}
@@ -1889,6 +1894,8 @@ func (w *World) noteBuild(kind Terrain, at Point) {
 		w.logEventAt(LogBuildComplete, at, "The incinerator roars to life.")
 	case Forge:
 		w.logEventAt(LogBuildComplete, at, "The forge is lit.")
+	case Reactor:
+		w.logEventAt(LogBuildComplete, at, "The reactor goes critical, quietly, as designed.")
 	case GunBench:
 		w.logEventAt(LogBuildComplete, at, "A gun bench is set up in the foundry.")
 	case Chair:

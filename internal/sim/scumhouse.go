@@ -49,10 +49,14 @@ var recipes = []Recipe{
 	{Name: "render an animal carcass", Inputs: []ItemStack{{AnimalCorpse, 1}, {Battery, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
 	{Name: "press viscera", Inputs: []ItemStack{{Viscera, 2}, {Battery, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
 	{Name: "culture cave scum", Inputs: []ItemStack{{CaveScum, 2}, {Battery, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 12, Skill: SkillCooking},
-	{Name: "render an alien carcass cold", Inputs: []ItemStack{{AlienCorpse, 1}}, Outputs: []ItemStack{{Meal, 3}}, Facility: Scumhouse, Ticks: 90, Skill: SkillCooking, Cold: true},
-	{Name: "render animal carcasses cold", Inputs: []ItemStack{{AnimalCorpse, 3}}, Outputs: []ItemStack{{Meal, 2}}, Facility: Scumhouse, Ticks: 60, Skill: SkillCooking, Cold: true},
-	{Name: "press viscera cold", Inputs: []ItemStack{{Viscera, 3}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking, Cold: true},
-	{Name: "culture cave scum cold", Inputs: []ItemStack{{CaveScum, 3}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 36, Skill: SkillCooking, Cold: true},
+	{Name: "render an alien carcass cold", Inputs: []ItemStack{{AlienCorpse, 1}}, Outputs: []ItemStack{{Meal, 4}}, Facility: Scumhouse, Ticks: 90, Skill: SkillCooking, Cold: true},
+	{Name: "render an animal carcass cold", Inputs: []ItemStack{{AnimalCorpse, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking, Cold: true},
+	{Name: "press viscera cold", Inputs: []ItemStack{{Viscera, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking, Cold: true},
+	{Name: "culture cave scum cold", Inputs: []ItemStack{{CaveScum, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 36, Skill: SkillCooking, Cold: true},
+	// The reactor: charge from the pellets it has before pressing more, so
+	// the rare ore is spent only when the last pellet is. See docs/power.md.
+	{Name: "charge batteries", Inputs: []ItemStack{{FuelPellet, 1}, {WaterIce, 1}}, Outputs: []ItemStack{{Battery, 12}}, Facility: Reactor, Ticks: 20},
+	{Name: "press fuel pellets", Inputs: []ItemStack{{UraniumOre, 1}}, Outputs: []ItemStack{{FuelPellet, 40}}, Facility: Reactor, Ticks: 60},
 	// The foundry's chain: ore to steel at the forge, steel to rifles at the
 	// gun bench. See docs/foundry.md.
 	{Name: "smelt steel", Inputs: []ItemStack{{IronOre, 2}}, Outputs: []ItemStack{{SteelIngot, 1}}, Facility: Forge, Ticks: 40, Skill: SkillSmithing},
@@ -593,7 +597,11 @@ func (w *World) jobCraft(e *Entity) {
 	if e.craftFor == ColonistOwner(e.ID) && e.plan == 0 {
 		w.offerOwnMeals(e, out.Pos)
 	}
-	if e.craftFor == Community {
+	if e.craftFor == Community && r.Facility == Reactor {
+		if w.cfg.WageReactor > 0 {
+			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageReactor)) // as far as the treasury goes
+		}
+	} else if e.craftFor == Community {
 		if w.cfg.WageCook > 0 {
 			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageCook)) // as far as the treasury goes
 		}
@@ -629,6 +637,9 @@ func (w *World) cooksOn(e *Entity, c *StorageContainer, r Recipe) bool {
 	}
 	switch e.craftFor {
 	case Community:
+		if r.Facility == Reactor {
+			return w.batteriesWanted() && w.canCraft(c, r, Community)
+		}
 		return w.foodWanted() && w.canCraft(c, r, Community)
 	case ColonistOwner(e.ID):
 		return w.canCraft(c, r, e.craftFor)

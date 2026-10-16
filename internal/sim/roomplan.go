@@ -98,7 +98,7 @@ func (w *World) indexRoom(rec *roomRecord) {
 // queued behind it for a meal of its own (see roomRecipe.aisle).
 func needsAisle(kind Terrain) bool {
 	switch kind {
-	case Scumhouse, Storage, Forge, GunBench, Incubator:
+	case Scumhouse, Storage, Forge, GunBench, Incubator, Reactor:
 		return true
 	}
 	return false

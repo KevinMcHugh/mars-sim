@@ -32,9 +32,11 @@ a thousand, deliberately), found by digging, deeper more often than not, and a
 small vein is worth a fortune because a single unit of ore runs a kitchen for
 days. Water ice is the dull bulk input that the reactor goes through steadily.
 
-P0 (rarer uranium) and P1 (batteries and powered cooking) are built. The
-colony cooks on the batteries its ships landed, and cold once they run out;
-nothing charges new ones until the reactor (P2). Today uranium and water ice
+P0 (rarer uranium), P1 (batteries and powered cooking) and P2 (the reactor,
+run by the colony) are built. The colony cooks on the batteries its ships
+landed, buys the first uranium anyone digs up, builds a reactor, and charges
+more. The policy choice is P3 onwards: for now the colony is always the power
+company. Today uranium and water ice
 are mined and sold to the silo, and then nothing uses them. Power gives both a
 reason to exist.
 
@@ -42,13 +44,21 @@ reason to exist.
 | --- | --- | --- |
 | P0 | Rarer uranium: a per-mille setting, fewer veins of the same size, a mother lode in every world, mutation re-measured | **Shipped** |
 | P1 | Batteries and powered cooking: the `Battery` good, powered and cold recipe rows, batteries in the ships, battery supply drops | **Shipped** |
-| P2 | The reactor under a monopoly: fuel pellets, the reactor room, the operator's wage, the colony's uranium and ice bids, the tariff | Proposed |
+| P2 | The reactor under a monopoly: fuel pellets, the reactor room, the operator's wage, the colony's uranium and ice bids, the tariff | **Shipped** |
 | P3 | The market and the public option: `power-policy`, reactor commissions, the colony buying batteries instead of making them, the colony's reactor of last resort | Proposed |
 | P4 | The charter: the corporation as an owner, its capital, royalty and remittance | Proposed |
 | P5 | Changing policy mid-game: buyouts, sales, and the cooldown | Proposed |
 | P6 | The player's view: the policy on the new-game form and in game, the tariff in the Trade tab, power on the charts | Proposed |
 
 ## Source
+
+P2 is in `power.go` (`reactorRoom`, `wantsReactor`, `tryAssignReactor`,
+`batteriesWanted`, `refreshReactorFuel`, `fuelBid`, `keepStocked`,
+`reactorFuelled`), the `Reactor` terrain (`world.go`, `property.go`,
+`structures.go`, `construction.go`, the glyph ⚡), `FuelPellet`, the two
+reactor rows in `recipes`, the operator's wage in `jobCraft`, the reactor's
+place in `planRooms` and the work ladder, and the exposure check in
+`mutation.go`.
 
 P1 is in `power.go` (`recipeEnabled`, `needs`, `refreshKitchenBatteries`,
 `deliverBatteries`), `scumhouse.go` (the powered and cold rows, `Recipe.Cold`,
@@ -123,16 +133,23 @@ has the same pair:
 
 | Powered (1 battery) | Cold |
 | --- | --- |
-| 1 alien carcass → 4 meals, 30 ticks | 1 alien carcass → 3 meals, 90 ticks |
-| 1 animal carcass → 1 meal, 10 ticks | 3 animal carcasses → 2 meals, 60 ticks |
-| 2 viscera → 1 meal, 10 ticks | 3 viscera → 1 meal, 30 ticks |
-| 2 cave scum → 1 meal, 12 ticks | 3 cave scum → 1 meal, 36 ticks |
+| 1 alien carcass → 4 meals, 30 ticks | the same, 90 ticks |
+| 1 animal carcass → 1 meal, 10 ticks | the same, 30 ticks |
+| 2 viscera → 1 meal, 10 ticks | the same, 30 ticks |
+| 2 cave scum → 1 meal, 12 ticks | the same, 36 ticks |
 
 Every powered row comes before every cold row in `recipes`. A cook works the
 first recipe it has inputs for, so a stove with a battery in its depot cooks
-powered, and a stove without one still cooks. Cold is three times the ticks
-and two thirds of the meals for the inputs. A carcass can't be split, so the
-alien carcass loses a quarter instead.
+powered, and a stove without one still cooks. Cold is three times the ticks,
+on the same inputs.
+
+**Cold used to cost inputs too.** P1 shipped cold rows that also took half
+again the biomatter (3 scum to a meal, not 2), as this doc first proposed. It
+cost lives. Over 24 seeds, power on starved 20 colonists against 7 with it
+off. Colonists cooking their own food always cook cold (they own no
+batteries), so every hungry forager had to scrape half again as much. The
+decision was only ever "slower cold cooking", so P2 took the extra inputs out
+(see [What it measured](#what-p2-measured)).
 
 One unit of uranium ore makes 40 pellets, and those make 480 batteries. At
 about two meals per colonist-day ([drives.md](./drives.md)), that is a little
@@ -154,8 +171,8 @@ too.
 
 ### Cold cooking: power is an advantage, not a gate
 
-A stove with no battery cooks **cold**: half again the inputs and three times
-the ticks. A colony that runs out of power gets hungrier and poorer, but
+A stove with no battery cooks **cold**: three times the ticks, on the same
+inputs. A colony that runs out of power gets hungrier and poorer, but
 nobody starves *because* the batteries ran out. That follows principle 7 in
 [design-principles.md](./design-principles.md): running out of batteries is a
 bad decision, and it should hurt like one. It should not read as a bug.
@@ -211,7 +228,10 @@ days):
 | `power: false` | 4 | 131 of 160 | n/a |
 | `power: true` | 1 | 134 of 160 | 1 to 159 of 200, about half on average |
 
-Survival didn't get worse; the difference is noise. The batteries last far
+Survival didn't get worse; the difference is noise. **That was wrong**: 8
+seeds weren't enough. P2's re-measure on 24 seeds found the cold rows'
+extra scum cost lives, and took it out (see
+[What P2 measured](#what-p2-measured)). The batteries last far
 longer than the "ten days" this doc first guessed, because the colony's stoves
 cook only part of what the colony eats. Carcasses, chefs and colonists cooking
 their own scum make the rest, and those cook cold already. So in P1 the
@@ -220,47 +240,108 @@ what makes that last.
 
 ### The reactor
 
-The reactor is a fixture with a depot, like the forge
-([foundry.md](./foundry.md)), in a walled **reactor room** built through the
-ordinary room planner. Its depot holds ore, pellets and ice, and like a
-kitchen it has a battery shelf (a linked chest, as the pantry is) so buyers
-never stand where the operator works.
+The reactor (⚡) is a fixture with a depot, like the forge
+([foundry.md](./foundry.md)), alone in a walled **reactor room** with an
+aisle, in a production zone. With `construction-costs` on it costs 4 raw rock,
+4 iron ore and 2 clay. Its depot holds ore, pellets, ice and the batteries it
+charges. There is no battery shelf yet (the proposal had one): nobody buys at
+the reactor until P3, and the batteries leave by haul order, so nobody needs
+to stand where the operator works.
 
-Whoever owns the inputs owns the outputs, as with every recipe. Who that is
-depends on the policy.
+Whoever owns the inputs owns the outputs, as with every recipe. Under the
+monopoly that is the colony.
 
-### Policy: monopoly
+The two rows: **charge batteries** (1 fuel pellet and 1 water ice → 12
+batteries, 20 ticks) comes before **press fuel pellets** (1 uranium ore → 40
+pellets, 60 ticks). So the reactor charges from the pellets it has, and
+presses the next ore only when the last pellet is gone. Working it practises
+no skill yet (`SkillNone`): no trade fits, and a new skill touches arrivals
+and the skill tables for little gain.
 
-`power-policy: monopoly` (the default).
+### Policy: monopoly (P2, built)
 
-- **Only the colony builds reactors.** The planner plans a reactor room once
-  the colony holds any uranium ore or pellets, or its batteries fall below
-  `power-reserve-days` of cooking. Before that, nothing is built: a reactor
-  with no fuel is a monument.
-- **The colony buys the fuel.** It posts standing bids at the silo for uranium
-  ore and water ice. Those bids exist today but are suspended by
-  `standing-orders-build-only` ([colony-orders.md](./colony-orders.md)). Under
-  a monopoly they become standing orders the colony needs, the same as its
-  building materials. The colony is also the only buyer for uranium, so it
-  sets the price that prospectors get. That is a monopsony, and it is
-  deliberate.
-- **The colony pays an operator** `wage-reactor` per recipe, from the
-  treasury, the same way it pays its cook ([labor.md](./labor.md)).
-- **The colony sells batteries at the tariff.** The tariff is the colony's
-  standing ask for batteries at the reactor's shelf, priced at `power-tariff`.
-  The player changes it the way they reprice any colony ask, from the Trade
-  tab, and it is marked `manual` so upkeep leaves it alone.
-- **The colony's own kitchens use its own batteries** and pay no tariff. The
-  tariff still reaches every meal, because the colony's meal price has a floor
-  at the cost of its inputs ([pricing.md](./pricing.md)), and a battery is now
-  one of those inputs, valued at the tariff.
+There is no `power-policy` setting yet. With `power` on, the colony is the
+power company.
+
+- **The colony builds the reactor once it holds uranium** (`wantsReactor`:
+  any uranium ore of the colony's, anywhere, and no reactor planned or built).
+  A reactor with no fuel would be a monument. It comes after the bunks and
+  before the incinerator in `planRooms`. A colony without power cooks cold
+  rather than starving, so the reactor isn't life support.
+- **The colony buys the fuel at its silo** (`refreshReactorFuel`, market
+  upkeep). It bids for uranium ore until it holds `uranium-reserve` (2),
+  counting a reactor's pellets as one ore not yet spent. Once a reactor
+  stands, it also bids for water ice until it holds `reactor-ice-stock` (8) a
+  reactor. These bids are allowed under `standing-orders-build-only`, which
+  otherwise only allows bids for building stone (`reactorFuel` in
+  `standingAllowed`). The colony's general prospecting bids and its resale
+  asks skip both goods, so it never resells its fuel. The colony is the only
+  buyer of uranium, so its price is the price: `price-uranium-ore` went from 6
+  to **50**.
+- **Haul orders carry the fuel over** (`keepStocked`, the same machinery that
+  stocks the stoves): `reactor-ice-stock` ice at each reactor, and one ore at
+  each reactor that is out of pellets.
+- **An operator** takes the reactor straight after the colony's cooking in the
+  work ladder, while `batteriesWanted`: the colony holds fewer than
+  `battery-reserve` (60) batteries, counted everywhere including haulers'
+  hands and memoized for the tick. It is paid `wage-reactor` (2) a recipe and
+  keeps going while the colony is still short.
+- **The batteries reach the stoves** by `refreshKitchenBatteries`. The reactor
+  is just another depot holding colony batteries, so its batteries are hauled
+  out to the stoves the way the lockers' were.
+- **The tariff** (`power-tariff`, $3) is what a battery is worth
+  (`referenceValue`). A meal's cost floor counts its battery at that price
+  (`mealInputCost`), so the tariff reaches the price of every meal the colony
+  sells. The proposal's standing ask for batteries isn't built: in P2 no
+  colonist can use a battery it buys. Colonists cooking their own food come
+  with the market (P3), and so does the ask and repricing it from the Trade
+  tab.
 
 The tariff is the lever the policy gives the player. A high tariff is income:
 it brings money back to a treasury that otherwise only pays out, and that is
 one of the economy's standing risks ([economy.md](./economy.md)). But it makes
 every meal dearer, and the colonists least able to pay are the ones who go
 cold or hungry. A low tariff means cheap food and a treasury that has to find
-its money elsewhere.
+its money elsewhere. In P2 only the meal floor carries it.
+
+### What P2 measured
+
+A 120×60 map, 20 colonists, zoning and siting automatic (as the committed
+`mars-sim.yaml` runs), 40,000 ticks (38 days), colonists starved:
+
+| seeds | `power: false` | power, no reactor (`uranium-reserve: 0`) | power and reactor |
+| --- | --- | --- | --- |
+| 1–24 | 7 | 11 (9 on one seed) | 19 (11 on one seed) |
+| 25–48 | 4 | 4 | 2 |
+| 49–72 | 3 | 3 | 3 |
+| **all 72** | **14** | **18** | **24** |
+
+That's with the cold rows only slower. With P1's hungrier cold rows, seeds
+1–24 starved 20 with power on and no reactor (7 off), which is why those rows
+changed.
+
+**This is not settled.** Most of the deaths are single colonies collapsing
+(one seed losing 9 or 11), so 72 seeds still don't separate the three
+columns cleanly. But the reactor column leans worse, and a cost is
+plausible: while the colony is short of batteries an operator works the
+reactor before cleaning and scraping, and haulers carry ice and batteries
+instead of food. Watch it as the tariff and the market arrive. The next
+things to try are moving the operator below food work in the ladder, or
+charging only when a kitchen is actually short.
+
+The chain works without a script. On 64 of the 72 seeds someone dug up
+uranium and sold it to the colony, and the colony built a reactor. On the
+first eight seeds, watched closely, the first ore came between about tick
+4,000 and 13,000, and the reactor stood within about 2,000 ticks of it. It
+starts charging once the landed batteries fall below `battery-reserve`, and
+by tick 40,000 those colonies held 64 to 113 batteries, with pellets left
+from their first ore. On the other eight seeds nobody happened to dig into
+uranium: nothing sends a miner looking for it yet, so the mother lode is
+found only where the colony happens to dig.
+
+Mutation stays rare. On seeds 49–72 after 40,000 ticks there were 5 mutants
+among the living with power off, 8 with power and no reactor, and 6 with the
+reactor.
 
 ### Policy: market
 
@@ -365,10 +446,11 @@ log fills with buyouts.
 
 ### Reactor exposure
 
-A reactor holding pellets or uranium ore counts as a uranium deposit for the
-exposure check in [mutation.md](./mutation.md): standing beside it accumulates
-dose. The operator becomes the colony's likeliest mutant, which is a story,
-and a Mutant-Lover operator is one who doesn't mind. This is
+Built in P2. A reactor holding pellets or uranium ore counts as a uranium
+deposit for the exposure check in [mutation.md](./mutation.md): standing
+beside it accumulates dose. The operator becomes the colony's likeliest
+mutant, which is a story, and a Mutant-Lover operator is one who doesn't
+mind. This is
 `reactor-exposure` (on by default). It adds one fixture lookup to an existing
 eight-neighbour check, so it costs nothing measurable.
 
@@ -418,11 +500,11 @@ What it measured ([worldgen-chunks.md](./worldgen-chunks.md),
   `veinLevels` and did not move. Clay avoids uranium tiles, so a few clay veins
   shifted, and the golden tile hashes were re-pinned. Entities and the RNG
   streams were unchanged.
-- **Price**, still to do. Uranium at `price-uranium-ore` 6 was set when it was
-  just another ore. Once it fuels a reactor its real value is set by what 480
-  batteries are worth. Under a monopoly the colony's bid is the price, and it
-  should go up a lot: one ore is a strike, and the miner who finds a vein
-  should feel rich. That belongs to P2, where the colony first bids for it.
+- **Price.** Uranium at `price-uranium-ore` 6 was set when it was just
+  another ore. Once it fuels a reactor its real value is set by what 480
+  batteries are worth, so P2 raised it to 50. Under a monopoly the colony's
+  bid is the price: one ore is a strike, and the miner who finds a vein
+  should feel rich.
 
 ## Why it is this way
 
