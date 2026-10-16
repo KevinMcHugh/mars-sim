@@ -38,8 +38,12 @@ func (w *World) uraniumExposed(e *Entity) bool {
 		return true
 	}
 	for _, d := range neighbors8 {
-		t := w.TileAt(e.Pos.Add(d.X, d.Y))
+		p := e.Pos.Add(d.X, d.Y)
+		t := w.TileAt(p)
 		if t.Terrain == Rock && t.Composition == UraniumBearingRock {
+			return true
+		}
+		if t.Terrain == Reactor && w.cfg.ReactorExposure && w.reactorFuelled(p) {
 			return true
 		}
 	}

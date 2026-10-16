@@ -219,8 +219,8 @@ func (w *World) refreshColonyAsks() {
 	}
 	c := w.storageContainers[silo]
 	for _, k := range prospectingGoods {
-		if w.refPrice(k) <= 0 {
-			continue
+		if w.refPrice(k) <= 0 || w.reactorFuel(k) {
+			continue // the reactor's fuel is kept for it, not resold
 		}
 		if spare := c.held(Community, k) - w.cfg.ColonyStockReserve; spare > 0 {
 			w.postStanding(Ask, k, spare, w.colonyAskPrice(k), silo)

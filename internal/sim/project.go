@@ -618,6 +618,14 @@ func (w *World) planRooms() {
 		w.placeFixtures(dormRoom, units(desired-planned, Bed), true)
 		return
 	}
+	// A reactor once the colony holds uranium to burn: power keeps the stoves
+	// cooking at full speed, but a colony without it cooks cold rather than
+	// starves, so it comes after the bunks (see docs/power.md).
+	if w.wantsReactor() {
+		if w.placeFixtures(reactorRoom, units(1, Reactor), true) {
+			return
+		}
+	}
 	// Sanitation last, and only once there is actually a mess: an incinerator
 	// nothing has been killed near is a room's worth of digging spent on
 	// nothing. Demand is one — not desiredFacilities — because the colony's

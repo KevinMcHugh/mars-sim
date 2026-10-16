@@ -1195,6 +1195,13 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.foodWanted() && w.wildScumAllowed() && w.prospectingForFood() && e.Inventory.CanAdd(RawRock, 1) && w.tryProspect(e, false) {
 		return
 	}
+	// The colony's reactor, while it is short of batteries, once nobody is
+	// needed for food: a stove without power still cooks, cold, and an
+	// operator taken off scraping and cleaning starved colonies that a slow
+	// stove never did (see docs/power.md).
+	if w.batteriesWanted() && w.tryAssignReactor(e) {
+		return
+	}
 	// Surplus locker meals go to market for someone hungrier to buy.
 	if w.tryAssignSellMeals(e) {
 		return
@@ -1889,6 +1896,8 @@ func (w *World) noteBuild(kind Terrain, at Point) {
 		w.logEventAt(LogBuildComplete, at, "The incinerator roars to life.")
 	case Forge:
 		w.logEventAt(LogBuildComplete, at, "The forge is lit.")
+	case Reactor:
+		w.logEventAt(LogBuildComplete, at, "The reactor goes critical, quietly, as designed.")
 	case GunBench:
 		w.logEventAt(LogBuildComplete, at, "A gun bench is set up in the foundry.")
 	case Chair:

@@ -405,25 +405,31 @@ func (w *World) foodCooking(e *Entity) bool {
 			!recipeMakesMeals(recipes[cook.recipe]) || !w.taskReachable(p, room) {
 			continue
 		}
-		coming += colonyMealsIn(w.storageContainers[p])
+		coming += w.colonyMealsIn(w.storageContainers[p])
 	}
 	return coming > 0 && coming >= w.hungryWithoutMeals()
 }
 
 // colonyMealsIn is how many meals the colony's stock in scumhouse depot c
-// would make, recipe by recipe.
-func colonyMealsIn(c *StorageContainer) int {
+// would make, recipe by recipe. Each kind of biomatter counts under one row:
+// the powered one while the stove has a battery of the colony's (or power is
+// off), the cold one otherwise. Batteries only decide which: a stove that
+// runs out partway cooks the rest cold, so they don't cap the count.
+func (w *World) colonyMealsIn(c *StorageContainer) int {
 	if c == nil {
 		return 0
 	}
+	cold := w.cfg.Power && c.held(Community, Battery) == 0
 	n := 0
 	for _, r := range recipes {
-		if r.Facility != Scumhouse || !recipeMakesMeals(r) {
+		if r.Facility != Scumhouse || !recipeMakesMeals(r) || r.Cold != cold {
 			continue
 		}
 		times := 1 << 30
 		for _, in := range r.Inputs {
-			times = min(times, c.held(Community, in.Kind)/max(1, in.Count))
+			if in.Kind != Battery {
+				times = min(times, c.held(Community, in.Kind)/max(1, in.Count))
+			}
 		}
 		for _, o := range r.Outputs {
 			if o.Kind == Meal {
@@ -463,7 +469,7 @@ func recipeMakesMeals(r Recipe) bool {
 
 // scumPerMeal is how much cave scum one meal takes.
 func (w *World) scumPerMeal() int {
-	if r, ok := scumMealRecipe(); ok {
+	if r, ok := w.scumMealRecipe(true); ok {
 		return r.Inputs[0].Count
 	}
 	return 1
