@@ -39,10 +39,13 @@ func generate(w *World) {
 	// middle of the cavern outward and smashing through the rock around it
 	// once the open floor runs out. See ship.go.
 	// With place-ships set they wait aloft instead, for the player to land.
+	// A sandbox lands nobody: the player places colonists by hand.
 	ships := 0
-	if w.cfg.PlaceShips {
+	switch {
+	case w.cfg.Sandbox:
+	case w.cfg.PlaceShips:
 		w.aloft = shipLoads(w.cfg.StartColonists, w.cfg.ShipCapacity)
-	} else {
+	default:
 		_, ships = w.arriveWave(w.cfg.StartColonists, false)
 	}
 
@@ -71,7 +74,11 @@ func generate(w *World) {
 	// the map: on a small map the cavern is sized for its crash pods
 	// (caveRadii), and rx+ry+4 can reach past every edge.
 	minDist := min(rx+ry+4, max(w.Width, w.Height)/2-1)
-	for i := 0; i < w.cfg.StartAliens; i++ {
+	aliens, rats, cats := w.cfg.StartAliens, w.cfg.StartRats, w.cfg.StartCats
+	if w.cfg.Sandbox {
+		aliens, rats, cats = 0, 0, 0
+	}
+	for i := 0; i < aliens; i++ {
 		if p, ok := w.alienSpawnSite(center, minDist); ok {
 			w.spawn(Alien, p)
 		}
@@ -79,18 +86,20 @@ func generate(w *World) {
 
 	// Rats and cats live on the floor with the colonists: rats scavenge the
 	// colony's biomatter and raid its pods, cats chase the rats. Place whatever the cavern has room for.
-	for i := 0; i < w.cfg.StartRats; i++ {
+	for i := 0; i < rats; i++ {
 		if p, ok := takeFloor(); ok {
 			w.spawn(Rat, p)
 		}
 	}
-	for i := 0; i < w.cfg.StartCats; i++ {
+	for i := 0; i < cats; i++ {
 		if p, ok := takeFloor(); ok {
 			w.spawn(Cat, p)
 		}
 	}
 
-	if len(w.aloft) > 0 {
+	if w.cfg.Sandbox {
+		w.logEvent(LogArrival, "A sandbox: the landing cavern lies empty, and nothing stirs below. Place colonists and aliens by hand.")
+	} else if len(w.aloft) > 0 {
 		w.logEvent(LogArrival, fmt.Sprintf("%d settlers circle Mars in %s, waiting to land. Something below stirs.", w.cfg.StartColonists, shipsNoun(len(w.aloft))))
 	} else {
 		w.logEvent(LogArrival, fmt.Sprintf("%d settlers come down on the Martian crust in %s. Something below stirs.", w.countKind(Colonist), shipsNoun(ships)))

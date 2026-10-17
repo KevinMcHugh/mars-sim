@@ -16,12 +16,14 @@ readout. Around it is a Svelte chrome:
 - **A side panel,** whose tab strip has two labelled rows. **View** holds the
   tabs that show the colony: the Inspect tab (click the map), the Roster, the
   Log, Jobs, Storage, Market, Charts, Perf and the Lore tab. **Act** holds the tabs
-  whose job is to change it: Zones, Dig, Ships, Trade, Recruit and the
-  Game tab. That tab
+  whose job is to change it: Zones, Dig, Ships, Trade, Recruit, Sandbox
+  (only in a sandbox game, see [sandbox.md](./sandbox.md)) and the
+  Game tab. A tab with a `when` in `tabs.ts` shows only while it is true. That tab
   opens with **Save game** / **Load game…** (Ctrl/⌘+S saves too;
   see [save-load.md](./save-load.md)), then **New game**, a foldable section
   holding the new-game form, which can also start a colony that zones for itself
-  (`zoning-auto`) or chooses where to dig down (`siting-auto`), and under them a read-only list of
+  (`zoning-auto`) or chooses where to dig down (`siting-auto`), or an empty
+  sandbox to place creatures in by hand ([sandbox.md](./sandbox.md)), and under them a read-only list of
   every setting the game runs with ([game-settings.md](./game-settings.md)).
   Last is a link to [Scum Lab](./scum-lab.md). It is a relative `scum-lab/`,
   which resolves on Pages (see "Hosting" below) and 404s under `npm run dev`,
@@ -106,7 +108,7 @@ The rest of the TUI's tabs are planned in
 **Running it:** from `web/`, run `npm install` once, then `npm run dev`, which
 rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL fills the
-new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&alien-species-count=2`. `npm run build`
+new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&alien-species-count=2&sandbox=true`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
 runs the wire decoder's, the activity chart's, the ship count's, the Storage tab's and the shared number and time formats' tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
@@ -115,7 +117,7 @@ change with the dev server already running, run `npm run wasm` and reload.
 tab, filled from the URL over the defaults (10000×10000, 20
 colonists — one full ship — 3 alien species, fog of war on, deepest level
 3, no seed, so the engine picks one), and **Start**
-goes straight to the Ships tab. The fields sit in an **Options** fold that
+goes straight to the Ships tab (the Sandbox tab, for a sandbox). The fields sit in an **Options** fold that
 starts shut (`Section`'s `shut`), with a line above Start saying what the
 defaults give ("20 colonists in 1 ship, 3 alien species"): most players
 start on the defaults, and a wall of inputs made the tab read as a chore.
@@ -282,7 +284,10 @@ and dots stay.
 and go straight from the worker to the renderer. What the chrome shows (tick,
 stats, pause and speed) is copied into `ui` in `game.svelte.ts` at most
 `UI_HZ` (10) times a second, and at once when pause flips, so the DOM does not
-re-render per frame. Panels get their data from topics: a tab component calls
+re-render per frame. A frame that comes too soon is not dropped but caught up
+a beat later (`syncUI`): while paused, the frame a command publishes (a
+sandbox placement, a spawn) can be the last for a while, and dropping it left
+the top bar's counts a step behind. Panels get their data from topics: a tab component calls
 `subscribe('lore')` in an `$effect`, whose cleanup unsubscribes. So closing
 the panel stops the worker building that data. Subscriptions are
 reference-counted, and payloads are `$state.raw`, replaced whole, never

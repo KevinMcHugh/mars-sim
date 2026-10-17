@@ -1231,7 +1231,9 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 			w.frontier.touch(tc.Pos)
 		}
 	})
-	w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
+	if !cfg.Sandbox { // nothing arrives in a sandbox the player did not place
+		w.directorQueue = resolveSchedules(cfg.Schedules, w.rng)
+	}
 	w.mint(Community, Money(cfg.FoundingGrant))
 	return w
 }

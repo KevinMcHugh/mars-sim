@@ -58,6 +58,8 @@ export interface Hello {
   deepestLevel: number;
   /** The siting-auto setting: whether the colony may pick where to dig down itself (docs/siting.md). */
   sitingAuto: boolean;
+  /** The sandbox setting: an empty world filled by hand with the place command (docs/sandbox.md). */
+  sandbox: boolean;
 }
 
 export interface Frame {

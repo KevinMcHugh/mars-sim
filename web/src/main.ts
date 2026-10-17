@@ -9,7 +9,7 @@
 import { mount } from 'svelte';
 import type { Frame, Hello } from '../wire/decode.js';
 import { namedStats, TILE_COMPOSITION_MASK, TILE_VISIBLE } from '../wire/decode.js';
-import { armShip, armSite, colonyLog, cycleFlowField, follow, inspect, install, landAloft, moveShip, onLandingLevel, orderSite, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
+import { armPlace, armShip, armSite, colonyLog, cycleFlowField, follow, inspect, install, landAloft, moveShip, onLandingLevel, orderSite, placeAt, selectionLevel, setFlowField, setPanel, shipSiteAt, shipSiteFree, shipTiles, stepLevel, stepSpeed, subscribe, syncFrame, togglePause, topics, ui, UI_HZ } from './game.svelte';
 import type { Rect, ShipLine, ShipsTopic, ZonePreview } from './game.svelte';
 import { attachInput } from './map/input';
 import { MapRenderer, MARK_BOTTOM, MARK_HATCH, MARK_LEFT, MARK_RIGHT, MARK_TOP } from './map/renderer';
@@ -70,6 +70,7 @@ install({
   zoneChanged: () => showZone(),
   shipToolChanged: () => showShipPreview(),
   siteToolChanged: () => showSitePreview(),
+  placeToolChanged: () => showPlacePreview(),
   highlight: (tiles) => map.setHighlight(tiles),
 });
 // Colonists' names for the hover readout; frames carry only ids. Held for
@@ -103,6 +104,7 @@ sim.onFrame = (f, bytes) => {
   last = f;
   map.applyFrame(f);
   updateMark();
+  if (ui.placeTool) showPlacePreview(); // a creature just placed turns its tile red
   showTethers();
   followCamera();
   debug.frames++;
@@ -119,14 +121,23 @@ sim.onFrame = (f, bytes) => {
   // than at the UI_HZ beat below.
   if (f.flow) ui.flowShown = map.flowShown;
   // The chrome refreshes at UI_HZ, and at once when pause flips, so the
-  // selector never lags a press.
+  // selector never lags a press. A frame that comes too soon is caught up a
+  // beat later: while paused it may be the last for a while (a sandbox
+  // placement, a spawn), and the counts would otherwise stay stale.
   const now = performance.now();
-  if (now - lastUI >= 1000 / UI_HZ || f.paused !== ui.paused) {
-    lastUI = now;
-    syncFrame(f.tick, f.paused, f.tps, namedStats(f, hello), f.levels);
-    if (hoverAt) showHover(...hoverAt);
-  }
+  if (now - lastUI >= 1000 / UI_HZ || f.paused !== ui.paused) syncUI(f);
+  else uiLater ??= setTimeout(() => { uiLater = null; if (last && hello) syncUI(last); }, 1000 / UI_HZ - (now - lastUI));
 };
+
+// The trailing refresh onFrame schedules, if one is waiting.
+let uiLater: ReturnType<typeof setTimeout> | null = null;
+
+/** Take frame f into the chrome: clock, speed, stats and the hover readout. */
+function syncUI(f: Frame): void {
+  lastUI = performance.now();
+  syncFrame(f.tick, f.paused, f.tps, namedStats(f, hello!), f.levels);
+  if (hoverAt) showHover(...hoverAt);
+}
 
 attachInput(canvas, cam, {
   changed: () => { viewChanged(); },
@@ -144,6 +155,11 @@ attachInput(canvas, cam, {
       siteAt = [Math.floor(fx), Math.floor(fy)];
       showSitePreview();
     }
+    if (ui.placeTool && hello) {
+      const [fx, fy] = cam.toTile(x, y);
+      placeHover = [Math.floor(fx), Math.floor(fy)];
+      showPlacePreview();
+    }
   },
   leave: () => { hoverAt = null; ui.hover = null; },
   click: (x, y) => select(x, y),
@@ -160,10 +176,11 @@ window.addEventListener('keydown', (e) => {
     case '>': case '.': stepLevel(1); break;
     case '<': case ',': stepLevel(-1); break;
     case '-': case '_': stepSpeed(-1); break;
-    // Put the dig-down tool down without ordering.
+    // Put the dig-down or place tool down without ordering.
     case 'Escape':
-      if (!ui.siteTool) return;
+      if (!ui.siteTool && !ui.placeTool) return;
       armSite(null);
+      armPlace(null);
       break;
     // Ctrl/Cmd+S saves the game rather than the page.
     case 's': case 'S':
@@ -220,7 +237,9 @@ async function newGame(settings: Settings): Promise<void> {
     const pack = await speciesPack();
     began(await sim.start({ tps: 8, 'start-paused': true, 'place-ships': true, ...settings }, undefined, pack));
     status(null);
-    setPanel('ships'); // the game starts with placing the ships
+    // The game starts with placing the ships, or in a sandbox, with placing
+    // whoever the player wants (docs/sandbox.md).
+    setPanel(settings.sandbox ? 'sandbox' : 'ships');
   } catch (e) {
     status(String((e as Error).message), true);
   }
@@ -304,6 +323,8 @@ function resetGame(): void {
   ui.shipSent = null;
   ui.siteTool = null;
   siteAt = null;
+  ui.placeTool = null;
+  placeHover = null;
   ui.level = 1;
   ui.levels = [1];
   lastInterest = '';
@@ -363,6 +384,7 @@ function select(sx: number, sy: number): void {
   if (x < 0 || y < 0 || x >= hello.width || y >= hello.height) return;
   if (ui.shipTool !== null) { landShip(x, y); return; }
   if (ui.siteTool) { orderSite(x, y); return; }
+  if (ui.placeTool) { placeAt(x, y); return; }
   const here: number[] = [];
   if (last && map.visible(x, y)) {
     const e = last.entities;
@@ -649,6 +671,30 @@ function showSitePreview(): void {
   const terrain = cell !== null && (cell[1] & TILE_VISIBLE) !== 0 ? names[cell[0]] : undefined;
   const ok = tool.kind === 'ladder' ? terrain === 'hole'
     : terrain === 'floor' || (tool.kind === 'shaft' && terrain === 'shaft top');
+  map.setHighlight([{ x, y, color: ok ? SHIP_OK : SHIP_BAD }]);
+}
+
+// The sandbox's place tool: the tile the pointer is over.
+let placeHover: [number, number] | null = null;
+
+/**
+ * Tint the tile under the pointer while the place tool is up: green on seen
+ * floor with no creature the map shows on it, red elsewhere. The engine has
+ * the last word (docs/sandbox.md).
+ */
+function showPlacePreview(): void {
+  if (!ui.placeTool || !placeHover || !hello) {
+    if (!ui.placeTool) map.setHighlight(null);
+    return;
+  }
+  const [x, y] = placeHover;
+  const cell = map.tileAt(x, y);
+  const visible = cell !== null && (cell[1] & TILE_VISIBLE) !== 0;
+  let ok = visible && hello.enums.terrains[cell[0]] === 'floor';
+  if (ok && last) {
+    const e = last.entities;
+    for (let i = 0; i < e.count; i++) if (e.x[i] === x && e.y[i] === y) { ok = false; break; }
+  }
   map.setHighlight([{ x, y, color: ok ? SHIP_OK : SHIP_BAD }]);
 }
 
