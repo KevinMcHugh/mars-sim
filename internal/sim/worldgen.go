@@ -26,7 +26,7 @@ func generate(w *World) {
 	// Carve an oval starting cavern large enough to hold the colonists with room
 	// to move and a rock frontier to mine. Natural caverns keep
 	// cavernLandingClearance tiles of rock from its bounding box.
-	rx, ry := caveRadii(w.Width, w.Height, w.cfg.StartColonists, shipTilesPerColonist(w.cfg))
+	rx, ry := landingRadii(w.cfg)
 	for y := -ry; y <= ry; y++ {
 		for x := -rx; x <= rx; x++ {
 			if x*x*ry*ry+y*y*rx*rx <= rx*rx*ry*ry {
@@ -273,6 +273,23 @@ const minCaveRy = 6
 // caveRadii returns the ellipse radii for a starting cavern big enough to hold n
 // colonists with breathing room, clamped to something sane and to the world
 // bounds. It keeps a 2:1 width:height shape to match the map.
+// sandboxCavernColonists is how many settlers a sandbox's landing cavern is
+// sized for: one full ship, the browser's default colony. A sandbox lands
+// nobody, so the colonists setting has nothing to say about it, and a sandbox
+// should not ask for a count it then ignores (see docs/sandbox.md).
+const sandboxCavernColonists = 20
+
+// landingRadii is the landing cavern's radii for cfg: sized for its
+// starting colonists, or in a sandbox for sandboxCavernColonists. generate
+// carves it and the chunk generator keeps caverns clear of it, so both ask
+// here.
+func landingRadii(cfg Config) (rx, ry int) {
+	if cfg.Sandbox {
+		cfg.StartColonists = sandboxCavernColonists
+	}
+	return caveRadii(cfg.Width, cfg.Height, cfg.StartColonists, shipTilesPerColonist(cfg))
+}
+
 func caveRadii(width, height, n, shipShare int) (rx, ry int) {
 	// Ten tiles of elbow room per settler, plus its share of the ground its
 	// ship takes up with the crater round it (shipTilesPerColonist). Without

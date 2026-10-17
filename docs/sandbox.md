@@ -36,13 +36,19 @@ the browser's New game form (or `?sandbox=true` in the URL), and the
 ## How it works
 
 **An empty start.** With `sandbox` on, `generate` still carves the landing
-cavern, sized for `colonists` as usual, so the colonist count on the form
-still decides how much room there is. Then it lands nobody (no ships, none
+cavern, sized for one full ship (`sandboxCavernColonists`, 20) whatever
+`colonists` says (`landingRadii`). Then it lands nobody (no ships, none
 aloft) and skips the starting aliens, rats and cats. Caverns the colony breaks
 into roll no nest, and the director's script is never resolved, so nothing
-arrives that the player did not place. The world itself (ore, scum, caverns,
-the species roster) is generated exactly as it would be: the seed field works
-as in any game.
+arrives that the player did not place. The roster takes **every** species in
+the species pack, not `alien-species-count` of them, so any of them can be
+placed (a world with no pack still rolls `alien-species-count`). The rest of
+the world (ore, scum, caverns) is generated exactly as it would be: the seed
+field works as in any game.
+
+**The form asks for no counts.** Ticking *Sandbox* hides the New game form's
+*Colonists* and *Alien species* fields, since the engine ignores the first
+and uses the whole pack instead of the second.
 
 **Placing.** The tab's **Colonist** and **Alien** buttons pick up a one-click
 map tool (`ui.placeTool`), like the Dig tab's dig-down tool. It stays up after
@@ -81,6 +87,12 @@ the first tick.
   flag gates the command, survives save and load (it is part of the saved
   `Config`), and reaches the page through `Hello` so the tab shows only when
   it applies.
+- **No counts to choose.** The first version sized the cavern from
+  `colonists` and rolled `alien-species-count` species, so the form made you
+  pick a non-zero number of colonists for a world that lands none, and pick
+  in advance which species you would get to place. Both read as wrong for an
+  empty world, so a sandbox fixes the cavern at one ship's worth and takes
+  the whole pack.
 - **Only discovered floor.** With fog of war off the map shows every cavern,
   but a creature placed in one the colony has not broken into would be
   *dormant* (`dormant`): it keeps to its sealed cave and nobody perceives it.

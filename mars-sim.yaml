@@ -145,7 +145,7 @@
 ## starting number of rats
 # rats: 8
 
-## start an empty world (nobody lands, no aliens, no nests) and let the player place colonists and aliens by hand (the browser's Sandbox tab)
+## start an empty world (nobody lands, no aliens, no nests; colonists is ignored, and a species pack is used whole) and let the player place colonists and aliens by hand (the browser's Sandbox tab)
 # sandbox: false
 
 ## recent deaths kept for the roster's dead filter (0 disables)

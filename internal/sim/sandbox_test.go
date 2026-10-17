@@ -123,3 +123,26 @@ func TestPlacedColonistEats(t *testing.T) {
 		t.Fatalf("the placed colonist died: %q", lastLog(w))
 	}
 }
+
+// A sandbox asks for no counts: its landing cavern is the same whatever the
+// colonists setting says, and a species pack goes into its roster whole,
+// whatever alien-species-count says.
+func TestSandboxIgnoresCounts(t *testing.T) {
+	cfg := testConfig()
+	cfg.Width, cfg.Height = 200, 200
+	cfg.Sandbox = true
+	cfg.StartColonists = 1
+	few := NewEngine(cfg).world.countTerrain(Floor)
+	cfg.StartColonists = 60
+	if many := NewEngine(cfg).world.countTerrain(Floor); few != many {
+		t.Errorf("landing cavern of %d tiles for 1 colonist, %d for 60: want the same", few, many)
+	}
+
+	cfg = testConfig()
+	cfg.Sandbox = true
+	cfg.SpeciesPack = testPack(t, seedsWithLife(t, 4)...)
+	cfg.AlienSpeciesCount = 1
+	if n := len(NewEngine(cfg).world.alienSpecies); n != 4 {
+		t.Errorf("sandbox roster of %d species from a pack of 4, want all 4", n)
+	}
+}

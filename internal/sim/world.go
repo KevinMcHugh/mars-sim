@@ -1147,7 +1147,11 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.daringRNG = rand.New(w.rngSrc.daring)
 	if len(cfg.SpeciesPack) > 0 {
 		var picked []int
-		w.alienSpecies, picked = packedRoster(newRand(cfg.Seed^alienLoreSeed), cfg, cfg.SpeciesPack, max(1, cfg.AlienSpeciesCount))
+		count := max(1, cfg.AlienSpeciesCount)
+		if cfg.Sandbox {
+			count = len(cfg.SpeciesPack) // every species, to place any of them
+		}
+		w.alienSpecies, picked = packedRoster(newRand(cfg.Seed^alienLoreSeed), cfg, cfg.SpeciesPack, count)
 		w.sprites = buildAlienSprites(cfg.SpeciesPack, picked)
 		w.speciesLore = packedLore(cfg.SpeciesPack, picked)
 	} else {

@@ -37,8 +37,9 @@
   // own (docs/siting.md).
   let autoSiting = $state(init['siting-auto'] === true);
   // On: an empty world for debugging, filled by hand from the Sandbox tab
-  // (docs/sandbox.md). Nobody lands; the colonist count only sizes the
-  // landing cavern.
+  // (docs/sandbox.md). The colonist and species counts are hidden then: the
+  // engine ignores the first (nobody lands, and the landing cavern is sized
+  // for one ship) and takes every species in the pack instead of the second.
   let sandbox = $state(init.sandbox === true);
   // The founders' ships, which the player lands one by one after Start
   // (docs/ships.md).
@@ -76,15 +77,17 @@
   <Section id="game.new" tag="h2" title="New game" help={newHelp}>
     <form onsubmit={start}>
       <p class="muted" aria-live="polite">
-        {#if sandbox}An empty sandbox, {species} alien species to place{:else}{colonists} colonists in {ships}, {species} alien species{/if}
+        {#if sandbox}An empty sandbox: place colonists and aliens of any species by hand{:else}{colonists} colonists in {ships}, {species} alien species{/if}
       </p>
       <Section id="game.new.options" title="Options" shut>
         <div class="options">
           <label>Width <input type="number" min="64" bind:value={width} /></label>
           <label>Height <input type="number" min="64" bind:value={height} /></label>
-          <label>Colonists <input type="number" min="1" bind:value={colonists} aria-describedby="ship-count" /></label>
-          <p id="ship-count" class="muted ships" aria-live="polite">{sandbox ? 'none land in a sandbox: the landing cavern is sized for them' : `${ships} to land`}</p>
-          <label>Alien species <input type="number" min="1" bind:value={species} /></label>
+          {#if !sandbox}
+            <label>Colonists <input type="number" min="1" bind:value={colonists} aria-describedby="ship-count" /></label>
+            <p id="ship-count" class="muted ships" aria-live="polite">{ships} to land</p>
+            <label>Alien species <input type="number" min="1" bind:value={species} /></label>
+          {/if}
           <label title="How many levels down the colony may dig: 1 keeps it on the level its ships land on">Deepest level <input type="number" min="1" max="16" bind:value={deepest} /></label>
           <label>Seed <input type="number" placeholder="random" bind:value={seed} /></label>
           <label class="check"><input type="checkbox" bind:checked={fog} /> Fog of war</label>
