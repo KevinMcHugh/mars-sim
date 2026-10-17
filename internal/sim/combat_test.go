@@ -203,3 +203,59 @@ func TestCrashPodsArmTheirColonists(t *testing.T) {
 		}
 	}
 }
+
+// A Friendly alien never starts a fight, so colonists leave it be: an armed
+// colonist does not shoot it and an unarmed one does not run from it (#223).
+func TestColonistsLeaveFriendlyAlienBe(t *testing.T) {
+	for _, weapon := range []ItemKind{ItemNone, Pistol} {
+		cfg := testConfig()
+		cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+		w := newTestWorld(t, cfg)
+		setAlienTemperament(w, 0, TemperamentFriendly)
+
+		center := Point{w.Width / 2, w.Height / 2, LandingLevel}
+		colonist := w.spawn(Colonist, center)
+		colonist.affect.Grip = cfg.MoodMax
+		if weapon != ItemNone {
+			colonist.Inventory.Add(weapon, 1)
+		}
+		alien := w.spawnAs(Alien, center.Add(2, 0), 0)
+		startHP := alien.HP
+
+		for i := 0; i < 20; i++ {
+			w.colonistTurn(colonist)
+			if colonist.State == Fighting || colonist.State == Fleeing {
+				t.Fatalf("weapon %v, turn %d: colonist is %v near a friendly alien", weapon, i, colonist.State)
+			}
+		}
+		if alien.HP != startHP {
+			t.Fatalf("weapon %v: friendly alien HP %d -> %d, want it unharmed", weapon, startHP, alien.HP)
+		}
+	}
+}
+
+// A Friendly alien standing closer must not hide a hostile one behind it:
+// the threat search skips the friendly and still finds the hostile, which is
+// what a guard or an escort shoots.
+func TestNearestThreatSkipsFriendlyAlien(t *testing.T) {
+	cfg := testConfig()
+	cfg.StartColonists, cfg.StartAliens, cfg.StartCats, cfg.StartRats = 0, 0, 0, 0
+	cfg.AlienSpeciesCount = 2
+	w := newTestWorld(t, cfg)
+	setAlienTemperament(w, 0, TemperamentFriendly)
+	setAlienTemperament(w, 1, TemperamentHostile)
+
+	center := Point{w.Width / 2, w.Height / 2, LandingLevel}
+	friendly := w.spawnAs(Alien, center.Add(1, 0), 0)
+	hostile := w.spawnAs(Alien, center.Add(4, 0), 1)
+
+	if got, ok := w.nearestAlien(center, 6); !ok || got.ID != friendly.ID {
+		t.Fatalf("nearestAlien found %v, want the friendly alien #%d", ok, friendly.ID)
+	}
+	if got, ok := w.nearestThreat(center, 6); !ok || got.ID != hostile.ID {
+		t.Fatalf("nearestThreat found %v, want the hostile alien #%d", ok, hostile.ID)
+	}
+	if got, ok := w.nearestThreat(center, 3); ok {
+		t.Fatalf("nearestThreat within 3 = alien #%d, want none (only the friendly one is that close)", got.ID)
+	}
+}

@@ -160,8 +160,8 @@ it is, and the tick it grows into the next stage.
   is just "a grelk". The inspector and roster show the form after the
   species label.
 - **Threat**: an egg or casing is no threat. Colonists do not perceive it,
-  flee it or fight it (`nearestAlien` and `observePersistent` skip it as they skip
-  a dormant alien). Hostile aliens of another species can still eat one.
+  flee it or fight it (`nearestAlien`, the `nearestThreat` built on it, and
+  `observePersistent` skip it as they skip a dormant alien). Hostile aliens of another species can still eat one.
 
 ### Broods
 

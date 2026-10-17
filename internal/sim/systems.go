@@ -268,7 +268,7 @@ func (w *World) tryCognitionFastPath(e *Entity) bool {
 		len(e.perceiving) != 0 {
 		return false
 	}
-	if threat, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok && threat != nil {
+	if threat, ok := w.nearestThreat(e.Pos, w.cfg.FleeRadius); ok && threat != nil {
 		return false
 	}
 	if rat, ok := w.nearestVermin(e.Pos, w.cfg.ColonistStompRadius); ok && rat != nil {
@@ -2420,9 +2420,26 @@ func (w *World) colonistsWithin(pos Point, radius int, exclude EntityID) []*Enti
 // dormant alien (see World.dormant) is sealed in an undiscovered cave, and an
 // egg or cocoon (World.inert) is no threat.
 func (w *World) nearestAlien(from Point, within int) (*Entity, bool) {
-	return w.nearestMatch(from, within, func(e *Entity) bool {
-		return w.tagsOf(e).Has(TagAlien) && !w.dormant(e) && !w.inert(e)
-	})
+	return w.nearestMatch(from, within, w.awakeAlien)
+}
+
+func (w *World) awakeAlien(e *Entity) bool {
+	return w.tagsOf(e).Has(TagAlien) && !w.dormant(e) && !w.inert(e)
+}
+
+// nearestThreat is the nearest alien a colonist reacts to: what it flees or
+// fights, and what a guard or an escort shoots. It is nearestAlien less any
+// Friendly species, which never starts a fight, so a colonist leaves one be
+// and a hostile one behind it is still found.
+func (w *World) nearestThreat(from Point, within int) (*Entity, bool) {
+	return w.nearestMatch(from, within, w.threatens)
+}
+
+// threatens reports whether e is an alien colonists treat as dangerous. For
+// now a colonist simply knows a species' temperament; learning it by watching
+// how the species behaves is the next step (see docs/lore.md).
+func (w *World) threatens(e *Entity) bool {
+	return w.awakeAlien(e) && w.alienSpeciesFor(e).Temperament != TemperamentFriendly
 }
 
 // nearestVermin is the nearest rat (or anything else tagged vermin) a
