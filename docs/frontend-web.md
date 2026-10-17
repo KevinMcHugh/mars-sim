@@ -68,7 +68,7 @@ The rest of the TUI's tabs are planned in
   (the tab list both share), `Bar` (a gauge), and one component
   per tab (`InspectPanel`, `FollowChip` (see [follow.md](./follow.md)), `RosterPanel`, `LogPanel`, `NewsPanel`, `JobsPanel`,
   `StoragePanel`, `MarketPanel` with `AccountDetail`, `TradePanel` with `ColonyOrders`, `ZonesPanel`, `DigPanel`, `ChartsPanel`, `PerfPanel`, `ShipsPanel`,
-  `RecruitPanel`, `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `Help` (a (?) that shows an explanation), `LogTicker`, and `FlowControl` (the
+  `RecruitPanel`, `SandboxPanel` (see [sandbox.md](./sandbox.md)), `LorePanel`, `NewGamePanel` with `GameSettings`), `Section` (a foldable heading), `Help` (a (?) that shows an explanation), `LogTicker`, and `FlowControl` (the
   flow-field picker and legend, see [flow-field-view.md](./flow-field-view.md)).
   `format.ts` formats money.
 - [`web/src/ui/charts/`](../web/src/ui/charts/Chart.svelte) — the Charts tab:
@@ -110,7 +110,7 @@ rebuilds the WASM first (`predev`), then serves the game on
 <http://localhost:5173/> and the spike on `/spike/`. The URL fills the
 new-game form: `?width=2000&height=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&alien-species-count=2&sandbox=true`. `npm run build`
 writes a static site to `web/dist/`. `npm run check` type-checks and `npm test`
-runs the wire decoder's, the activity chart's, the ship count's, the Storage tab's and the shared number and time formats' tests. All of these need Go on the path. After a Go
+runs the wire decoder's, the activity chart's, the ship count's, the Storage tab's, the Sandbox tab's species search and the shared number and time formats' tests. All of these need Go on the path. After a Go
 change with the dev server already running, run `npm run wasm` and reload.
 
 **The new-game form.** A cold load starts no game: it opens the **Game**

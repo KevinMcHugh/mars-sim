@@ -29,7 +29,8 @@ the browser's New game form (or `?sandbox=true` in the URL), and the
   `place` command (`hostAPI` 28); [`internal/wire/wire.go`](../internal/wire/wire.go)
   — `Hello.sandbox`, so the page knows a loaded save is a sandbox.
 - [`web/src/ui/SandboxPanel.svelte`](../web/src/ui/SandboxPanel.svelte) — the
-  tab; `armPlace` and `placeAt` in
+  tab, with its species search in [`sandbox.ts`](../web/src/ui/sandbox.ts)
+  (tested by `sandbox.test.mjs`); `armPlace` and `placeAt` in
   [`web/src/game.svelte.ts`](../web/src/game.svelte.ts); the click and the
   hover tint (`showPlacePreview`) in [`web/src/main.ts`](../web/src/main.ts).
 
@@ -53,8 +54,13 @@ and uses the whole pack instead of the second.
 **Placing.** The tab's **Colonist** and **Alien** buttons pick up a one-click
 map tool (`ui.placeTool`), like the Dig tab's dig-down tool. It stays up after
 each click, so a crowd is a few clicks, and Esc or the button puts it down.
-The **Species** picker lists the lore topic's species, in roster order, plus
-*Random*; its index is what the `place` command sends. The tile under the
+The **Species** list holds the lore topic's species, in roster order, plus
+*Random*; a species' roster index is what the `place` command sends. A search
+box narrows it (every word must appear in the label, names, binomial or
+temperament) and three chips, *Friendly*, *Cautious* and *Hostile*, narrow it
+to any of the temperaments switched on (`matchSpecies`). Choosing a species
+picks up the alien tool with it, and Enter in the search box chooses the
+first match. The tile under the
 pointer is tinted green on seen floor with no creature on it and red
 elsewhere, but the engine has the last word. `Place{Kind, At, Species}` is
 refused, with the reason in the log, when:
@@ -87,6 +93,9 @@ the first tick.
   flag gates the command, survives save and load (it is part of the saved
   `Config`), and reaches the page through `Hello` so the tab shows only when
   it applies.
+- **Search, not a dropdown.** A sandbox's roster is the whole species pack,
+  which only grows as Creature Lab adds species, and a `<select>` of every
+  one stopped being usable once it filled the screen.
 - **No counts to choose.** The first version sized the cavern from
   `colonists` and rolled `alien-species-count` species, so the form made you
   pick a non-zero number of colonists for a world that lands none, and pick
