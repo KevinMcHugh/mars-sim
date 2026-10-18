@@ -63,7 +63,9 @@ than a hardcoded list. Each species also gets a scientific name
   behavior ladder ([species-and-behaviors.md](./species-and-behaviors.md));
   [`internal/sim/systems.go`](../internal/sim/systems.go) — `strike`,
   `alienGraze`, and where combat reads a specific alien's assigned
-  species instead of a single world-wide value.
+  species instead of a single world-wide value; also `World.threatens` and
+  `nearestThreat`, which keep colonists from fleeing or fighting a Friendly
+  species.
 - [`internal/sim/director.go`](../internal/sim/director.go) — the
   alien-swarm occurrence's flavor line, named after whichever spawned alien
   came first.
@@ -169,9 +171,10 @@ score, specifically so "never initiates combat" is a real case the code has
 to branch on rather than an incidental zero:
 
 - **Friendly** never fights. Its ladder (`newAlienSpeciesTable`) has no
-  `hunt` rung, so nothing ever looks for prey for it: it grazes cave scum when hungry, else wanders. (A
-  colonist may still flee or fight one on its own initiative; that side of the
-  interaction is explicitly unchanged for now — see Why it is this way.)
+  `hunt` rung, so nothing ever looks for prey for it: it grazes cave scum when hungry, else wanders.
+  Colonists leave it be in turn: it is not a threat to flee or fight, and a
+  guard or an escort does not shoot it (`World.threatens`; see
+  [Colonists and temperament](#colonists-and-temperament)).
 - **Cautious** does not hunt, but reacts once a colonist comes within
   `Config.AlienCautiousRadius`: its `hunt` rung finds prey with the
   radius-bounded `taggedWithin(TagColonist, radius)` instead of
@@ -195,6 +198,29 @@ which keeps this change to the hunter's side. `strike` handles any prey
 RNG), names it with `preyName`, and eats it on a kill: gore, no body, as
 for a colonist. The colonists' perception rules match on a colonist victim,
 so watching an alien eat a rat or another alien moves nobody's mood.
+
+### Colonists and temperament
+
+A colonist reacts only to an alien that `World.threatens`: an awake alien
+(not dormant, not an egg or casing) whose species is not Friendly.
+`nearestThreat` is `nearestAlien` with that filter, and it is what every
+colonist-side combat decision reads: `focusThreat` (flee and fight
+eligibility, and flee's release band), the resting fast path's wake check,
+a guard's and an escort's target search, and the `seesThreat` edge that
+re-arbitrates when a threat comes into or leaves sight. So a colonist —
+armed or not — neither runs from nor shoots a Friendly alien, and a Friendly
+alien standing closer does not hide a Hostile one behind it.
+
+Seeing a Friendly alien is still a sighting: the `visible-alien` percept and
+its `saw-alien` memory fire as for any other, so a strange creature in the
+tunnel is still unsettling. Only the decision to flee or fight is gated.
+
+This is the MVP of issue #223, and it cheats: a colonist reads the species'
+temperament directly rather than learning it. That is the kind of
+mind-reading the cognition design avoids elsewhere (a colonist should act on
+what it can perceive), accepted here as groundwork. Cautious still counts as
+a threat, since it bites a colonist that comes close. See Extending it for
+where this is meant to go.
 
 ### What peaceful species eat: cave scum
 
@@ -586,13 +612,18 @@ word-wrapped to the panel width.
   (now in `newAlienSpeciesTable`, to pick a ladder) makes "never initiates combat" something the compiler and a
   reviewer can see is handled, not something that happens to fall out of
   arithmetic.
-- **Colonist-side behavior is unchanged "for now."** A colonist still
-  treats *any* `Alien` — Friendly included — as a potential threat within
-  `FleeRadius`, and can still flee or fight one. The ask was explicit that
-  this is deliberate scope for this pass: teaching colonists to
-  distinguish a docile species from a hostile one is a real feature (does a
-  colony eventually stop fleeing a species it's learned is harmless?) but a
-  separate one from giving aliens their own temperament in the first place.
+- **Colonists leave Friendly species alone, by knowing rather than
+  learning.** When temperament first landed, colonists treated every alien
+  as a threat, Friendly included: teaching them to tell species apart was
+  left as its own feature. Issue #223 took the first step. A Friendly alien
+  is no longer a threat (`World.threatens`), so nobody flees, fights, or
+  guards against it. Colonists simply know the species' temperament. Making
+  them discover it was the real ask, but filtering the threat search in one
+  place is what that later work plugs into: a learned "this species is
+  harmless" belief replaces the temperament read inside `threatens`, and
+  every caller follows. Cautious stays a threat because it does bite a
+  colonist who comes close; treating it as harmless would walk colonists
+  into its radius.
 - **Cautious's reaction radius is a new, separate config
   (`AlienCautiousRadius`) rather than reusing `FleeRadius` or
   `GoreSightRadius`.** Those two are about what a *colonist* notices; a
@@ -694,11 +725,15 @@ word-wrapped to the panel width.
   than the species midpoint, is the natural next step —
   `mutation.go`'s `scaleBody` is already most of the machinery for "resize
   this entity and its parts by a ratio."
-- **Colonists learning a species' temperament.** Right now a colonist
-  treats every `Alien` as an equal threat regardless of `Temperament`. A
-  colony that stops fleeing a species it has observed being Friendly (or
-  gets more cautious around one it has seen being Hostile) is a real next
-  step, deliberately left out of this pass — see Why it is this way.
+- **Colonists learning a species' temperament.** Today a colonist knows
+  outright that a Friendly species is harmless (`World.threatens` reads
+  `Temperament`). The goal in issue #223: a colonist flees or fights a new
+  species at first and, watching it never attack, stops treating it as a
+  threat (or grows warier of one it has seen be Hostile). Two more pieces
+  are planned with it: how readily a colonist reaches for violence should
+  depend on its traits and mood, and some species should fight only once
+  attacked. All three replace the temperament read in `threatens` with
+  something a colonist perceives.
 - **A fuller codex.** The TUI's lore tab (see
   [frontend-tui.md](./frontend-tui.md)) already reaches `Description()` and
   `RosterLabel()` for every rolled species, plus world facts (size, how much

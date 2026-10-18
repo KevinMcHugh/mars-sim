@@ -54,9 +54,9 @@ type AlienTemperament uint8
 
 const (
 	// TemperamentFriendly never initiates combat: it neither hunts nor
-	// reacts to a nearby colonist, only wanders. (Colonists may still fight
-	// or flee one on their own initiative -- that side of the interaction
-	// is unchanged for now; see docs/lore.md.)
+	// reacts to a nearby colonist, only wanders. Colonists leave it be in
+	// turn: it is no threat to flee, fight, or guard against (World.threatens;
+	// see docs/lore.md).
 	TemperamentFriendly AlienTemperament = iota
 	// TemperamentCautious does not hunt, but bites back once a colonist
 	// comes within Config.AlienCautiousRadius.
