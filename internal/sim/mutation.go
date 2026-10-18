@@ -284,7 +284,7 @@ func withArticle(noun string) string {
 		return noun
 	}
 	switch noun[0] {
-	case 'a', 'e', 'i', 'o', 'u':
+	case 'a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U': // a species is capitalized: "an ET"
 		return "an " + noun
 	}
 	return "a " + noun

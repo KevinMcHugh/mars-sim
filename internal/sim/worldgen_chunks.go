@@ -231,7 +231,7 @@ func newWorldGen(cfg Config, level Level) *worldGen {
 		return newWorldGenLanding(cfg, level, Point{1, 1, level}, Point{0, 0, level})
 	}
 	center := Point{cfg.Width / 2, cfg.Height / 2, level}
-	rx, ry := caveRadii(cfg.Width, cfg.Height, cfg.StartColonists, shipTilesPerColonist(cfg))
+	rx, ry := landingRadii(cfg)
 	lo := center.Add(-rx-cavernLandingClearance, -ry-cavernLandingClearance)
 	hi := center.Add(rx+cavernLandingClearance, ry+cavernLandingClearance)
 	return newWorldGenLanding(cfg, level, lo, hi)
