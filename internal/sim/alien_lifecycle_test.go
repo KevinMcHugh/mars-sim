@@ -537,3 +537,43 @@ func TestQueenNestsWhereSheGrewUp(t *testing.T) {
 	}
 	t.Fatal("no seed grew a young form into the laying caste")
 }
+
+// New species have arms and legs in pairs, and so does every mobile form of
+// their lives; an odd limb always drew badly.
+func TestLimbsComeInPairs(t *testing.T) {
+	cfg := lifecycleConfig(4, true)
+	cfg.AlienSpeciesCount = 10
+	counts := map[int]int{}
+	for seed := int64(1); seed <= 60; seed++ {
+		cfg.Seed = seed
+		for _, sp := range rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg) {
+			counts[sp.Limbs]++
+			if sp.Arms%2 != 0 || sp.Legs()%2 != 0 || sp.Limbs < 2 {
+				t.Errorf("seed %d %s: %d arms and %d legs", seed, sp.Singular, sp.Arms, sp.Legs())
+			}
+			for _, f := range sp.LifeForms() {
+				if f.Arms%2 != 0 || (f.Limbs-f.Arms)%2 != 0 {
+					t.Errorf("seed %d %s %s: %d arms and %d legs", seed, sp.Singular, f.Name, f.Arms, f.Limbs-f.Arms)
+				}
+			}
+		}
+	}
+	for _, n := range []int{2, 4, 6, 8} {
+		if counts[n] == 0 {
+			t.Errorf("no species rolled %d limbs: %v", n, counts)
+		}
+	}
+}
+
+// pairedLimbs rounds each of arms and legs down to a pair, never below two
+// limbs for a roll of two or more.
+func TestPairedLimbs(t *testing.T) {
+	for limbs := 2; limbs <= 8; limbs++ {
+		for arms := 0; arms <= limbs; arms++ {
+			l, a := pairedLimbs(limbs, arms)
+			if a%2 != 0 || (l-a)%2 != 0 || l < 2 || l > limbs || a > arms || limbs-l > 2 {
+				t.Errorf("pairedLimbs(%d, %d) = %d limbs, %d arms", limbs, arms, l, a)
+			}
+		}
+	}
+}

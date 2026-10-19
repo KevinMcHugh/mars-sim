@@ -202,6 +202,10 @@ roots:
   - { form: tetrops,  meaning: "four eyes",  gender: m, when: { eyes: { eq: 4 } } }
   - { form: pentops,  meaning: "five eyes",  gender: m, when: { eyes: { eq: 5 } } }
   - { form: hexops,   meaning: "six eyes",   gender: m, when: { eyes: { eq: 6 } } }
+  # Legs now always come in pairs (lore.go's pairedLimbs), so the odd ones
+  # (monopus, tripus, pentapus, heptapus) are never drawn for a new species.
+  # They stay so names rolled before that, in saves and in Creature Lab, can
+  # still be taken apart by the lore tab's (?).
   - { form: monopus,  meaning: "one foot",   gender: m, when: { legs: { eq: 1 } } }   # -pus, foot
   - { form: dipus,    meaning: "two feet",   gender: m, when: { legs: { eq: 2 } } }
   - { form: tripus,   meaning: "three feet", gender: m, when: { legs: { eq: 3 } } }

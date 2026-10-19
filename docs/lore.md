@@ -90,6 +90,12 @@ pool — see below), a `Temperament`, a set of `AttackModes`, and three precompu
 `BiteDamage`, `BiteRest`, `Slowness` (named for the bite, but they are the
 baseline damage and pace of every attack mode).
 
+Arms and legs always come in **pairs**: 2 to 8 limbs, an even number of
+arms (0 to 8) and an even number of legs (0 to 8). `rollAlienSpecies` still
+rolls the old way (2–8 limbs, 0–all of them arms) and `pairedLimbs` rounds
+each of arms and legs down to even, so a 3-limbed roll with 1 arm becomes 2
+legs, a 5-limbed roll with 2 arms becomes 2 arms and 2 legs.
+
 `Config.AlienSpeciesCount` (default 1) says how many species a world rolls;
 `rollAlienSpeciesRoster` rolls that many (clamped to at least 1) into
 `World.alienSpecies`. Every `Alien` entity is assigned one at spawn time —
@@ -587,6 +593,21 @@ damage/pace, plus the color pattern) followed by `Description()`'s narrative par
 word-wrapped to the panel width.
 
 ## Why it is this way
+
+- **Paired limbs by rounding, not by a new roll.** Odd arm and leg counts
+  (a three-legged thing, one arm) always drew badly as sprites, so new
+  species no longer get them. Drawing from an even-only range would have
+  been tidier, but `rollAlienSpecies` draws everything from one lore stream
+  in order: a different limb draw would have shifted every later species'
+  temperament, hide, color and name. Rounding the old draws keeps the
+  stream where it was, so a seed's roster only changes in limb counts (and
+  in whatever names or scientific names those counts decide). The cost is a
+  lean toward fewer limbs: 2 and 4 come up more often than 8.
+  Species rolled before this keep their odd counts: a save stores its
+  roster and Creature Lab stores each species whole, and nothing checks
+  for pairs, so they load and draw as before. The odd-leg word parts
+  (*Tripus*, *Pentapus*, ...) stay in `alien-taxonomy.yaml` for them, so
+  their names can still be explained; new species never draw them.
 
 - **`sim` carries `Emoji` as an opaque string, never a "glyph."** The ask
   was explicit that `sim` shouldn't know anything about emoji, and it still

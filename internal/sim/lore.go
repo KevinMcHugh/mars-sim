@@ -484,6 +484,20 @@ type AlienSpecies struct {
 	FormCount int
 }
 
+// pairedLimbs rounds a rolled limb count and arm count down to an even
+// number of arms and an even number of legs: odd limbs always drew badly (a
+// three-legged thing reads as a mistake, not an alien). It rounds the rolled
+// values rather than drawing different ones, so the lore stream makes the
+// same draws as before and nothing else a seed rolls moves. Never below 2:
+// the roll is at least 2 limbs, and rounding loses at most one of each.
+// Species rolled before this (in a save, or stored by Creature Lab) keep the
+// odd counts they were stored with.
+func pairedLimbs(limbs, arms int) (int, int) {
+	arms &^= 1
+	legs := (limbs - arms) &^ 1
+	return arms + legs, arms
+}
+
 // Legs is how many of a species' Limbs are legs rather than arms -- derived,
 // not stored, so Arms is the one source of truth for the split.
 func (sp AlienSpecies) Legs() int { return sp.Limbs - sp.Arms }
@@ -536,6 +550,7 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry, used m
 	}
 	sp.Arms = rng.IntN(sp.Limbs + 1) // 0..Limbs; the rest are legs -- both
 	// "all legs" (Arms == 0) and "all arms" (Arms == Limbs) are valid rolls.
+	sp.Limbs, sp.Arms = pairedLimbs(sp.Limbs, sp.Arms)
 	sp.Tail = rng.IntN(2) == 0
 	sp.Pattern = rollPattern(rng)
 	// Before the name, so a name (and a scientific name) can ask for wings.

@@ -54,7 +54,8 @@ each form of a life is its own species value with its own behavior ladder.
    (`early` or `middle`), never one the line already used. A middle stage is a
    casing (cocoon, pupa, chrysalis, husk; or an egg) 35% of the time when the
    stage before it was not. A mobile young form has part of the adult's body:
-   fewer limbs, a tail only past halfway through the life, no wings yet, and
+   fewer limbs, still in pairs (legs round up to a pair and arms down, so a
+   young form walks before it grasps), a tail only past halfway through the life, no wings yet, and
    `scaledAnatomy`'s lesser features. A casing shows nothing.
 5. **The adult, or its castes.** 30% of multi-stage lines end in castes: a
    caste set that fits the family (queen/worker/drone, bull/betty, jack/jill,
