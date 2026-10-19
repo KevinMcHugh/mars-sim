@@ -588,6 +588,7 @@ func (w *World) jobCraft(e *Entity) {
 	for _, o := range outputs {
 		out.credit(e.craftFor, o.Kind, o.Count)
 	}
+	w.noteCooked(r, outputs)
 	w.practise(e, r.Skill, r.Ticks)
 	if r.Facility == Scumhouse {
 		w.emitDone(e, ActionCook, NounMeal, "Worked the scumhouse: %s.", r.Name)

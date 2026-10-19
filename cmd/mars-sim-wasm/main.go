@@ -411,6 +411,8 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.CancelDefense{ID: c.ID}, nil
 	case "emt-detail":
 		return sim.SetEMTDetail{Detail: c.Qty}, nil
+	case "battery-price":
+		return sim.SetBatteryPrice{Dollars: c.Qty}, nil
 	case "power-policy":
 		var p sim.PowerPolicy
 		if err := p.Set(c.Kind); err != nil {

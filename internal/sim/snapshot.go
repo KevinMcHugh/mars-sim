@@ -219,6 +219,10 @@ type PowerView struct {
 	Reactors                   []ReactorView // by position
 	Charter                    CharterView
 	ColonyBatteries            int // the colony's batteries, everywhere
+	// Price is the battery price in force and PriceKind which one it is: the
+	// tariff, the colony's bid, or the charter's (which the player can't set).
+	Price     Money
+	PriceKind BatteryPriceKind
 }
 
 // ReactorView is one reactor: who owns it, what it would change hands for,

@@ -5,7 +5,7 @@
   // out a cooldown after the last; the log says why one was refused. The data
   // is the market topic's colony desk power section (internal/wire/boards.go,
   // PowerDesk). See docs/power.md.
-  import { centerOn, setPowerPolicy } from '../game.svelte';
+  import { centerOn, setBatteryPrice, setPowerPolicy } from '../game.svelte';
   import { money } from './format';
   import Section from './Section.svelte';
 
@@ -17,9 +17,23 @@
     reactors: { x: number; y: number; owner: string; price: number; forSale: boolean; batteries: number }[];
     charter?: { name: string; wallet: number; sold: number; royalties: number; remitted: number };
     batteries: number;
+    price: number;
+    priceKind: 'tariff' | 'bid' | 'charter';
   }
 
   let { power }: { power: Power } = $props();
+  // What the battery price means under each policy, and whether it is the
+  // player's to set (docs/power.md).
+  const priceLabel = $derived(
+    power.priceKind === 'bid' ? 'The colony pays' : power.priceKind === 'charter' ? 'The charter company charges' : 'Tariff',
+  );
+  const priceHelp = $derived(
+    power.priceKind === 'bid'
+      ? 'what the colony bids for a battery at its stoves'
+      : power.priceKind === 'charter'
+        ? 'its own price; take the charter back to set one'
+        : "what a colony battery is worth: part of every meal's cost",
+  );
   let choice = $state('');
   const picked = $derived(choice && choice !== power.policy ? choice : '');
 
@@ -53,6 +67,14 @@
     <p class="muted">Power is off in this game: stoves need no batteries.</p>
   {:else}
     <p>{label[power.policy] ?? power.policy} · the colony holds {power.batteries} batteries</p>
+    <p class="price">
+      <b>{priceLabel}</b> {money(power.price)} a battery
+      {#if power.priceKind !== 'charter'}
+        <button type="button" disabled={power.price <= 0} onclick={() => setBatteryPrice(power.price - 1)} aria-label="A dollar less">−</button>
+        <button type="button" onclick={() => setBatteryPrice(power.price + 1)} aria-label="A dollar more">+</button>
+      {/if}
+      <span class="muted">{priceHelp}</span>
+    </p>
     {#if power.charter}
       <p class="muted">{power.charter.name}: sold {power.charter.sold} · paid the colony {money(power.charter.royalties)} · sent home {money(power.charter.remitted)} · holds {money(power.charter.wallet)}</p>
     {/if}
@@ -88,6 +110,7 @@
   ul { margin: 0.2em 0; padding-left: 1.2em; }
   .muted { color: var(--muted); }
   .change { display: flex; gap: 0.4em; margin-top: 0.3em; }
+  .price button { padding: 0 0.5em; }
   select { flex: 1; min-width: 0; }
   .link { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
 </style>

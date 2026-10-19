@@ -463,6 +463,9 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case SetPowerPolicy:
 		e.world.setPowerPolicy(c.Policy)
 		e.requestPublish()
+	case SetBatteryPrice:
+		e.world.setBatteryPrice(c.Dollars)
+		e.requestPublish()
 	case ResumeColonyOrders:
 		e.world.resumeColonyOrders(c)
 		e.requestPublish()

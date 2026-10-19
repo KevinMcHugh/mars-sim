@@ -440,7 +440,7 @@ func (w *World) batteryBidPrice() Money {
 	if w.powerPolicy == PolicyCharter {
 		return Money(w.cfg.CharterPrice)
 	}
-	return Money(w.cfg.PriceBattery)
+	return w.batteryBid
 }
 
 // colonistsBuildReactors reports whether a colonist may commission a reactor
@@ -1134,10 +1134,113 @@ func (w *World) powerView() PowerView {
 			Remitted: w.charter.remitted, Sold: w.charter.sold}
 	}
 	v.ColonyBatteries = w.colonyBatteries()
+	v.Price, v.PriceKind = w.batteryPrice()
 	return v
 }
 
 // PowerPolicies is every policy, by name, in order: what a frontend offers.
 func PowerPolicies() []string {
 	return append([]string(nil), powerPolicyNames[:]...)
+}
+
+// ---- The battery price (P6) -------------------------------------------------------
+
+// SetBatteryPrice sets the battery price the player controls under the
+// current policy (BatteryPriceKind), in dollars.
+type SetBatteryPrice struct{ Dollars int }
+
+func (SetBatteryPrice) isCommand() {}
+
+// BatteryPriceKind says which battery price the player sets under a policy.
+type BatteryPriceKind uint8
+
+const (
+	// PriceTariff is what a colony battery is worth (the monopoly's): the
+	// battery's share of a meal's cost floor.
+	PriceTariff BatteryPriceKind = iota
+	// PriceColonyBid is what the colony bids for a battery at its stoves
+	// (the market's and the public option's).
+	PriceColonyBid
+	// PriceCharter is the charter company's own price: the player reads it
+	// and can't set it (charter-price), short of taking the charter back.
+	PriceCharter
+)
+
+func (k BatteryPriceKind) String() string {
+	switch k {
+	case PriceColonyBid:
+		return "bid"
+	case PriceCharter:
+		return "charter"
+	}
+	return "tariff"
+}
+
+// maxBatteryPrice bounds the price a player may set: well past what the cold
+// recipe's ceiling makes worth paying.
+const maxBatteryPrice = 200
+
+// batteryPrice is the battery price in force under the current policy, and
+// which kind it is.
+func (w *World) batteryPrice() (Money, BatteryPriceKind) {
+	switch w.powerPolicy {
+	case PolicyMarket, PolicyPublicOption:
+		return w.batteryBid, PriceColonyBid
+	case PolicyCharter:
+		return Money(w.cfg.CharterPrice), PriceCharter
+	}
+	return w.powerTariff, PriceTariff
+}
+
+// setBatteryPrice sets the player's battery price under the current policy
+// and reports whether it changed. A new bid price withdraws the colony's
+// standing battery bids, so the next upkeep posts them at it; the charter's
+// price isn't the player's to set.
+func (w *World) setBatteryPrice(dollars int) bool {
+	if !w.cfg.Power || dollars < 0 || dollars > maxBatteryPrice {
+		return false
+	}
+	price := Money(dollars)
+	switch _, kind := w.batteryPrice(); kind {
+	case PriceCharter:
+		w.logEvent(LogNote, fmt.Sprintf("%s sets its own price for power.", w.charterName()))
+		return false
+	case PriceColonyBid:
+		if price == w.batteryBid {
+			return false
+		}
+		w.batteryBid = price
+		for _, o := range w.sortedOrders(func(o *Order) bool {
+			return o.Actor == Community && o.Side == Bid && o.Item == Battery && !o.manual
+		}) {
+			w.cancel(o)
+		}
+		w.logEvent(LogNote, fmt.Sprintf("The colony will pay $%d a battery at its stoves.", dollars))
+	default:
+		if price == w.powerTariff {
+			return false
+		}
+		w.powerTariff = price
+		w.logEvent(LogNote, fmt.Sprintf("The colony's power tariff is now $%d a battery.", dollars))
+	}
+	return true
+}
+
+// noteCooked counts a recipe worked, for the charts: batteries charged, and
+// food cooked with power and without.
+func (w *World) noteCooked(r Recipe, outputs []ItemStack) {
+	for _, o := range outputs {
+		if o.Kind == Battery {
+			w.batteriesCharged += int64(o.Count)
+		}
+	}
+	if r.Facility != Scumhouse || !recipeMakesMeals(r) {
+		return
+	}
+	switch {
+	case r.Cold:
+		w.cookedCold++
+	case w.cfg.Power:
+		w.cookedPowered++
+	}
 }

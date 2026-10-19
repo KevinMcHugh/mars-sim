@@ -139,3 +139,59 @@ func TestSetPowerPolicyIsACommand(t *testing.T) {
 		t.Fatalf("policy %v after the command, want market", e.world.powerPolicy)
 	}
 }
+
+// The battery price the player sets depends on the policy: the monopoly's
+// tariff (a battery's value), the colony's bid at its stoves under the
+// market, and nothing under the charter, whose price is the company's.
+func TestTheBatteryPriceFollowsThePolicy(t *testing.T) {
+	w, _, _ := policyWorld(t, PolicyMonopoly)
+	if !w.setBatteryPrice(9) || w.valueOf(Battery) != 9 {
+		t.Fatalf("tariff 9: a battery is worth %v", w.valueOf(Battery))
+	}
+	if w.setBatteryPrice(-1) || w.setBatteryPrice(maxBatteryPrice+1) {
+		t.Fatal("an out-of-range price was accepted")
+	}
+
+	m, _, k := policyWorld(t, PolicyMarket)
+	m.refreshColonyBatteryBids()
+	if b, ok := m.bestBid(Battery, k); !ok || b.Price != Money(m.cfg.PriceBattery) {
+		t.Fatalf("battery bid %+v, want one at %v", b, m.cfg.PriceBattery)
+	}
+	if !m.setBatteryPrice(7) {
+		t.Fatal("the bid price did not change")
+	}
+	if n := m.openQty(Bid, Battery, k, Community); n != 0 {
+		t.Fatalf("%d batteries still bid for at the old price", n)
+	}
+	m.refreshColonyBatteryBids()
+	if b, ok := m.bestBid(Battery, k); !ok || b.Price != 7 {
+		t.Fatalf("battery bid %+v after the change, want one at $7", b)
+	}
+	assertMoneyConserved(t, m)
+
+	c, _, _ := charterWorld(t)
+	if c.setBatteryPrice(1) {
+		t.Fatal("the player set the charter company's price")
+	}
+}
+
+// The power metrics count what the reactors and stoves did.
+func TestPowerIsCharted(t *testing.T) {
+	w, c := poweredKitchen(t, ItemStack{CaveScum, 4}, ItemStack{Battery, 1})
+	cookOnce(w) // powered, then cold for the second meal
+	for i := 0; i < 3 && c.held(Community, CaveScum) > 0; i++ {
+		cookOnce(w)
+	}
+	if w.cookedPowered != 1 || w.cookedCold != 1 {
+		t.Fatalf("cooked %d powered and %d cold, want 1 and 1", w.cookedPowered, w.cookedCold)
+	}
+	keys := map[string]bool{}
+	for _, d := range MetricDefs() {
+		keys[d.Key] = true
+	}
+	for _, k := range []string{"colony-batteries", "battery-price", "batteries-charged", "cooked-powered", "cooked-cold", "charter-royalties", "charter-remitted"} {
+		if !keys[k] {
+			t.Errorf("no %q metric", k)
+		}
+	}
+}

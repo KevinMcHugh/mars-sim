@@ -214,6 +214,12 @@ type PowerDesk struct {
 	Reactors      []PowerReactor `json:"reactors"`
 	Charter       *PowerCharter  `json:"charter,omitempty"`
 	Batteries     int            `json:"batteries"` // the colony's
+	// Price is the battery price in force, in dollars, and PriceKind which:
+	// "tariff" (the monopoly's), "bid" (what the colony pays under the market
+	// and the public option), or "charter" (the company's, not the player's
+	// to set).
+	Price     int64  `json:"price"`
+	PriceKind string `json:"priceKind"`
 }
 
 // PowerReactor is one reactor: where, whose, what it would change hands for,
@@ -649,7 +655,7 @@ func digHas(p sim.ProjectView, pos sim.Point) bool {
 func powerDesk(s *sim.Snapshot) PowerDesk {
 	pv := s.Economy.Power
 	d := PowerDesk{On: pv.On, Policy: pv.Policy.String(), Policies: sim.PowerPolicies(), Reactors: []PowerReactor{},
-		Batteries: pv.ColonyBatteries}
+		Batteries: pv.ColonyBatteries, Price: int64(pv.Price), PriceKind: pv.PriceKind.String()}
 	if pv.TicksPerDay > 0 && pv.CooldownTicks > 0 {
 		d.CooldownHours = (pv.CooldownTicks*24 + pv.TicksPerDay - 1) / pv.TicksPerDay
 	}

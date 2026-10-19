@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { describeShips, SHIP_CAPACITY, shipLoads } from './settings.ts';
+import { describeShips, POWER_POLICIES, SHIP_CAPACITY, shipLoads } from './settings.ts';
 
 test('founders split into as few ships as capacity allows, evenly', () => {
   assert.deepEqual(shipLoads(6), [6]);
@@ -32,4 +32,12 @@ test('SHIP_CAPACITY is the engine default', () => {
   const m = src.match(/^\s*ShipCapacity:\s*(\d+),/m);
   assert.ok(m, 'ShipCapacity not found in DefaultConfig');
   assert.equal(SHIP_CAPACITY, Number(m[1]));
+});
+
+test('POWER_POLICIES are the engine\'s, in its order', () => {
+  const src = readFileSync(new URL('../../internal/sim/power.go', import.meta.url), 'utf8');
+  const m = src.match(/powerPolicyNames = \[numPowerPolicies\]string\{([^}]*)\}/);
+  assert.ok(m, 'powerPolicyNames not found in power.go');
+  const names = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+  assert.deepEqual([...POWER_POLICIES], names);
 });

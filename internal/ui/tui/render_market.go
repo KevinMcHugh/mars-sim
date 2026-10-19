@@ -65,7 +65,7 @@ func (m Model) marketSelection(accounts []marketAccount) int {
 // depot ledgers land here as they are built. See docs/money.md.
 func (m Model) renderMarket() string {
 	header := m.renderHeader()
-	footer := m.footerLine("MARKET  ↑↓/jk select account  tab/esc map  s spawn  b build  space pause  q quit")
+	footer := m.footerLine("MARKET  ↑↓/jk select account  p power policy  [ ] battery price  tab/esc map  s spawn  b build  space pause  q quit")
 	rows := m.rosterRows()
 
 	accounts := m.marketAccounts()
@@ -170,8 +170,15 @@ func (m Model) renderMarketDetail(a marketAccount, rows, width int) string {
 	}
 
 	if a.colonist == nil {
-		// The treasury's page is the market's: every book and the latest
-		// trades.
+		// The treasury's page is the market's: the colony's power, every
+		// book and the latest trades.
+		b.WriteString("\n")
+		b.WriteString(labelStyle.Render("POWER"))
+		b.WriteByte('\n')
+		for _, line := range m.powerLines() {
+			b.WriteString(cells.Truncate(line, inner))
+			b.WriteByte('\n')
+		}
 		b.WriteString("\n")
 		b.WriteString(labelStyle.Render("BOOKS"))
 		b.WriteByte('\n')

@@ -809,6 +809,14 @@ func (m Model) handleMarketKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		sel++
 	case "home", "g":
 		sel = 0
+	case "p":
+		// Reactors may change hands at once (docs/power.md); the log says
+		// what happened, or why it was refused.
+		m.eng.Send(sim.SetPowerPolicy{Policy: nextPolicy(m.latest.Economy.Power.Policy)})
+	case "[":
+		m.eng.Send(sim.SetBatteryPrice{Dollars: int(m.latest.Economy.Power.Price) - 1})
+	case "]":
+		m.eng.Send(sim.SetBatteryPrice{Dollars: int(m.latest.Economy.Power.Price) + 1})
 	}
 	sel = clamp(sel, 0, len(accounts)-1)
 	m.marketSelected, m.marketOwner = sel, accounts[sel].owner
