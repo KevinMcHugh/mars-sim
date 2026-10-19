@@ -577,6 +577,20 @@ export function setDefenseDetail(id: number, qty: number): void {
 }
 
 /** Change how many colonists the colony keeps on call as EMTs. */
+// setPowerPolicy changes who runs the colony's reactors (docs/power.md):
+// monopoly, market, public-option or charter. Reactors change hands at once,
+// all or nothing; the log says why a change was refused.
+export function setPowerPolicy(kind: string): void {
+  ctl?.command({ type: 'power-policy', kind });
+}
+
+// setBatteryPrice sets the battery price the policy gives the player: the
+// monopoly's tariff, or what the colony bids at its stoves under the market
+// and the public option. The charter's price is the company's.
+export function setBatteryPrice(dollars: number): void {
+  ctl?.command({ type: 'battery-price', qty: dollars });
+}
+
 export function setEMTDetail(qty: number): void {
   ctl?.command({ type: 'emt-detail', qty });
 }

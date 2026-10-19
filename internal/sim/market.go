@@ -283,6 +283,7 @@ func (w *World) settle(b *book, c *StorageContainer, bid, ask *Order, n int, pri
 	w.tradedValue[ask.Item] += int64(n) * int64(price)
 	w.tradedValue[ItemNone] += int64(n) * int64(price)
 	w.recordPrice(ask.Item, price)
+	w.chargeRoyalty(ask.Actor, ask.Item, n, price)
 	w.trades = append(w.trades, Trade{Tick: w.tick, Item: ask.Item, Depot: ask.Depot, Qty: n,
 		Price: price, Buyer: bid.Actor, Seller: ask.Actor})
 	if over := len(w.trades) - maxTrades; over > 0 {
@@ -475,6 +476,9 @@ func (w *World) runMarket() {
 	w.refreshColonyBatteryBids()
 	w.refreshOwnerReactorBids()
 	w.notePowerShortage()
+	w.grantCharter()
+	w.refreshCharterSales()
+	w.remitCharterProfit()
 	w.refreshColonyMealAsks()
 }
 

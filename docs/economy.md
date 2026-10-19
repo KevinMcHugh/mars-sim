@@ -65,7 +65,7 @@ re-open them without a reason the conversation did not have.
 
 | Topic | Decision |
 | --- | --- |
-| Owners | Nobody (abandoned), the community, or an individual. Organizations are **not defined**; leave a commented-out `// TODO: OwnerOrganization` where the enum would grow. |
+| Owners | Nobody (abandoned), the community, or an individual. Organizations are **not defined**; leave a commented-out `// TODO: OwnerOrganization` where the enum would grow. | *Since power P4 there is one organization: `OwnerCorporation`, the power charter's company ([power.md](./power.md)).*
 | Money | "Dollars". No physical presence, no inventory slot; every exchange is a digital transfer. |
 | Money supply | Fixed for now: a **founding grant** to the treasury plus each colonist's arrival purse. A wealth levy returns idle money to the treasury (see [money.md](./money.md)). We accept that a fixed supply is deflationary and pushes toward conservative behavior; revisit when it shows up. |
 | Arrivals | Every colonist arrives in a crash pod — at worldgen, from the spawn command, and from a new director occurrence. There is no other way in. |

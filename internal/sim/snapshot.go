@@ -203,6 +203,44 @@ type EconomyView struct {
 	Plans      []PlanView
 	ChainDepth int
 	Starved    int
+	// Power is who runs the reactors, and what the player needs to change
+	// it (see docs/power.md).
+	Power PowerView
+}
+
+// PowerView is the colony's power policy and its reactors, for the order
+// desk.
+type PowerView struct {
+	On     bool        // power is on in this game
+	Policy PowerPolicy // the policy now
+	// CooldownTicks is how long until the policy may change again (0: now);
+	// TicksPerDay turns it into hours.
+	CooldownTicks, TicksPerDay int
+	Reactors                   []ReactorView // by position
+	Charter                    CharterView
+	ColonyBatteries            int // the colony's batteries, everywhere
+	// Price is the battery price in force and PriceKind which one it is: the
+	// tariff, the colony's bid, or the charter's (which the player can't set).
+	Price     Money
+	PriceKind BatteryPriceKind
+}
+
+// ReactorView is one reactor: who owns it, what it would change hands for,
+// whether the colony is selling it, and its owner's batteries there.
+type ReactorView struct {
+	Pos       Point
+	Owner     Owner
+	Price     Money
+	ForSale   bool
+	Batteries int
+}
+
+// CharterView is the power charter, when one is granted.
+type CharterView struct {
+	Granted                     bool
+	Name                        string
+	Wallet, Royalties, Remitted Money
+	Sold                        int
 }
 
 // PriceView is one good's value: its smoothed trade price, or its reference
@@ -286,6 +324,7 @@ func (w *World) economyView() EconomyView {
 	}
 	v.Silo, v.HasSilo = w.marketDepot()
 	v.Suspended = w.suspendedOrders()
+	v.Power = w.powerView()
 	v.Wide = w.wideOrders()
 	v.DigWage, v.DigMax = w.wageFor(Floor), maxExcavationTiles
 	for _, o := range w.sortedWork(nil) {

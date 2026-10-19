@@ -1199,7 +1199,7 @@ func (w *World) assignWorkJob(e *Entity) {
 	// needed for food: a stove without power still cooks, cold, and an
 	// operator taken off scraping and cleaning starved colonies that a slow
 	// stove never did (see docs/power.md).
-	if w.batteriesWanted() && w.tryAssignReactor(e) {
+	if w.operatorWanted() && w.tryAssignReactor(e) {
 		return
 	}
 	// A reactor of its own, stocked: work it, as the colony's operator would.
@@ -1674,7 +1674,7 @@ func (w *World) jobBuild(e *Entity) {
 	if t := e.task; t != nil {
 		// A commission's fixtures are its commissioner's; the colony's
 		// stay communal, as SetTerrain made them.
-		if p := t.proj; p != nil && p.issuer.Kind == OwnerColonist && isFixtureTerrain(e.BuildKind) {
+		if p := t.proj; p != nil && (p.issuer.Kind == OwnerColonist || p.issuer.Kind == OwnerCorporation) && isFixtureTerrain(e.BuildKind) {
 			access, price := w.fixtureAccess(p, e.BuildKind)
 			w.setFixtureOwner(e.Target, p.issuer, access)
 			w.setFixturePrice(e.Target, price)

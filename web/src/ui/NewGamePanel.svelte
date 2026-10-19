@@ -14,7 +14,7 @@
   import GameSettings from './GameSettings.svelte';
   import Help from './Help.svelte';
   import Section from './Section.svelte';
-  import { describeShips, initialSettings, shipLoads } from '../settings';
+  import { describeShips, initialSettings, POWER_POLICIES, shipLoads } from '../settings';
   import type { Settings } from '../sim/client';
 
   const init = initialSettings();
@@ -36,6 +36,15 @@
   // hole and ladder. On: the colony may pick, and digs stairs down on its
   // own (docs/siting.md).
   let autoSiting = $state(init['siting-auto'] === true);
+  // Who runs the colony's reactors (docs/power.md); the Trade tab can change
+  // it during the game.
+  let policy = $state(String(init['power-policy']));
+  const policyLabel: Record<string, string> = {
+    monopoly: 'Monopoly: the colony',
+    market: 'Market: colonists who can afford one',
+    'public-option': 'Public option: a market, and a colony reactor of last resort',
+    charter: 'Charter: one corporation from back home',
+  };
   // The founders' ships, which the player lands one by one after Start
   // (docs/ships.md).
   let saveHelp = $state(false);
@@ -43,7 +52,7 @@
 
   function start(e: SubmitEvent) {
     e.preventDefault();
-    const s: Settings = { width, height, colonists, 'alien-species-count': Math.max(1, species || 1), 'fog-of-war': fog, 'zoning-auto': autoZoning, 'siting-auto': autoSiting, 'deepest-level': Math.max(1, deepest || 1) };
+    const s: Settings = { width, height, colonists, 'alien-species-count': Math.max(1, species || 1), 'fog-of-war': fog, 'zoning-auto': autoZoning, 'siting-auto': autoSiting, 'deepest-level': Math.max(1, deepest || 1), 'power-policy': policy };
     if (seed !== null && Number.isFinite(seed)) s.seed = seed;
     newGame(s);
   }
@@ -84,6 +93,7 @@
           <label class="check"><input type="checkbox" bind:checked={fog} /> Fog of war</label>
           <label class="check"><input type="checkbox" bind:checked={autoZoning} /> Colonists zone for themselves</label>
           <label class="check" title="Colonists may choose where stairs, shafts, holes and ladders go, and dig stairs down on their own when they run out of rock"><input type="checkbox" bind:checked={autoSiting} /> Colonists choose where to dig down</label>
+          <label title="Who builds and runs the reactors that charge the colony's batteries; the Trade tab can change it during the game">Power <select bind:value={policy}>{#each POWER_POLICIES as p (p)}<option value={p}>{policyLabel[p]}</option>{/each}</select></label>
         </div>
       </Section>
       <button type="submit">Start</button>

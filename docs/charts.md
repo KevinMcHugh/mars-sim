@@ -57,6 +57,11 @@ each living colonist, `PerFixture`: each kind of fixture,
 A Total's amount over any span is the difference between the readings at its
 ends. (The Go constant is `Gauge`, not `Level`, because `Level` is a depth
 in the world; see [layers.md](./layers.md). The wire still says `"level"`.)
+The **Power** group (`colony-batteries`, `battery-price`, `batteries-charged`,
+`cooked-powered`, `cooked-cold`, `charter-royalties`, `charter-remitted`)
+reads nothing when power is off, and the charter's two read nothing unless a
+charter has been granted ([power.md](./power.md)).
+
 The sim never chooses buckets: the page sums an hour, a half-day or a
 week out of the same series, and the running total itself answers "total
 bids over time".
