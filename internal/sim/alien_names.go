@@ -73,8 +73,8 @@ type nameCondition struct {
 	Eyes  *intCondition `yaml:"eyes,omitempty"`
 
 	// Graded features (alien_anatomy.go): counts for horns and antler tines,
-	// grades 1-3 for spines, shell and claws, 1-2 for a stinger, and what a
-	// tail ends in. apex is the rare deadly species (alien_weapons.go). A
+	// grades 1-3 for spines, shell, claws and tusks, 1-2 for a stinger, what
+	// a tail ends in, and the mouthpart. apex is the rare deadly species (alien_weapons.go). A
 	// name gated on any of these is a feature name: the first naming pass
 	// never sees one match (a species has no features yet when it is named),
 	// and the feature-naming pass may rename a species to it (see
@@ -86,6 +86,8 @@ type nameCondition struct {
 	Claws   *intCondition `yaml:"claws,omitempty"`
 	Stinger *intCondition `yaml:"stinger,omitempty"`
 	TailTip string        `yaml:"tail-tip,omitempty"` // plain | club | spiked-club | stinger
+	Tusks   *intCondition `yaml:"tusks,omitempty"`
+	Mouth   string        `yaml:"mouth,omitempty"` // plain | beak | bill | mandibles | proboscis
 	Apex    *bool         `yaml:"apex,omitempty"`
 }
 
@@ -113,7 +115,7 @@ func (c nameCondition) isZero() bool {
 // graded feature or apex.
 func (c nameCondition) featureLeaf() bool {
 	return c.Horns != nil || c.Antlers != nil || c.Spines != nil || c.Shell != nil ||
-		c.Claws != nil || c.Stinger != nil || c.TailTip != "" || c.Apex != nil
+		c.Claws != nil || c.Stinger != nil || c.TailTip != "" || c.Tusks != nil || c.Mouth != "" || c.Apex != nil
 }
 
 // usesFeatures reports whether c tests a graded feature or apex anywhere in
@@ -219,12 +221,15 @@ func (c nameCondition) matches(sp AlienSpecies) bool {
 	for _, leaf := range []struct {
 		c *intCondition
 		v int
-	}{{c.Horns, a.Horns}, {c.Antlers, a.Antlers}, {c.Spines, a.Spines}, {c.Shell, a.Shell}, {c.Claws, a.Claws}, {c.Stinger, a.Stinger}} {
+	}{{c.Horns, a.Horns}, {c.Antlers, a.Antlers}, {c.Spines, a.Spines}, {c.Shell, a.Shell}, {c.Claws, a.Claws}, {c.Stinger, a.Stinger}, {c.Tusks, a.Tusks}} {
 		if leaf.c != nil && !leaf.c.matches(leaf.v) {
 			return false
 		}
 	}
 	if c.TailTip != "" && !strings.EqualFold(c.TailTip, a.TailTip.String()) {
+		return false
+	}
+	if c.Mouth != "" && !strings.EqualFold(c.Mouth, a.Mouth.String()) {
 		return false
 	}
 	if c.Apex != nil && *c.Apex != sp.Apex {

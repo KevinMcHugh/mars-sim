@@ -88,7 +88,8 @@ func gainsOnly(prev, next AlienForm) bool {
 	a, b := prev.Anatomy, next.Anatomy
 	return next.Limbs >= prev.Limbs && next.Arms >= prev.Arms && (next.Tail || !prev.Tail) &&
 		b.Horns >= a.Horns && b.Antlers >= a.Antlers && b.Spines >= a.Spines && b.Shell >= a.Shell &&
-		b.Claws >= a.Claws && b.Stinger >= a.Stinger && (b.TailTip == a.TailTip || a.TailTip == TailPlain)
+		b.Claws >= a.Claws && b.Stinger >= a.Stinger && (b.TailTip == a.TailTip || a.TailTip == TailPlain) &&
+		b.Tusks >= a.Tusks && (b.Mouth == a.Mouth || a.Mouth == MouthPlain)
 }
 
 // At the shipped odds most species have a single form: a lifecycle is a

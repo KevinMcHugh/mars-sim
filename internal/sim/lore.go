@@ -166,8 +166,8 @@ const (
 	AttackClaw
 	AttackTail
 	AttackStrangle
-	// AttackGore and AttackSting are granted by anatomy (horns or antlers; a
-	// stinger), not rolled: see alien_weapons.go.
+	// AttackGore and AttackSting are granted by anatomy (horns, antlers or
+	// tusks; a stinger), not rolled: see alien_weapons.go.
 	AttackGore
 	AttackSting
 )
@@ -276,18 +276,26 @@ func (sp AlienSpecies) AttacksLabel() string {
 	return strings.Join(names, ", ")
 }
 
-// goreWeapon is what a goring species gores with, for its description.
+// goreWeapon is what a goring species gores with, for its description:
+// "horn", "horns and antlers", "horns, antlers, and tusks".
 func (sp AlienSpecies) goreWeapon() string {
+	var w []string
 	switch {
-	case sp.Anatomy.Horns > 0 && sp.Anatomy.Antlers > 0:
-		return "horns and antlers"
-	case sp.Anatomy.Antlers > 0:
-		return "antlers"
 	case sp.Anatomy.Horns == 1:
-		return "horn"
-	default:
+		w = append(w, "horn")
+	case sp.Anatomy.Horns > 1:
+		w = append(w, "horns")
+	}
+	if sp.Anatomy.Antlers > 0 {
+		w = append(w, "antlers")
+	}
+	if sp.Anatomy.Tusks > 0 {
+		w = append(w, "tusks")
+	}
+	if len(w) == 0 {
 		return "horns"
 	}
+	return joinList(w)
 }
 
 // attackPhrase is how a description says a species fights: "biting,
@@ -308,7 +316,14 @@ func (sp AlienSpecies) attackPhrase() string {
 		case AttackSting:
 			phrases[i] = "stinging"
 		default:
-			phrases[i] = "biting"
+			switch sp.Anatomy.Mouth {
+			case MouthBeak:
+				phrases[i] = "tearing with their beaks"
+			case MouthMandibles:
+				phrases[i] = "shearing with their mandibles"
+			default:
+				phrases[i] = "biting"
+			}
 		}
 	}
 	return joinList(phrases)
@@ -572,6 +587,10 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 	anatomyRNG := newRand(cfg.Seed ^ alienAnatomySeed)
 	for i := range roster {
 		roster[i].Anatomy = rollAnatomy(anatomyRNG, roster[i])
+	}
+	headRNG := newRand(cfg.Seed ^ alienHeadSeed)
+	for i := range roster {
+		roster[i].Anatomy = rollHeadFeatures(headRNG, roster[i].Anatomy)
 		// Horns gore and stingers sting: granted, not rolled, so no draw.
 		roster[i].AttackModes |= featureAttacks(roster[i].Anatomy)
 	}

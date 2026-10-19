@@ -11,7 +11,7 @@
 # the rolled species. "when" is the same condition tree alien-names.yaml uses
 # (all / any / not, temperament, skin, color, pattern, height, weight, tail,
 # wings, legs, arms, limbs, eyes, and the graded features horns, antlers,
-# spines, shell, claws, stinger, tail-tip, plus apex); an entry with no
+# spines, shell, claws, stinger, tail-tip, tusks, mouth, plus apex); an entry with no
 # "when" fits every species. Scientific names are built after a species'
 # anatomy is rolled, so feature conditions match here.
 #
@@ -109,11 +109,18 @@ prefixes:
   - { form: crypto, meaning: "hidden",   when: { temperament: cautious } }
   - { form: hemero, meaning: "tame",     when: { temperament: friendly } }
 
-  # Graded features (horns, antlers, spines, shell, claws, stinger, tail-tip)
-  # and apex. Scientific names are built after anatomy, so these can match.
+  # Graded features (horns, antlers, spines, shell, claws, stinger, tail-tip,
+  # tusks, mouth) and apex. Scientific names are built after anatomy, so
+  # these can match.
   - { form: cerato,  meaning: "horn",  when: { horns: { gte: 1 } } }
   - { form: elapho,  meaning: "deer",  when: { antlers: { gte: 2 } } }  # deer (antlered)
   - { form: acantho, meaning: "spine", when: { spines: { gte: 2 } } }
+  - { form: echino,  meaning: "hedgehog, prickly", when: { spines: { gte: 1 } } }  # Echinodermata
+  - { form: chaulio, meaning: "outthrust (tusked)", when: { tusks: { gte: 1 } } }  # Chauliodus, "outthrust tooth"
+  - { form: rhyncho, meaning: "beak, snout",  when: { any: [{ mouth: beak }, { mouth: bill }] } }  # Rhynchocephalia
+  - { form: platy,   meaning: "flat",         when: { mouth: bill } }       # Platypus; Anas platyrhynchos
+  - { form: gnatho,  meaning: "jaw",          when: { mouth: mandibles } }  # Gnathostomata
+  - { form: siphono, meaning: "tube",         when: { mouth: proboscis } }  # Siphonaptera, the fleas
   - { form: ostraco, meaning: "shell", when: { shell: { gte: 2 } } }
   - { form: onycho,  meaning: "claw",  when: { claws: { gte: 2 } } }
   - { form: kentro,  meaning: "sting", when: { any: [{ stinger: { gte: 1 } }, { tail-tip: stinger }] } }
@@ -220,6 +227,34 @@ roots:
   - { form: elaphus, meaning: "deer",      gender: m, mimic: true, when: { antlers: { gte: 4 } } }
   - { form: hystrix, meaning: "porcupine", gender: f, mimic: true, when: { spines: { gte: 2 } } }
   - { form: scorpio, meaning: "scorpion",  gender: m, mimic: true, when: { tail-tip: stinger } }
+  - { form: erinaceus, meaning: "hedgehog",  gender: m, mimic: true, when: { spines: { gte: 1 } } }  # Erinaceus europaeus
+  - { form: chauliodus, meaning: "outthrust tooth (tusk)", gender: m, when: { tusks: { gte: 1 } } }  # Chauliodus sloani
+  - { form: sus,       meaning: "boar",      gender: m, mimic: true, when: { tusks: { gte: 1 } } }  # Sus barbatus: masculine by convention
+  - form: elephas
+    meaning: "elephant"
+    gender: m
+    mimic: true
+    when: { all: [{ tusks: { gte: 2 } }, { any: [{ weight: large }, { weight: huge }] }] }  # Elephas maximus
+  - { form: odobenus,  meaning: "walrus (tooth-walker)", gender: m, mimic: true, when: { tusks: { eq: 3 } } }  # Odobenus rosmarus
+  - { form: rhynchus,  meaning: "beak, snout", gender: m, when: { any: [{ mouth: beak }, { mouth: bill }, { mouth: proboscis }] } }  # Ornithorhynchus
+  - { form: rhamphus,  meaning: "beak",      gender: m, when: { mouth: beak } }  # Rhamphorhynchus
+  - { form: aquila,    meaning: "eagle",     gender: f, mimic: true, when: { mouth: beak } }  # Aquila chrysaetos
+  - { form: psittacus, meaning: "parrot",    gender: m, mimic: true, when: { mouth: beak } }  # Psittacus erithacus
+  - { form: anas,      meaning: "duck",      gender: f, mimic: true, when: { mouth: bill } }  # Anas acuta
+  - form: ornithorhynchus
+    meaning: "bird snout (platypus)"
+    gender: m
+    mimic: true
+    when: { mouth: bill }  # Ornithorhynchus anatinus
+  - { form: lucanus,   meaning: "stag beetle", gender: m, mimic: true, when: { mouth: mandibles } }  # Lucanus cervus
+  - { form: formica,   meaning: "ant",       gender: f, mimic: true, when: { mouth: mandibles } }  # Formica rufa
+  - { form: siphon,    meaning: "tube",      gender: m, when: { mouth: proboscis } }
+  - { form: culex,     meaning: "gnat",      gender: m, mimic: true, when: { mouth: proboscis } }  # Culex pipiens
+  - form: tapirus
+    meaning: "tapir"
+    gender: m
+    mimic: true
+    when: { all: [{ mouth: proboscis }, { legs: { eq: 4 } }] }  # Tapirus indicus
 
 epithets:
   # Mars and its places, as genitives ("of ..."): fit anything.
@@ -305,5 +340,16 @@ epithets:
   - { form: unguiculatus, meaning: "clawed",               feminine: unguiculata, neuter: unguiculatum, when: { claws: { gte: 2 } } }
   - { form: aculeatus,    meaning: "stinging",             feminine: aculeata,    neuter: aculeatum,    when: { stinger: { gte: 1 } } }
   - { form: clavicauda,   meaning: "club-tailed",          when: { any: [{ tail-tip: club }, { tail-tip: spiked-club }] } }
+  - { form: echinatus,    meaning: "prickly",              feminine: echinata,    neuter: echinatum,    when: { spines: { gte: 2 } } }
+  - { form: dentatus,     meaning: "toothed",              feminine: dentata,     neuter: dentatum,     when: { tusks: { gte: 1 } } }
+  - { form: grandidens,   meaning: "big-toothed",          when: { tusks: { gte: 2 } } }
+  - { form: rostratus,    meaning: "beaked",               feminine: rostrata,    neuter: rostratum,    when: { any: [{ mouth: beak }, { mouth: bill }] } }
+  - { form: aduncirostris, meaning: "hook-beaked",         feminine: aduncirostris, neuter: aduncirostre, when: { mouth: beak } }
+  - { form: anatinus,     meaning: "ducklike",             feminine: anatina,     neuter: anatinum,     when: { mouth: bill } }  # Ornithorhynchus anatinus
+  - { form: latirostris,  meaning: "broad-billed",         feminine: latirostris, neuter: latirostre,   when: { mouth: bill } }  # Caiman latirostris
+  - { form: forcipatus,   meaning: "pincer-jawed",         feminine: forcipata,   neuter: forcipatum,   when: { mouth: mandibles } }
+  - { form: mandibularis, meaning: "big-jawed",            feminine: mandibularis, neuter: mandibulare, when: { mouth: mandibles } }
+  - { form: proboscideus, meaning: "with a proboscis",     feminine: proboscidea, neuter: proboscideum, when: { mouth: proboscis } }
+  - { form: longirostris, meaning: "long-snouted",         feminine: longirostris, neuter: longirostre, when: { mouth: proboscis } }
   - { form: horridus,     meaning: "dreadful",             feminine: horrida,     neuter: horridum,     when: { apex: true } }
   - { form: terribilis,   meaning: "terrible",             when: { apex: true } }

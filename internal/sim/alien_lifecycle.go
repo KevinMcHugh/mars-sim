@@ -347,6 +347,8 @@ func pushedAnatomy(adult AlienAnatomy, pct int) AlienAnatomy {
 		Claws:   push(adult.Claws, 3),
 		Stinger: push(adult.Stinger, 2),
 		TailTip: adult.TailTip,
+		Tusks:   push(adult.Tusks, 3),
+		Mouth:   adult.Mouth,
 	}
 }
 

@@ -471,7 +471,7 @@ names:
     when: { color: iridescent }
 
   # Feature names: gated on graded features (horns, antlers, spines, shell,
-  # claws, stinger, tail-tip) or apex. A species has no features when it is
+  # claws, stinger, tail-tip, tusks, mouth) or apex. A species has no features when it is
   # first named, so none of these can win that pass; afterwards, a species
   # whose features fit one takes it most of the time (see renameForFeatures
   # in alien_names.go). Gate them only on features a species HAS (gte, eq,
@@ -530,6 +530,31 @@ names:
     plural: morningstars
     emoji: ["🦖"]
     when: { tail-tip: spiked-club }
+
+  - group: [tusker, boar]
+    emoji: ["🐘", "🦣"]
+    when: { tusks: { gte: 2 } }
+
+  - name: greattusk
+    plural: greattusks
+    emoji: ["🦣", "🐘"]
+    when: { tusks: { eq: 3 } }
+
+  - group: [hookbeak, shrike]
+    emoji: ["🦅", "🦜"]
+    when: { mouth: beak }
+
+  - group: [duckbill, platypus]
+    emoji: ["🐦", "🦤"]
+    when: { mouth: bill }
+
+  - group: [snapjaw, pincerjaw]
+    emoji: ["🐜", "🪲"]
+    when: { mouth: mandibles }
+
+  - group: [sipper, snoutling]
+    emoji: ["🦟", "🦋"]
+    when: { mouth: proboscis }
 
   # The rare apex species (alien-apex-percent): the names colonists give the
   # thing they will not go near.

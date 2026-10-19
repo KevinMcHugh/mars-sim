@@ -266,11 +266,11 @@ and the set has to make sense for the body (`canUse`):
 
 | Mode | Needs | What it does |
 | --- | --- | --- |
-| bite | nothing — every species has a mouth | full damage to a random part |
+| bite | nothing — every species has a mouth | full damage to a random part (harder with a beak or mandibles) |
 | claws | at least one arm | full damage to a random part |
 | tail | a tail | full damage to a random part |
 | strangle | at least two arms (a grip) | half damage, always to the head |
-| gore | horns or antlers (granted, not rolled) | scaled by horns and tines, to a random part |
+| gore | horns, antlers or tusks (granted, not rolled) | scaled by horns, tines and tusks, to a random part |
 | sting | a stinger (granted, not rolled) | half damage (barbed: three quarters), always to the torso |
 
 Each allowed mode is kept on a coin flip, so two clawed, tailed species can
@@ -359,6 +359,8 @@ type nameCondition struct {
 	// graded features and the apex roll (see alien-lifecycles.md)
 	Horns, Antlers, Spines, Shell, Claws, Stinger *intCondition
 	TailTip                                       string // plain | club | spiked-club | stinger
+	Tusks                                         *intCondition
+	Mouth                                         string // plain | beak | bill | mandibles | proboscis
 	Apex                                          *bool
 }
 ```
@@ -389,7 +391,8 @@ them: an entry gated on `horns`, `stinger`, `apex` and the like (a
 yet. After anatomy and apex, `renameForFeatures` gives each species whose
 features fit a free feature name a 60% chance of taking one ("unicorn" for
 a single horn, "crownhorn" for six or more, "urchin", "shellback",
-"reaper", "stingtail", "morningstar", and "horror", "dread" or
+"reaper", "stingtail", "morningstar", "tusker", "greattusk", "hookbeak",
+"duckbill", "platypus", "snapjaw", "sipper", and "horror", "dread" or
 "nightmare" for an apex species), freeing the first-pass name. The pass
 has its own stream (`alienFeatureNameSeed`) and draws once per species
 before anything else, so no species' build, temperament or first-pass name
@@ -713,10 +716,10 @@ word-wrapped to the panel width.
 - **Lifecycles and graded anatomy** are built: some species roll a life of
   several forms (egg, grub, pupa, joey; queen/worker/drone castes), each
   larger and more extreme than the last but recognizably the same, and every
-  species rolls graded features (horns, antlers, stingers, quills, tail
-  clubs, shells) that `Description` adds a sentence for, their adults
+  species rolls graded features (horns, antlers, tusks, stingers, quills,
+  tail clubs, shells, and a beak, bill, mandibles or proboscis) that `Description` adds a sentence for, their adults
   or queens lay the next generation, and the features fight: horns gore,
-  stingers sting, claws and clubs hit harder, shells blunt hits. See
+  stingers sting, claws, clubs and beaks hit harder, shells blunt hits. See
   [alien-lifecycles.md](./alien-lifecycles.md).
 - **Per-individual variation.** Every alien of a given species is still
   stat-for-stat identical to every other of that species. Giving each

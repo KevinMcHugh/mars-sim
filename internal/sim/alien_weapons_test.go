@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// Horns and antlers gore; a stinger, on the body or the tail, stings; other
+// Horns, antlers and tusks gore; a stinger, on the body or the tail, stings; other
 // features grant no mode of their own.
 func TestFeaturesGrantAttacks(t *testing.T) {
 	for _, tc := range []struct {
@@ -19,7 +19,10 @@ func TestFeaturesGrantAttacks(t *testing.T) {
 		{AlienAnatomy{Stinger: 1}, AttackSetOf(AttackSting)},
 		{AlienAnatomy{TailTip: TailStinger}, AttackSetOf(AttackSting)},
 		{AlienAnatomy{Horns: 3, Stinger: 2}, AttackSetOf(AttackGore, AttackSting)},
+		{AlienAnatomy{Tusks: 1}, AttackSetOf(AttackGore)},
 		{AlienAnatomy{Shell: 3, Claws: 3, Spines: 3, TailTip: TailSpikedClub}, 0},
+		{AlienAnatomy{Mouth: MouthBeak}, 0},
+		{AlienAnatomy{Mouth: MouthMandibles}, 0},
 	} {
 		if got := featureAttacks(tc.a); got != tc.want {
 			t.Errorf("%+v grants %v, want %v", tc.a, got, tc.want)
@@ -98,6 +101,14 @@ func TestFeatureDamage(t *testing.T) {
 		{AlienAnatomy{Stinger: 1}, AttackSting, 50},
 		{AlienAnatomy{Stinger: 2}, AttackSting, 75},
 		{AlienAnatomy{Horns: 6}, AttackBite, 100},
+		{AlienAnatomy{Tusks: 2}, AttackGore, 130},
+		{AlienAnatomy{Horns: 5, Tusks: 3}, AttackGore, 185},
+		{AlienAnatomy{Horns: 12, Tusks: 3}, AttackGore, 200},
+		{AlienAnatomy{Mouth: MouthBeak}, AttackBite, 130},
+		{AlienAnatomy{Mouth: MouthMandibles}, AttackBite, 125},
+		{AlienAnatomy{Mouth: MouthBill}, AttackBite, 100},
+		{AlienAnatomy{Mouth: MouthProboscis}, AttackBite, 100},
+		{AlienAnatomy{Mouth: MouthBeak}, AttackClaw, 100},
 	} {
 		w, alien, _ := weaponWorld(t, tc.a, AttackSetOf(tc.mode))
 		if got, want := w.modeDamage(alien, tc.mode, 20), 20*tc.want/100; got != want {
@@ -166,7 +177,7 @@ func TestApexSpeciesAreRare(t *testing.T) {
 		cfg.Seed = seed
 		for _, sp := range rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg) {
 			total++
-			fights := sp.Anatomy.any() && sp.Temperament != TemperamentFriendly
+			fights := sp.Anatomy.armed() && sp.Temperament != TemperamentFriendly
 			if fights {
 				eligible++
 			}
@@ -218,5 +229,39 @@ func TestApexWeaponsAreDeadlier(t *testing.T) {
 	w.alienSpecies[0].Apex = true
 	if apex := w.armored(alien, 20); plain != 14 || apex != 8 {
 		t.Fatalf("a 20-damage hit on a carapace: ordinary %d (want 14), apex %d (want 8)", plain, apex)
+	}
+}
+
+// A bill or a proboscis alone is nothing to be deadly with: it does not make
+// a species eligible for the apex roll. A beak or tusks do.
+func TestHarmlessMouthpartsAreNotArmed(t *testing.T) {
+	for _, tc := range []struct {
+		a    AlienAnatomy
+		want bool
+	}{
+		{AlienAnatomy{}, false},
+		{AlienAnatomy{Mouth: MouthBill}, false},
+		{AlienAnatomy{Mouth: MouthProboscis}, false},
+		{AlienAnatomy{Mouth: MouthBeak}, true},
+		{AlienAnatomy{Mouth: MouthMandibles}, true},
+		{AlienAnatomy{Tusks: 1}, true},
+		{AlienAnatomy{Mouth: MouthBill, Claws: 1}, true},
+	} {
+		if got := tc.a.armed(); got != tc.want {
+			t.Errorf("%+v armed = %v, want %v", tc.a, got, tc.want)
+		}
+	}
+}
+
+// A species fighting with a beak or mandibles says so, and one goring with
+// tusks names them.
+func TestHeadFeaturesInTheAttackPhrase(t *testing.T) {
+	sp := AlienSpecies{AttackModes: AttackSetOf(AttackBite, AttackGore), Anatomy: AlienAnatomy{Horns: 2, Tusks: 1, Mouth: MouthBeak}}
+	if got, want := sp.attackPhrase(), "tearing with their beaks and goring with their horns and tusks"; got != want {
+		t.Errorf("attackPhrase = %q, want %q", got, want)
+	}
+	sp.Anatomy = AlienAnatomy{Horns: 1, Antlers: 4, Tusks: 2, Mouth: MouthMandibles}
+	if got, want := sp.attackPhrase(), "shearing with their mandibles and goring with their horn, antlers, and tusks"; got != want {
+		t.Errorf("attackPhrase = %q, want %q", got, want)
 	}
 }
