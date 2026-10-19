@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// Horns, antlers and tusks gore; a stinger, on the body or the tail, stings; other
-// features grant no mode of their own.
+// Horns, antlers and tusks gore; a stinger, on the body or the tail, stings;
+// pincers always claw; other features grant no mode of their own.
 func TestFeaturesGrantAttacks(t *testing.T) {
 	for _, tc := range []struct {
 		a    AlienAnatomy
@@ -23,6 +23,7 @@ func TestFeaturesGrantAttacks(t *testing.T) {
 		{AlienAnatomy{Shell: 3, Claws: 3, Spines: 3, TailTip: TailSpikedClub}, 0},
 		{AlienAnatomy{Mouth: MouthBeak}, 0},
 		{AlienAnatomy{Mouth: MouthMandibles}, 0},
+		{AlienAnatomy{Pincers: 3}, AttackSetOf(AttackClaw)},
 	} {
 		if got := featureAttacks(tc.a); got != tc.want {
 			t.Errorf("%+v grants %v, want %v", tc.a, got, tc.want)
@@ -109,6 +110,8 @@ func TestFeatureDamage(t *testing.T) {
 		{AlienAnatomy{Mouth: MouthBill}, AttackBite, 100},
 		{AlienAnatomy{Mouth: MouthProboscis}, AttackBite, 100},
 		{AlienAnatomy{Mouth: MouthBeak}, AttackClaw, 100},
+		{AlienAnatomy{Pincers: 2}, AttackClaw, 160},
+		{AlienAnatomy{Pincers: 3}, AttackBite, 100},
 	} {
 		w, alien, _ := weaponWorld(t, tc.a, AttackSetOf(tc.mode))
 		if got, want := w.modeDamage(alien, tc.mode, 20), 20*tc.want/100; got != want {
@@ -149,6 +152,25 @@ func TestYoungCannotUseFeaturesItLacks(t *testing.T) {
 	alien.life.form = 1
 	if got := fmt.Sprint(w.attacksNow(alien)); got != "[bite gore]" {
 		t.Fatalf("horned adult attacks %s, want [bite gore]", got)
+	}
+}
+
+// An armless grub of a pincered species cannot pinch; the armed adult can.
+func TestArmlessYoungCannotClaw(t *testing.T) {
+	w, alien, _ := weaponWorld(t, AlienAnatomy{Pincers: 2}, AttackSetOf(AttackBite, AttackClaw))
+	sp := &w.alienSpecies[0]
+	sp.Arms, sp.Limbs = 2, 6
+	sp.Forms[0] = AlienForm{Name: "grub", Stage: 0, SizePct: 30, Ticks: 100, Limbs: 2}
+	sp.Forms[1] = AlienForm{Stage: 1, SizePct: 100, Limbs: 6, Arms: 2, Anatomy: sp.Anatomy, Lays: true}
+	sp.FormCount = 2
+	w.buildAlienSpecies()
+	alien.life = &LifeStage{form: 0, growAt: w.tick + 100}
+	if got := fmt.Sprint(w.attacksNow(alien)); got != "[bite]" {
+		t.Fatalf("armless grub attacks %s, want [bite]", got)
+	}
+	alien.life.form = 1
+	if got := fmt.Sprint(w.attacksNow(alien)); got != "[bite claws]" {
+		t.Fatalf("pincered adult attacks %s, want [bite claws]", got)
 	}
 }
 
@@ -245,6 +267,7 @@ func TestHarmlessMouthpartsAreNotArmed(t *testing.T) {
 		{AlienAnatomy{Mouth: MouthBeak}, true},
 		{AlienAnatomy{Mouth: MouthMandibles}, true},
 		{AlienAnatomy{Tusks: 1}, true},
+		{AlienAnatomy{Pincers: 1}, true},
 		{AlienAnatomy{Mouth: MouthBill, Claws: 1}, true},
 	} {
 		if got := tc.a.armed(); got != tc.want {
@@ -262,6 +285,14 @@ func TestHeadFeaturesInTheAttackPhrase(t *testing.T) {
 	}
 	sp.Anatomy = AlienAnatomy{Horns: 1, Antlers: 4, Tusks: 2, Mouth: MouthMandibles}
 	if got, want := sp.attackPhrase(), "shearing with their mandibles and goring with their horn, antlers, and tusks"; got != want {
+		t.Errorf("attackPhrase = %q, want %q", got, want)
+	}
+}
+
+// A species with pincers crushes rather than rakes.
+func TestPincersInTheAttackPhrase(t *testing.T) {
+	sp := AlienSpecies{Arms: 2, AttackModes: AttackSetOf(AttackClaw), Anatomy: AlienAnatomy{Pincers: 2}}
+	if got, want := sp.attackPhrase(), "crushing with their pincers"; got != want {
 		t.Errorf("attackPhrase = %q, want %q", got, want)
 	}
 }

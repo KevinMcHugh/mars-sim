@@ -13,15 +13,17 @@ import (
 //
 // They roll on their own stream (alienAnatomySeed), after the roster and its
 // taxonomy, so adding them re-rolled no species' build, name or temperament.
-// Tusks and mouthparts came later and roll on a stream of their own again
-// (alienHeadSeed), so adding them moved no existing horn, shell or claw.
+// Tusks, mouthparts and pincers came later and roll on a stream of their own
+// again (alienLateAnatomySeed), so adding them moved no existing horn, shell
+// or claw.
 
 // alienAnatomySeed separates the anatomy stream from the other lore streams.
 const alienAnatomySeed = 0x2B7E151628AED2A6
 
-// alienHeadSeed separates the tusk-and-mouthpart stream from the anatomy
-// stream, so adding them re-rolled no other feature.
-const alienHeadSeed = 0x5BE0CD19137E2179
+// alienLateAnatomySeed separates the later features' stream (tusks,
+// mouthparts, pincers) from the anatomy stream, so adding them re-rolled no
+// other feature.
+const alienLateAnatomySeed = 0x5BE0CD19137E2179
 
 // TailTip is what a tail ends in.
 type TailTip uint8
@@ -90,6 +92,7 @@ type AlienAnatomy struct {
 	TailTip TailTip
 	Tusks   int       // 1 stubby tusks, 2 a pair of tusks, 3 great curving tusks
 	Mouth   Mouthpart // a beak, a bill, mandibles or a proboscis, or plain
+	Pincers int       // 1 small pincers, 2 crushing pincers, 3 great serrated pincers
 }
 
 // any reports whether the body has any graded feature at all.
@@ -140,16 +143,24 @@ func rollAnatomy(rng *rand.Rand, sp AlienSpecies) AlienAnatomy {
 	return a
 }
 
-// rollHeadFeatures gives a species its tusks and mouthpart, on their own
-// stream (alienHeadSeed): each is rare, like the other features. A
-// mouthpart is a whole mouth, so a species has at most one; tusks can sit
-// beside any of them (a tusked, billed thing is the platypus tone).
-func rollHeadFeatures(rng *rand.Rand, a AlienAnatomy) AlienAnatomy {
+// rollLateFeatures gives a species its tusks, mouthpart and pincers, on
+// their own stream (alienLateAnatomySeed): each is rare, like the other
+// features. A mouthpart is a whole mouth, so a species has at most one;
+// tusks can sit beside any of them (a tusked, billed thing is the platypus
+// tone). Pincers are hands, like a crab's: only a species with arms has
+// them, and not one whose arms already end in claws. The pincer roll is
+// drawn for every species whatever its arms, so one species never shifts
+// another's.
+func rollLateFeatures(rng *rand.Rand, sp AlienSpecies, a AlienAnatomy) AlienAnatomy {
 	if rng.IntN(100) < 12 {
 		a.Tusks = 1 + rng.IntN(3)
 	}
 	if rng.IntN(100) < 20 {
 		a.Mouth = mouthparts[rng.IntN(len(mouthparts))]
+	}
+	roll, grade := rng.IntN(100), 1+rng.IntN(3)
+	if sp.Arms > 0 && a.Claws == 0 && roll < 25 {
+		a.Pincers = grade
 	}
 	return a
 }
@@ -179,6 +190,7 @@ func scaledAnatomy(adult AlienAnatomy, num, den int) AlienAnatomy {
 		Stinger: scale(adult.Stinger),
 		Tusks:   scale(adult.Tusks),
 		Mouth:   adult.Mouth, // a mouth is there from the first form that eats
+		Pincers: scale(adult.Pincers),
 	}
 	if adult.TailTip != TailPlain && num*3 >= den*2 {
 		a.TailTip = adult.TailTip // a tail's ornament comes late
@@ -249,6 +261,14 @@ func (a AlienAnatomy) featurePhrases() []string {
 		out = append(out, "hooked claws")
 	case 3:
 		out = append(out, "scythe-like claws")
+	}
+	switch a.Pincers {
+	case 1:
+		out = append(out, "small pincers")
+	case 2:
+		out = append(out, "crushing pincers")
+	case 3:
+		out = append(out, "great serrated pincers")
 	}
 	switch a.Stinger {
 	case 1:

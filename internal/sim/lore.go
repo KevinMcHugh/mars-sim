@@ -306,7 +306,11 @@ func (sp AlienSpecies) attackPhrase() string {
 	for i, m := range modes {
 		switch m {
 		case AttackClaw:
-			phrases[i] = "raking with their claws"
+			if sp.Anatomy.Pincers > 0 {
+				phrases[i] = "crushing with their pincers"
+			} else {
+				phrases[i] = "raking with their claws"
+			}
 		case AttackTail:
 			phrases[i] = "thrashing their tails"
 		case AttackStrangle:
@@ -588,9 +592,9 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 	for i := range roster {
 		roster[i].Anatomy = rollAnatomy(anatomyRNG, roster[i])
 	}
-	headRNG := newRand(cfg.Seed ^ alienHeadSeed)
+	lateRNG := newRand(cfg.Seed ^ alienLateAnatomySeed)
 	for i := range roster {
-		roster[i].Anatomy = rollHeadFeatures(headRNG, roster[i].Anatomy)
+		roster[i].Anatomy = rollLateFeatures(lateRNG, roster[i], roster[i].Anatomy)
 		// Horns gore and stingers sting: granted, not rolled, so no draw.
 		roster[i].AttackModes |= featureAttacks(roster[i].Anatomy)
 	}

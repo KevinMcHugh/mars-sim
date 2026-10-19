@@ -267,7 +267,7 @@ and the set has to make sense for the body (`canUse`):
 | Mode | Needs | What it does |
 | --- | --- | --- |
 | bite | nothing — every species has a mouth | full damage to a random part (harder with a beak or mandibles) |
-| claws | at least one arm | full damage to a random part |
+| claws | at least one arm (pincers always grant it) | full damage to a random part |
 | tail | a tail | full damage to a random part |
 | strangle | at least two arms (a grip) | half damage, always to the head |
 | gore | horns, antlers or tusks (granted, not rolled) | scaled by horns, tines and tusks, to a random part |
@@ -361,6 +361,7 @@ type nameCondition struct {
 	TailTip                                       string // plain | club | spiked-club | stinger
 	Tusks                                         *intCondition
 	Mouth                                         string // plain | beak | bill | mandibles | proboscis
+	Pincers                                       *intCondition
 	Apex                                          *bool
 }
 ```
@@ -392,7 +393,8 @@ yet. After anatomy and apex, `renameForFeatures` gives each species whose
 features fit a free feature name a 60% chance of taking one ("unicorn" for
 a single horn, "crownhorn" for six or more, "urchin", "shellback",
 "reaper", "stingtail", "morningstar", "tusker", "greattusk", "hookbeak",
-"duckbill", "platypus", "snapjaw", "sipper", and "horror", "dread" or
+"duckbill", "platypus", "snapjaw", "sipper", "chupacabra" for a proboscis on
+anything that fights, "pincher" and "cangrejo" for pincers, and "horror", "dread" or
 "nightmare" for an apex species), freeing the first-pass name. The pass
 has its own stream (`alienFeatureNameSeed`) and draws once per species
 before anything else, so no species' build, temperament or first-pass name
@@ -425,6 +427,25 @@ several names under one condition:
 after loading ever sees a group. It also fills in each entry's default plural.
 An entry sets `name` or `group`, never both, and a group's plurals go on its
 names, not on the group. `TestLoadAlienNamesExpandsGroups` pins the expansion.
+
+### Spanish nicknames
+
+Some names are what a crew would call a thing in Spanish, mostly by color,
+the way a team gets called *los rojos* or *los blancos*: rojo and colorado
+(red), naranjo, amarillo, verde, azul, morado, gris, blanco, lechoso
+("milky", for pale), oscuro (black), tornasol (iridescent); and bicho for a
+tiny thing, lagarto for a scaly one (where "alligator" comes from). They
+sit in the same pool as the English names, under the same conditions, so a
+red species is sometimes "rojos" and sometimes something else. The feature
+names add *chupacabra* and *cangrejo*.
+
+Two rules for adding more. Spanish plurals take *-es* after a consonant
+(*azul, azules*; *gris, grises*), so give those a `plural`. And keep them
+ASCII: an accented letter is fine to the sim, but names are written into
+narrow map and roster columns, and the accent-free forms are the ones that
+read naturally here (*lechoso* rather than *pálido*). For black, *oscuro*
+("dark") was chosen over *negro* and *prieto*, which in English-language
+narration read as words about people rather than about a color.
 
 ### No repeated names
 

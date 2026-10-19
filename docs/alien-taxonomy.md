@@ -56,7 +56,7 @@ among them), mouthpart and apex roll of
 [alien-lifecycles.md](./alien-lifecycles.md)). Scientific names are built
 after anatomy, so a horned species can be a *Ceratoceras cornutum*, a
 stinger a *Kentrodon aculeatus*, an apex species a *Thanatoraptor
-horridus*. Tusks, quills and mouthparts have word parts taken from real
+horridus*. Tusks, quills, pincers and mouthparts have word parts taken from real
 genera and species: a tusked species can be a *Chauliodus* ("outthrust
 tooth", the viperfish), a *Sus*, an *Elephas* or an *Odobenus* (walrus, if
 its tusks are great), and *dentatus* or *grandidens*; a billed one a
@@ -65,7 +65,10 @@ own name; a beaked one a *Rhamphus*, *Aquila* or *Psittacus*,
 *aduncirostris* "hook-beaked"; mandibles give *Gnatho-*, *Lucanus* (stag
 beetle), *Formica*, *forcipatus*; a proboscis *Siphono-*, *Culex*,
 *Tapirus* (only on four legs), *proboscideus*; quills *Echino-*,
-*Erinaceus* (hedgehog), *echinatus*. `scientificName` draws in this order:
+*Erinaceus* (hedgehog), *echinatus*; pincers *Labido-* "forceps" (as in
+*Labidura*, the earwig), *Chelifer*, *Astacus* (crayfish), *Cancer* (crab),
+*Homarus* (lobster, for the greatest), *forficatus*, *cancroides*.
+`scientificName` draws in this order:
 
 1. A **root**, from those whose condition the species meets.
 2. A **prefix**, from those that match. A prefix marked `mimic: true`
@@ -98,8 +101,12 @@ martis 2"), the same way `distinctAlienName` numbers a common name.
 
 `ScientificEtymology(name)` undoes `scientificName`. The epithet is matched
 against every epithet's masculine, feminine and neuter forms, which also
-pins the genus's gender when it declines. The genus is then split by trying
-each root it ends in (of that gender) against each prefix that `joinTaxa`
+pins the genus's gender when it declines. A form can stand for two genders:
+*latirostris* is masculine and feminine alike, so it allows a root of
+either (the first version took the first matching form as the only gender
+and could not parse *Phobochelys latirostris*;
+`TestScientificEtymologySharedGenderForms`). The genus is then split by
+trying each root it ends in (of an allowed gender) against each prefix that `joinTaxa`
 would glue to it to spell the genus exactly, which undoes the vowel elision
 for free: `pseudursus` ends in `ursus`, and `joinTaxa("pseudo", "ursus")`
 is `pseudursus`. The mimic rule is enforced the same way (no `pseudo-`

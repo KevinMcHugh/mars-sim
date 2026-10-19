@@ -11,7 +11,7 @@
 # the rolled species. "when" is the same condition tree alien-names.yaml uses
 # (all / any / not, temperament, skin, color, pattern, height, weight, tail,
 # wings, legs, arms, limbs, eyes, and the graded features horns, antlers,
-# spines, shell, claws, stinger, tail-tip, tusks, mouth, plus apex); an entry with no
+# spines, shell, claws, stinger, tail-tip, tusks, mouth, pincers, plus apex); an entry with no
 # "when" fits every species. Scientific names are built after a species'
 # anatomy is rolled, so feature conditions match here.
 #
@@ -121,6 +121,7 @@ prefixes:
   - { form: platy,   meaning: "flat",         when: { mouth: bill } }       # Platypus; Anas platyrhynchos
   - { form: gnatho,  meaning: "jaw",          when: { mouth: mandibles } }  # Gnathostomata
   - { form: siphono, meaning: "tube",         when: { mouth: proboscis } }  # Siphonaptera, the fleas
+  - { form: labido,  meaning: "forceps, pincers", when: { pincers: { gte: 1 } } }  # Labidura, the "forceps-tailed" earwig
   - { form: ostraco, meaning: "shell", when: { shell: { gte: 2 } } }
   - { form: onycho,  meaning: "claw",  when: { claws: { gte: 2 } } }
   - { form: kentro,  meaning: "sting", when: { any: [{ stinger: { gte: 1 } }, { tail-tip: stinger }] } }
@@ -249,6 +250,10 @@ roots:
   - { form: lucanus,   meaning: "stag beetle", gender: m, mimic: true, when: { mouth: mandibles } }  # Lucanus cervus
   - { form: formica,   meaning: "ant",       gender: f, mimic: true, when: { mouth: mandibles } }  # Formica rufa
   - { form: siphon,    meaning: "tube",      gender: m, when: { mouth: proboscis } }
+  - { form: chelifer,  meaning: "pincer-bearer", gender: m, when: { pincers: { gte: 1 } } }  # Chelifer cancroides
+  - { form: astacus,   meaning: "crayfish",  gender: m, mimic: true, when: { pincers: { gte: 1 } } }  # Astacus astacus
+  - { form: cancer,    meaning: "crab",      gender: m, mimic: true, when: { pincers: { gte: 2 } } }  # Cancer pagurus
+  - { form: homarus,   meaning: "lobster",   gender: m, mimic: true, when: { pincers: { eq: 3 } } }  # Homarus gammarus
   - { form: culex,     meaning: "gnat",      gender: m, mimic: true, when: { mouth: proboscis } }  # Culex pipiens
   - form: tapirus
     meaning: "tapir"
@@ -351,5 +356,7 @@ epithets:
   - { form: mandibularis, meaning: "big-jawed",            feminine: mandibularis, neuter: mandibulare, when: { mouth: mandibles } }
   - { form: proboscideus, meaning: "with a proboscis",     feminine: proboscidea, neuter: proboscideum, when: { mouth: proboscis } }
   - { form: longirostris, meaning: "long-snouted",         feminine: longirostris, neuter: longirostre, when: { mouth: proboscis } }
+  - { form: forficatus,   meaning: "scissor-like",         feminine: forficata,   neuter: forficatum,   when: { pincers: { gte: 1 } } }  # Lithobius forficatus
+  - { form: cancroides,   meaning: "crablike",             when: { pincers: { gte: 2 } } }  # Chelifer cancroides
   - { form: horridus,     meaning: "dreadful",             feminine: horrida,     neuter: horridum,     when: { apex: true } }
   - { form: terribilis,   meaning: "terrible",             when: { apex: true } }

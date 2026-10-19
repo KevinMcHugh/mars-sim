@@ -278,6 +278,9 @@ func rollLifecycle(rng *rand.Rand, sp *AlienSpecies, cfg Config) {
 			f.Arms = min(sp.Arms*(i+1)/stages, f.Limbs)
 			f.Tail = sp.Tail && (i+1)*2 >= stages
 			f.Anatomy = scaledAnatomy(sp.Anatomy, i+1, stages)
+			if f.Arms == 0 {
+				f.Anatomy.Pincers = 0 // pincers are hands: none before the arms come
+			}
 		}
 		forms = append(forms, f)
 	}
@@ -349,6 +352,7 @@ func pushedAnatomy(adult AlienAnatomy, pct int) AlienAnatomy {
 		TailTip: adult.TailTip,
 		Tusks:   push(adult.Tusks, 3),
 		Mouth:   adult.Mouth,
+		Pincers: push(adult.Pincers, 3),
 	}
 }
 

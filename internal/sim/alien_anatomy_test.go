@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// Tusks and mouthparts roll on their own stream: the rest of a species'
+// Tusks, mouthparts and pincers roll on their own stream: the rest of a species'
 // anatomy is what rollAnatomy alone gives, so adding them moved no horn,
 // shell or claw.
-func TestHeadFeaturesDoNotShiftOtherAnatomy(t *testing.T) {
+func TestLateFeaturesDoNotShiftOtherAnatomy(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.AlienSpeciesCount = 10
 	for seed := int64(1); seed <= 20; seed++ {
@@ -18,7 +18,7 @@ func TestHeadFeaturesDoNotShiftOtherAnatomy(t *testing.T) {
 		for _, sp := range roster {
 			want := rollAnatomy(rng, sp)
 			got := sp.Anatomy
-			got.Tusks, got.Mouth = 0, MouthPlain
+			got.Tusks, got.Mouth, got.Pincers = 0, MouthPlain, 0
 			if got != want {
 				t.Fatalf("seed %d %s: anatomy %+v, want %+v plus head features", seed, sp.Singular, sp.Anatomy, want)
 			}
@@ -31,16 +31,30 @@ func TestHeadFeaturesDoNotShiftOtherAnatomy(t *testing.T) {
 func TestHeadFeaturesAreRolledAndNamed(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.AlienSpeciesCount = 10
-	tusks := map[int]int{}
+	tusks, pincers := map[int]int{}, map[int]int{}
 	mouths := map[Mouthpart]int{}
 	billNamed, total := 0, 0
 	for seed := int64(1); seed <= 100; seed++ {
 		cfg.Seed = seed
 		for _, sp := range rollAlienSpeciesRoster(newRand(cfg.Seed^alienLoreSeed), cfg) {
 			total++
-			tusks[sp.Anatomy.Tusks]++
-			mouths[sp.Anatomy.Mouth]++
 			desc := sp.Description()
+			tusks[sp.Anatomy.Tusks]++
+			pincers[sp.Anatomy.Pincers]++
+			if sp.Anatomy.Pincers > 0 {
+				if sp.Arms == 0 || sp.Anatomy.Claws > 0 {
+					t.Errorf("%s has pincers with %d arms and claws %d", sp.Singular, sp.Arms, sp.Anatomy.Claws)
+				}
+				if !strings.Contains(desc, "pincers") {
+					t.Errorf("%s has pincers but its description does not say so: %s", sp.Singular, desc)
+				}
+			}
+			for _, f := range sp.LifeForms() {
+				if f.Anatomy.Pincers > 0 && f.Arms == 0 && !f.Inert {
+					t.Errorf("%s %s has pincers but no arms", sp.Singular, f.Name)
+				}
+			}
+			mouths[sp.Anatomy.Mouth]++
 			if sp.Anatomy.Tusks > 0 && !strings.Contains(desc, "tusks") {
 				t.Errorf("%s has tusks but its description does not say so: %s", sp.Singular, desc)
 			}
@@ -60,6 +74,9 @@ func TestHeadFeaturesAreRolledAndNamed(t *testing.T) {
 	for g := 1; g <= 3; g++ {
 		if tusks[g] == 0 {
 			t.Errorf("no species rolled tusks of grade %d in %d", g, total)
+		}
+		if pincers[g] == 0 {
+			t.Errorf("no species rolled pincers of grade %d in %d", g, total)
 		}
 	}
 	for _, m := range mouthparts {

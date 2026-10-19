@@ -36,7 +36,7 @@
 #   wings:       true | false
 #   legs / arms / limbs / eyes:  {eq: N} | {gt: N} | {gte: N} | {lt: N} | {lte: N}
 #   horns / antlers:             counts, the same comparisons (antlers counts tines)
-#   spines / shell / claws / tusks:  grades 1-3, the same comparisons
+#   spines / shell / claws / tusks / pincers:  grades 1-3, the same comparisons
 #   stinger:                     grade 1-2 (2 is barbed), the same comparisons
 #   tail-tip:    plain | club | spiked-club | stinger
 #   mouth:       plain | beak | bill | mandibles | proboscis

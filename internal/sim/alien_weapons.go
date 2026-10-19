@@ -2,7 +2,7 @@ package sim
 
 // Features that fight: an alien's graded anatomy (alien_anatomy.go) turned
 // into combat. Horns, antlers and tusks gore, a stinger stings, a beak or
-// mandibles bite harder, claws rake harder,
+// mandibles bite harder, claws rake and pincers crush harder,
 // a clubbed tail hits harder, and a shell blunts what hits it. Everything
 // here is read from the alien's current form (a young form's lesser
 // features, a queen's pushed ones), so a species grows into its weapons.
@@ -26,6 +26,9 @@ func featureAttacks(a AlienAnatomy) AttackSet {
 	if a.Stinger > 0 || a.TailTip == TailStinger {
 		s |= AttackSetOf(AttackSting)
 	}
+	if a.Pincers > 0 {
+		s |= AttackSetOf(AttackClaw) // a rolled mode, but pincers always use it
+	}
 	return s
 }
 
@@ -40,12 +43,17 @@ func (w *World) anatomyOf(e *Entity) AlienAnatomy {
 
 // attacksNow is the alien's species' attack modes that its current body can
 // use: a feature mode needs the feature (a young form may not have grown its
-// horns yet). It is never empty; with nothing left, it bites.
+// horns yet), and claws need arms (a pincered species' armless grub cannot
+// pinch). It is never empty; with nothing left, it bites.
 func (w *World) attacksNow(e *Entity) []AttackMode {
 	body := featureAttacks(w.anatomyOf(e))
+	f, young := w.formOf(e)
 	var modes []AttackMode
 	for _, m := range w.alienSpeciesFor(e).Attacks() {
 		if (m == AttackGore || m == AttackSting) && !body.Has(m) {
+			continue
+		}
+		if m == AttackClaw && young && f.Arms == 0 {
 			continue
 		}
 		modes = append(modes, m)
@@ -64,6 +72,7 @@ type weaponTable struct {
 	gorePerTusk                       int    // gore bonus per tusk grade, percent
 	beakBite, mandibleBite            int    // bite mode with a beak or mandibles, percent
 	clawPerGrade                      int    // claw mode bonus per grade, percent
+	pincerPerGrade                    int    // claw mode bonus per pincer grade, percent
 	club, spikedClub                  int    // tail mode with a club, percent
 	sting, barbedSting                int    // sting damage, percent
 	shellBlocks                       [4]int // percent of a hit turned aside, by shell grade
@@ -76,8 +85,8 @@ var ordinaryWeapons = weaponTable{
 	gorePerHorn: 8, gorePerTine: 5, goreMax: 200,
 	gorePerTusk: 15,
 	beakBite:    130, mandibleBite: 125,
-	clawPerGrade: 25,
-	club:         150, spikedClub: 175,
+	clawPerGrade: 25, pincerPerGrade: 30,
+	club: 150, spikedClub: 175,
 	sting: 50, barbedSting: 75,
 	shellBlocks: [4]int{0, 10, 20, 30},
 }
@@ -88,8 +97,8 @@ var apexWeapons = weaponTable{
 	gorePerHorn: 15, gorePerTine: 10, goreMax: 300,
 	gorePerTusk: 30,
 	beakBite:    175, mandibleBite: 160,
-	clawPerGrade: 50,
-	club:         200, spikedClub: 250,
+	clawPerGrade: 50, pincerPerGrade: 60,
+	club: 200, spikedClub: 250,
 	sting: 100, barbedSting: 150,
 	shellBlocks: [4]int{0, 25, 45, 60},
 }
@@ -122,7 +131,7 @@ func (w *World) modeDamage(e *Entity, mode AttackMode, base int) int {
 			pct = t.mandibleBite
 		}
 	case AttackClaw:
-		pct = 100 + t.clawPerGrade*a.Claws
+		pct = 100 + t.clawPerGrade*a.Claws + t.pincerPerGrade*a.Pincers
 	case AttackTail:
 		switch a.TailTip {
 		case TailClub:

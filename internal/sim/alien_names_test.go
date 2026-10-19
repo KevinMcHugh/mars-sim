@@ -428,7 +428,7 @@ func gteCond(v int) *intCondition { return &intCondition{Gte: &v} }
 // roll, and a condition using any of them is a feature condition.
 func TestNameConditionFeatures(t *testing.T) {
 	yes := true
-	horned := AlienSpecies{Anatomy: AlienAnatomy{Horns: 6, Shell: 2, TailTip: TailSpikedClub, Tusks: 2, Mouth: MouthBill}, Apex: true}
+	horned := AlienSpecies{Anatomy: AlienAnatomy{Horns: 6, Shell: 2, TailTip: TailSpikedClub, Tusks: 2, Mouth: MouthBill, Pincers: 1}, Apex: true}
 	bare := AlienSpecies{}
 	for _, tc := range []struct {
 		name string
@@ -440,6 +440,7 @@ func TestNameConditionFeatures(t *testing.T) {
 		{"apex", nameCondition{Apex: &yes}},
 		{"tusks", nameCondition{Tusks: gteCond(2)}},
 		{"mouth", nameCondition{Mouth: "bill"}},
+		{"pincers", nameCondition{Pincers: gteCond(1)}},
 		{"nested", nameCondition{All: []nameCondition{{Any: []nameCondition{{Horns: gteCond(1)}}}}}},
 	} {
 		if !tc.c.matches(horned) {

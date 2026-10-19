@@ -73,7 +73,7 @@ type nameCondition struct {
 	Eyes  *intCondition `yaml:"eyes,omitempty"`
 
 	// Graded features (alien_anatomy.go): counts for horns and antler tines,
-	// grades 1-3 for spines, shell, claws and tusks, 1-2 for a stinger, what
+	// grades 1-3 for spines, shell, claws, tusks and pincers, 1-2 for a stinger, what
 	// a tail ends in, and the mouthpart. apex is the rare deadly species (alien_weapons.go). A
 	// name gated on any of these is a feature name: the first naming pass
 	// never sees one match (a species has no features yet when it is named),
@@ -88,6 +88,7 @@ type nameCondition struct {
 	TailTip string        `yaml:"tail-tip,omitempty"` // plain | club | spiked-club | stinger
 	Tusks   *intCondition `yaml:"tusks,omitempty"`
 	Mouth   string        `yaml:"mouth,omitempty"` // plain | beak | bill | mandibles | proboscis
+	Pincers *intCondition `yaml:"pincers,omitempty"`
 	Apex    *bool         `yaml:"apex,omitempty"`
 }
 
@@ -115,7 +116,7 @@ func (c nameCondition) isZero() bool {
 // graded feature or apex.
 func (c nameCondition) featureLeaf() bool {
 	return c.Horns != nil || c.Antlers != nil || c.Spines != nil || c.Shell != nil ||
-		c.Claws != nil || c.Stinger != nil || c.TailTip != "" || c.Tusks != nil || c.Mouth != "" || c.Apex != nil
+		c.Claws != nil || c.Stinger != nil || c.TailTip != "" || c.Tusks != nil || c.Mouth != "" || c.Pincers != nil || c.Apex != nil
 }
 
 // usesFeatures reports whether c tests a graded feature or apex anywhere in
@@ -221,7 +222,7 @@ func (c nameCondition) matches(sp AlienSpecies) bool {
 	for _, leaf := range []struct {
 		c *intCondition
 		v int
-	}{{c.Horns, a.Horns}, {c.Antlers, a.Antlers}, {c.Spines, a.Spines}, {c.Shell, a.Shell}, {c.Claws, a.Claws}, {c.Stinger, a.Stinger}, {c.Tusks, a.Tusks}} {
+	}{{c.Horns, a.Horns}, {c.Antlers, a.Antlers}, {c.Spines, a.Spines}, {c.Shell, a.Shell}, {c.Claws, a.Claws}, {c.Stinger, a.Stinger}, {c.Tusks, a.Tusks}, {c.Pincers, a.Pincers}} {
 		if leaf.c != nil && !leaf.c.matches(leaf.v) {
 			return false
 		}
