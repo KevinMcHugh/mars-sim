@@ -69,6 +69,8 @@ export const ui = $state({
    * keeps following.
    */
   follow: null as number | null,
+  /** The species the Lore tab shows, an index into the lore topic's species. */
+  loreSpecies: 0,
   /** The tab a selection was made from, for the inspector's way back. */
   inspectFrom: null as string | null,
   /** The roster's filters, kept while the tab is closed (the TUI's f). */
@@ -315,6 +317,12 @@ export function inspect(s: Selection, from: string | null = null): void {
   if (isFloating('inspect')) raiseFloat('inspect');
   else ui.panel = 'inspect';
   ctl?.selected();
+}
+
+/** Open the Lore tab on species i (the lore topic's index), as the inspector's species link does. */
+export function showSpecies(i: number): void {
+  ui.loreSpecies = i;
+  setPanel('lore');
 }
 
 /**

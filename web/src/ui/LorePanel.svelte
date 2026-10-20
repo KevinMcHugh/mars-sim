@@ -3,8 +3,8 @@
   // behind the colony's guns (docs/arms-makers.md), from the "lore"
   // topic (internal/wire/topics.go), as the TUI's lore tab shows them.
   import { subscribe, topics, ui } from '../game.svelte';
-  import { sized } from '../map/atlas';
   import Section from './Section.svelte';
+  import { spriteURL } from './sprite';
 
   interface Species {
     // label is the TUI's roster label, emoji included ("🦗 Bug · hostile").
@@ -31,8 +31,8 @@
   $effect(() => subscribe('lore'));
   const lore = $derived(topics.data.lore as Lore | undefined);
 
-  let selected = $state(0);
-  const sp = $derived(lore?.species[Math.min(selected, lore.species.length - 1)]);
+  // ui.loreSpecies, so the inspector's species link can pick the entry.
+  const sp = $derived(lore?.species[Math.min(ui.loreSpecies, lore.species.length - 1)]);
 
   // The (?) beside the binomial: a click/tap disclosure rather than a hover
   // tooltip, so it works on touch. It stays open while browsing species.
@@ -44,12 +44,6 @@
   const affix = (g: { part: string; form: string }) =>
     g.part === 'prefix' ? `${g.form}-` : g.part === 'root' ? `-${g.form}` : g.form;
 
-  // A sprite as an image source. It only ever goes into an <img>, where an
-  // SVG runs nothing; sized gives it the dimensions every browser needs.
-  function spriteURL(i: number | undefined): string {
-    const svg = i === undefined || i < 0 ? undefined : ui.hello?.glyphs.sprites?.[i];
-    return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sized(svg))}` : '';
-  }
   const portrait = (s: Species) => spriteURL(s.forms?.[s.portrait]?.sprite);
 
   const area = $derived(lore ? lore.world.width * lore.world.height : 0);
@@ -80,7 +74,7 @@
       <ul class="list">
         {#each lore.species as s, i (s.label + i)}
           <li>
-            <button type="button" class:on={sp === s} onclick={() => (selected = i)}>
+            <button type="button" class:on={sp === s} onclick={() => (ui.loreSpecies = i)}>
               {#if portrait(s)}<img class="sprite mini" src={portrait(s)} alt="" />{s.title}{:else}{s.label}{/if}
             </button>
           </li>

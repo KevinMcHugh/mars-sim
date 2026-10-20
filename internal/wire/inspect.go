@@ -85,6 +85,12 @@ type EntityTopic struct {
 	Cause    string `json:"cause,omitempty"`
 	// Species is an alien's roster label ("🦗 Bug · hostile").
 	Species string `json:"species,omitempty"`
+	// SpeciesIndex indexes the lore topic's species, for a link to the
+	// alien's entry; -1 for anything but an alien.
+	SpeciesIndex int `json:"speciesIndex"`
+	// Sprite is the alien's species-pack sprite, an index into
+	// Hello.glyphs.sprites, or -1 for none (docs/species-pack.md).
+	Sprite int `json:"sprite"`
 	// Colonist is everything a colonist has that other creatures do not.
 	Colonist *ColonistDetail `json:"colonist,omitempty"`
 }
@@ -243,6 +249,9 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 		MaxHP: e.MaxHP,
 		Parts: []PartHP{},
 		Dead:  e.Dead,
+
+		SpeciesIndex: -1,
+		Sprite:       e.Sprite - 1,
 	}
 	if e.Dead {
 		t.DiedTick, t.DiedAt, t.Cause = e.DiedTick, sim.Clock(e.DiedTick, s.TicksPerDay), e.Cause
@@ -254,6 +263,7 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 	}
 	if e.Kind == sim.Alien {
 		t.Species = alienLabel(e)
+		t.SpeciesIndex = e.SpeciesIndex
 	}
 	if p := e.Profile; p != nil {
 		t.Colonist = colonistDetail(s, e, p)
