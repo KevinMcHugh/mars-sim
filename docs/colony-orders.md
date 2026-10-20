@@ -118,7 +118,10 @@ the goods rooms are built from (`buildGoods`: rock, iron ore, clay).
 resale asks, no water or uranium bids, no biomatter bids at the kitchens, no
 rifle bid, no meal asks. They are not suspended and do not appear on the
 desk; they are simply never created. The building bids can still be
-suspended like any standing order.
+suspended like any standing order. With `power` on, the reactor's fuel is the
+one exception: the colony's silo bids for uranium ore and water ice are
+allowed as well, because its reactor needs them the way its rooms need stone
+(`reactorFuel`; see [power.md](./power.md)).
 
 Food is then the colonists' own business: a hungry colonist bids for a meal
 and buys from whoever sells one (a chef, a neighbour), and `tryRation` still

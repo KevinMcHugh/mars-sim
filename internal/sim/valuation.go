@@ -43,6 +43,9 @@ func (w *World) referenceValue(k ItemKind) Money {
 	if p := w.refPrice(k); p > 0 {
 		return p
 	}
+	if k == Battery && w.cfg.Power {
+		return Money(w.cfg.PowerTariff) // not sold at the silo: refPrice stays 0
+	}
 	return w.biomatterPrice(k)
 }
 

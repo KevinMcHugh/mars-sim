@@ -36,6 +36,7 @@ var fixtureZones = [numTerrains]ZoneKind{
 	Incubator:   ZoneProduction,
 	Incinerator: ZoneProduction,
 	Forge:       ZoneProduction,
+	Reactor:     ZoneProduction,
 	GunBench:    ZoneProduction,
 }
 
@@ -102,6 +103,7 @@ var roomNames = map[Terrain]string{
 	Incubator:   "scum incubator",
 	Incinerator: "trash room",
 	Forge:       "foundry",
+	Reactor:     "reactor",
 	GunBench:    "foundry",
 }
 

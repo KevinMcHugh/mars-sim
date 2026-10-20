@@ -338,6 +338,7 @@ stays: its passengers still came down in it.
 | `crash-pod-purse` | 100 dollars |
 | `crash-pod-meals` | 10 |
 | `crash-pod-meal-spread` | 0 |
+| `ship-batteries` | 10 of the colony's batteries in each locker, for its stoves (see [power.md](./power.md)) |
 | `crash-pod-gun-weight` | 50 |
 | `crash-pod-chicken-weight` | 25 |
 | `crash-pod-cat-weight` | 25 |

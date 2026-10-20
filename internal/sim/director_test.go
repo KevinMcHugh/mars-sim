@@ -100,7 +100,7 @@ func TestLoadSchedulesErrors(t *testing.T) {
 		{
 			"empty supply drop",
 			`schedules: [{name: x, earliest_tick: 0, latest_tick: 10, occurrences: [{kind: supply-drop}]}]`,
-			"at least one pistol or shotgun",
+			"at least one pistol, shotgun or battery",
 		},
 	}
 	for _, tc := range cases {

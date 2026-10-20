@@ -40,6 +40,7 @@ const (
 	Cot         = "\U0001F3E5" // 🏥 cot in an infirmary
 	Incubator   = "\U0001FAD9" // 🫙 scum incubator: a seed of scum in, scum grown on a schedule
 	Trough      = "\U0001FAA3" // 🪣 trough: a keeper's chicken feed
+	Reactor     = "\u26A1"     // ⚡ reactor: uranium and water ice in, batteries out
 	StairDown   = "\U0001F53D" // 🔽 the top of a stair: the way down to the next level
 	StairUp     = "\U0001F53C" // 🔼 the foot of a stair: the way back up
 	Shaft       = "\U0001FA9C" // 🪜 a shaft's ladder: its top, its foot, and every level between
@@ -288,6 +289,8 @@ var All = []string{
 	Aiding,
 	// And the infirmary's cot, after those.
 	Cot,
+	// And the reactor, after that.
+	Reactor,
 }
 
 var known = func() map[string]bool {
@@ -385,6 +388,8 @@ func ForTerrain(t sim.Terrain) string {
 		return Incubator
 	case sim.Trough:
 		return Trough
+	case sim.Reactor:
+		return Reactor
 	case sim.StairDown:
 		return StairDown
 	case sim.StairUp:
