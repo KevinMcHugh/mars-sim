@@ -221,3 +221,32 @@ func TestProspectingPrefersTheUnknown(t *testing.T) {
 		}
 	}
 }
+
+// A forager with money buys the scum on sale at the stove and cooks it,
+// rather than digging for scum it could have had for a dollar.
+func TestAForagerWithMoneyBuysScumOnSale(t *testing.T) {
+	w, house := forageWorld(t)
+	c := w.storageContainers[house]
+	c.Inventory.Add(CaveScum, 10)
+	c.credit(Community, CaveScum, 10)
+	if o, _ := w.post(Ask, CaveScum, 10, 1, Community, house, 0); o == nil {
+		t.Fatal("ask not posted")
+	}
+	e := hungryColonist(w, Point{14, 10, LandingLevel})
+	w.transfer(Community, ColonistOwner(e.ID), 500)
+	if !w.planForage(e) {
+		t.Fatal("planned nothing with scum on sale and money to buy it")
+	}
+	if e.Job != JobCraft || e.Target != house || e.craftFor != ColonistOwner(e.ID) {
+		t.Fatalf("job %v at %v for %v; want cooking its own scum at the scumhouse %v", e.Job, e.Target, e.craftFor, house)
+	}
+	if got := c.held(ColonistOwner(e.ID), CaveScum); got != w.scumPerMeal() {
+		t.Fatalf("holds %d scum at the scumhouse; want a meal's worth, %d", got, w.scumPerMeal())
+	}
+
+	// Broke, it can't: it forages instead.
+	broke := hungryColonist(w, Point{16, 10, LandingLevel})
+	if w.tryBuyScum(broke) {
+		t.Fatal("a colonist with no money bought scum")
+	}
+}

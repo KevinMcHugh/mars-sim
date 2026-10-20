@@ -71,11 +71,15 @@ hungry.
    every turn.
 4. **A meal's worth of scum in hand**, counting what it already has in the
    scumhouse: take it in to cook.
-5. **A pack with no room for scum**: unload all the rock and ore in one trip
+5. **Scum on sale at a scumhouse**: buy a meal's worth, topping up what it
+   already has there, and cook it (`tryBuyScum`). Only if the lot costs no
+   more than it would pay for a meal (`mealBidLimit`), and only at a free
+   scumhouse it may cook at.
+6. **A pack with no room for scum**: unload all the rock and ore in one trip
    to the nearest chest (`tryForageUnload`).
-6. **Exposed scum**: scrape it, and keep it (`tryForageScrape`).
-7. **Prospect**: dig into rock nobody has seen (`tryProspect`).
-8. **A little scum in hand and nothing else to do**: bank it in the
+7. **Exposed scum**: scrape it, and keep it (`tryForageScrape`).
+8. **Prospect**: dig into rock nobody has seen (`tryProspect`).
+9. **A little scum in hand and nothing else to do**: bank it in the
    scumhouse, so the next find makes a meal.
 
 When nothing applies it waits and looks again after `forageRetryTicks` (8).
@@ -148,6 +152,15 @@ home used to die at the stove, one recipe short of the meal.
   waiting on stoves that made one meal at a time, beside scum they could
   have scraped. `foodCooking` now compares the meals coming with the number
   of hungry colonists.
+- **Buying before digging.** `runFoodFocus` only ever bought a *meal*. With
+  none for sale, a forager holding $700 went off to dig while the colony had
+  74 units of scum on sale at $1. Buying scum and cooking it is the same
+  supper for a fraction of the walk, so it comes before scraping or
+  prospecting. It is capped at what the colonist would pay for a cooked
+  meal, so a dear market still sends it to the rock face. It only buys scum
+  already sitting at a scumhouse: scum at a silo or chest would need a job
+  that fetches goods home to cook (`JobCarry` fetches only to sell), which
+  is the next step if colony scum often sits away from the stoves.
 - **A full pack.** Miners carry seven stacks of rubble. Plain rock still fit,
   so a forager dug past patch after patch it had no room to scrape. It now
   unloads first. `tryAssignStore` takes ore to the silo on one trip and the
