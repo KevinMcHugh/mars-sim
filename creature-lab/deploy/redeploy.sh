@@ -28,8 +28,10 @@ cd "$REPO"
 echo "deploying $(git rev-parse --short HEAD): $(git log -1 --format=%s)"
 
 # A checkpoint to restore if this deploy goes wrong (sprite-env checkpoints
-# list, then sprite restore <id>). Not fatal: a deploy should not fail on it.
-"$SPRITE_ENV" checkpoints create || echo "warning: checkpoint failed; deploying anyway" >&2
+# list, then sprite-env checkpoints restore <id>, which restarts the sprite).
+# Not fatal: a deploy should not fail on it.
+"$SPRITE_ENV" checkpoints create --comment "before deploying $(git rev-parse --short HEAD)" ||
+  echo "warning: checkpoint failed; deploying anyway" >&2
 
 # The postgres launcher, if it changed.
 if ! cmp -s creature-lab/deploy/run-postgres.sh /usr/local/bin/run-postgres.sh; then

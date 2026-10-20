@@ -169,7 +169,7 @@ sprite config update -s creature-lab --url-auth public
 **Redeploy:** a push to `main` that touches the lab redeploys it, with no laptop needed. The `Creature Lab` workflow ([`creature-lab.yml`](../.github/workflows/creature-lab.yml)) runs the lab's tests, including the Postgres ones against a service container. It then installs the `sprite` CLI on the runner, signs in with the `SPRITES_TOKEN` repository secret, and runs [`deploy/redeploy.sh`](../creature-lab/deploy/redeploy.sh) on the sprite over `sprite exec`. To redeploy without a push (from the GitHub app, say), use "Run workflow" on the Actions tab. The script:
 
 1. fast-forwards `~/mars-sim` to `origin/main` and re-runs the pulled copy of itself, so a change to the deploy steps applies in the same deploy;
-2. takes a sprite checkpoint, as a restore point;
+2. takes a sprite checkpoint named for the commit, as a restore point (`sprite-env checkpoints list`, then `sprite-env checkpoints restore <id>`);
 3. reinstalls `run-postgres.sh` and restarts postgres, but only if that file changed;
 4. waits for postgres, then runs `dbmate up`;
 5. builds `bin/creature-lab.new`, swaps it in (keeping `.prev`), and restarts the service;
