@@ -51,6 +51,9 @@ type EntityView struct {
 	// AlienForm is the alien's stage of life or caste ("grub", "queen"), empty
 	// for a single-form species or a plain adult. See docs/alien-lifecycles.md.
 	AlienForm string
+	// SpeciesIndex is AlienSpecies' place in Snapshot.AlienSpecies (Alien
+	// only, 0 for every other kind), so a page can open its lore entry.
+	SpeciesIndex int
 	// Sprite is the alien's sprite from a species pack, as an index into
 	// Snapshot.Sprites plus one; 0 draws the species' emoji, as every alien
 	// of a rolled species does. See docs/species-pack.md.
@@ -973,6 +976,9 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 	}
 	if e.Kind == Alien {
 		ev.AlienSpecies = w.alienSpeciesFor(e)
+		if e.Species >= 0 && e.Species < len(w.alienSpecies) {
+			ev.SpeciesIndex = e.Species // else alienSpeciesFor's fallback, 0
+		}
 		if f, ok := w.formOf(e); ok {
 			ev.AlienForm = f.Name
 		}
