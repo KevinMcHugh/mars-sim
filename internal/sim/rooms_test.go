@@ -8,6 +8,10 @@ func roomsTestWorld(w, h int) *World {
 	cfg := DefaultConfig()
 	cfg.Width, cfg.Height = w, h
 	cfg.TraitChance = 0 // baseline colonists for deterministic mechanics tests
+	// DefaultConfig seeds from the clock. newPCG fixes only the sim stream;
+	// the alien roster and the other lore streams roll from cfg.Seed, so
+	// unpinned, about one run in ten rolled a friendly species nobody flees.
+	cfg.Seed = 1
 	return newWorld(cfg, newPCG(1))
 }
 
