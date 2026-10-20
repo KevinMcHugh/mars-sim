@@ -338,10 +338,12 @@ const forageRetryTicks = 8
 //     them (false), rather than walking off to dig (foodCooking);
 //  4. carrying a meal's worth of its own scum, counting any it has in the
 //     scumhouse: take it in to cook;
-//  5. scrape exposed scum, keeping it, unloading first if its pack has no
+//  5. buy a meal's worth of scum on sale at a scumhouse and cook it
+//     (tryBuyScum);
+//  6. scrape exposed scum, keeping it, unloading first if its pack has no
 //     room for scum;
-//  6. prospect: dig into rock nobody has seen, to expose more scum;
-//  7. bank what little scum it carries, so a later find makes a meal.
+//  7. prospect: dig into rock nobody has seen, to expose more scum;
+//  8. bank what little scum it carries, so a later find makes a meal.
 //
 // Scraping and prospecting carry a part load from patch to patch rather than
 // walking each unit home (finishScraping), so a forager is out at the rock
@@ -361,6 +363,9 @@ func (w *World) planForage(e *Entity) bool {
 	if carried > 0 && carried+w.ownScumBanked(e) >= w.scumPerMeal() && w.tryAssignScrape(e, true) {
 		return true // tryAssignScrape hauls what it is carrying
 	}
+	if w.tryBuyScum(e) && w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) {
+		return true
+	}
 	// Room in the pack for what it finds. A miner's pack is often seven
 	// stacks of rubble: it could still dig plain rock, and dug past patch
 	// after patch it had no room to scrape.
@@ -374,6 +379,59 @@ func (w *World) planForage(e *Entity) bool {
 		return true // only where there is a scumhouse to cook what it finds
 	}
 	return carried > 0 && w.tryAssignScrape(e, true)
+}
+
+// tryBuyScum buys a hungry colonist a meal's worth of scum on sale at a free
+// scumhouse it may cook at, topping up what it already has there, and reports
+// whether it bought any. It pays no more for the lot than it would for a meal
+// (mealBidLimit): cooking it is its own time, but so is digging for it.
+//
+// A forager with $700 used to walk off to dig for scum the colony had on sale
+// at $1 beside the stove. Only scum already at a scumhouse is bought: scum at
+// a silo or chest would need fetching, and there is no job that fetches goods
+// home to cook rather than to sell.
+func (w *World) tryBuyScum(e *Entity) bool {
+	limit := w.mealBidLimit(e)
+	if limit <= 0 {
+		return false
+	}
+	me := ColonistOwner(e.ID)
+	room := w.roomOf(e.Pos)
+	var best *Order
+	var bestNeed, bestDist int
+	var bestCost Money
+	w.eachFacility(Scumhouse, func(p Point) {
+		c := w.storageContainers[p]
+		if c == nil || !w.canUseFixture(e, p) || !w.mayCookAt(e, p) || !w.taskReachable(p, room) {
+			return
+		}
+		if id := w.workshopClaims[p]; id != 0 && id != e.ID {
+			return // a cook at the stove: it would buy and then wait
+		}
+		need := w.scumPerMeal() - c.held(me, CaveScum)
+		ask, ok := w.bestAsk(CaveScum, p)
+		if need <= 0 || !ok || ask.Actor == me || ask.Qty < need || Money(need)*ask.Price > limit {
+			return
+		}
+		d := w.travelEstimate(e.Pos, p)
+		cost := Money(need) * ask.Price
+		if best == nil || cost < bestCost || (cost == bestCost && (d < bestDist || (d == bestDist && lessPoint(p, best.Depot)))) {
+			best, bestNeed, bestDist, bestCost = ask, need, d, cost
+		}
+	})
+	if best == nil {
+		return false
+	}
+	price, at := best.Price, best.Depot
+	o, filled := w.post(Bid, CaveScum, bestNeed, price, me, at, 0)
+	if o != nil && o.Qty > 0 {
+		w.cancel(o) // buy now or not at all
+	}
+	if filled == 0 {
+		return false
+	}
+	w.emitDone(e, ActionBuy, NounScum, "Bought %d scum for %v each to cook.", filled, price)
+	return true
 }
 
 // noteForaging logs, once a hunger, that e has gone looking for food.
