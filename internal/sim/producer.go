@@ -556,6 +556,7 @@ type carryStage uint8
 const (
 	carryFetch   carryStage = iota // taking its goods out of the depot at Target
 	carryDeliver                   // carrying them to the depot at Target
+	carryTake                      // taking its own goods out to keep: the job ends with them in its pack
 )
 
 // assignCarry sends e to move qty of its plan's item, its own, to the plan's
@@ -600,6 +601,17 @@ func (w *World) jobCarry(e *Entity) {
 		e.Inventory.Add(e.carryItem, n)
 		e.addCargo(owner, e.carryItem, n)
 		e.carryQty, e.Target, e.carry = n, e.carryTo, carryDeliver
+		return
+	}
+	if e.carry == carryTake {
+		n := min(e.carryQty, c.held(owner, e.carryItem))
+		for n > 0 && !e.Inventory.CanAdd(e.carryItem, n) {
+			n--
+		}
+		if n > 0 && c.debit(owner, e.carryItem, n) {
+			e.Inventory.Add(e.carryItem, n)
+		}
+		w.clearJob(e)
 		return
 	}
 	n := min(e.carryQty, e.carriedFor(owner, e.carryItem))
