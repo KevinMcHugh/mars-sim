@@ -90,6 +90,12 @@ pool — see below), a `Temperament`, a set of `AttackModes`, and three precompu
 `BiteDamage`, `BiteRest`, `Slowness` (named for the bite, but they are the
 baseline damage and pace of every attack mode).
 
+Arms and legs always come in **pairs**: 2 to 8 limbs, an even number of
+arms (0 to 8) and an even number of legs (0 to 8). `rollAlienSpecies` still
+rolls the old way (2–8 limbs, 0–all of them arms) and `pairedLimbs` rounds
+each of arms and legs down to even, so a 3-limbed roll with 1 arm becomes 2
+legs, a 5-limbed roll with 2 arms becomes 2 arms and 2 legs.
+
 `Config.AlienSpeciesCount` (default 1) says how many species a world rolls;
 `rollAlienSpeciesRoster` rolls that many (clamped to at least 1) into
 `World.alienSpecies`. Every `Alien` entity is assigned one at spawn time —
@@ -266,11 +272,11 @@ and the set has to make sense for the body (`canUse`):
 
 | Mode | Needs | What it does |
 | --- | --- | --- |
-| bite | nothing — every species has a mouth | full damage to a random part |
-| claws | at least one arm | full damage to a random part |
+| bite | nothing — every species has a mouth | full damage to a random part (harder with a beak or mandibles) |
+| claws | at least one arm (pincers always grant it) | full damage to a random part |
 | tail | a tail | full damage to a random part |
 | strangle | at least two arms (a grip) | half damage, always to the head |
-| gore | horns or antlers (granted, not rolled) | scaled by horns and tines, to a random part |
+| gore | horns, antlers or tusks (granted, not rolled) | scaled by horns, tines and tusks, to a random part |
 | sting | a stinger (granted, not rolled) | half damage (barbed: three quarters), always to the torso |
 
 Each allowed mode is kept on a coin flip, so two clawed, tailed species can
@@ -359,6 +365,9 @@ type nameCondition struct {
 	// graded features and the apex roll (see alien-lifecycles.md)
 	Horns, Antlers, Spines, Shell, Claws, Stinger *intCondition
 	TailTip                                       string // plain | club | spiked-club | stinger
+	Tusks                                         *intCondition
+	Mouth                                         string // plain | beak | bill | mandibles | proboscis
+	Pincers                                       *intCondition
 	Apex                                          *bool
 }
 ```
@@ -389,7 +398,9 @@ them: an entry gated on `horns`, `stinger`, `apex` and the like (a
 yet. After anatomy and apex, `renameForFeatures` gives each species whose
 features fit a free feature name a 60% chance of taking one ("unicorn" for
 a single horn, "crownhorn" for six or more, "urchin", "shellback",
-"reaper", "stingtail", "morningstar", and "horror", "dread" or
+"reaper", "stingtail", "morningstar", "tusker", "greattusk", "hookbeak",
+"duckbill", "platypus", "snapjaw", "sipper", "chupacabra" for a proboscis on
+anything that fights, "pincher" and "cangrejo" for pincers, and "horror", "dread" or
 "nightmare" for an apex species), freeing the first-pass name. The pass
 has its own stream (`alienFeatureNameSeed`) and draws once per species
 before anything else, so no species' build, temperament or first-pass name
@@ -422,6 +433,25 @@ several names under one condition:
 after loading ever sees a group. It also fills in each entry's default plural.
 An entry sets `name` or `group`, never both, and a group's plurals go on its
 names, not on the group. `TestLoadAlienNamesExpandsGroups` pins the expansion.
+
+### Spanish nicknames
+
+Some names are what a crew would call a thing in Spanish, mostly by color,
+the way a team gets called *los rojos* or *los blancos*: rojo and colorado
+(red), naranjo, amarillo, verde, azul, morado, gris, blanco, lechoso
+("milky", for pale), oscuro (black), tornasol (iridescent); and bicho for a
+tiny thing, lagarto for a scaly one (where "alligator" comes from). They
+sit in the same pool as the English names, under the same conditions, so a
+red species is sometimes "rojos" and sometimes something else. The feature
+names add *chupacabra* and *cangrejo*.
+
+Two rules for adding more. Spanish plurals take *-es* after a consonant
+(*azul, azules*; *gris, grises*), so give those a `plural`. And keep them
+ASCII: an accented letter is fine to the sim, but names are written into
+narrow map and roster columns, and the accent-free forms are the ones that
+read naturally here (*lechoso* rather than *pálido*). For black, *oscuro*
+("dark") was chosen over *negro* and *prieto*, which in English-language
+narration read as words about people rather than about a color.
 
 ### No repeated names
 
@@ -563,6 +593,21 @@ damage/pace, plus the color pattern) followed by `Description()`'s narrative par
 word-wrapped to the panel width.
 
 ## Why it is this way
+
+- **Paired limbs by rounding, not by a new roll.** Odd arm and leg counts
+  (a three-legged thing, one arm) always drew badly as sprites, so new
+  species no longer get them. Drawing from an even-only range would have
+  been tidier, but `rollAlienSpecies` draws everything from one lore stream
+  in order: a different limb draw would have shifted every later species'
+  temperament, hide, color and name. Rounding the old draws keeps the
+  stream where it was, so a seed's roster only changes in limb counts (and
+  in whatever names or scientific names those counts decide). The cost is a
+  lean toward fewer limbs: 2 and 4 come up more often than 8.
+  Species rolled before this keep their odd counts: a save stores its
+  roster and Creature Lab stores each species whole, and nothing checks
+  for pairs, so they load and draw as before. The odd-leg word parts
+  (*Tripus*, *Pentapus*, ...) stay in `alien-taxonomy.yaml` for them, so
+  their names can still be explained; new species never draw them.
 
 - **`sim` carries `Emoji` as an opaque string, never a "glyph."** The ask
   was explicit that `sim` shouldn't know anything about emoji, and it still
@@ -713,10 +758,10 @@ word-wrapped to the panel width.
 - **Lifecycles and graded anatomy** are built: some species roll a life of
   several forms (egg, grub, pupa, joey; queen/worker/drone castes), each
   larger and more extreme than the last but recognizably the same, and every
-  species rolls graded features (horns, antlers, stingers, quills, tail
-  clubs, shells) that `Description` adds a sentence for, their adults
+  species rolls graded features (horns, antlers, tusks, stingers, quills,
+  tail clubs, shells, and a beak, bill, mandibles or proboscis) that `Description` adds a sentence for, their adults
   or queens lay the next generation, and the features fight: horns gore,
-  stingers sting, claws and clubs hit harder, shells blunt hits. See
+  stingers sting, claws, clubs and beaks hit harder, shells blunt hits. See
   [alien-lifecycles.md](./alien-lifecycles.md).
 - **Per-individual variation.** Every alien of a given species is still
   stat-for-stat identical to every other of that species. Giving each

@@ -166,8 +166,8 @@ const (
 	AttackClaw
 	AttackTail
 	AttackStrangle
-	// AttackGore and AttackSting are granted by anatomy (horns or antlers; a
-	// stinger), not rolled: see alien_weapons.go.
+	// AttackGore and AttackSting are granted by anatomy (horns, antlers or
+	// tusks; a stinger), not rolled: see alien_weapons.go.
 	AttackGore
 	AttackSting
 )
@@ -276,18 +276,26 @@ func (sp AlienSpecies) AttacksLabel() string {
 	return strings.Join(names, ", ")
 }
 
-// goreWeapon is what a goring species gores with, for its description.
+// goreWeapon is what a goring species gores with, for its description:
+// "horn", "horns and antlers", "horns, antlers, and tusks".
 func (sp AlienSpecies) goreWeapon() string {
+	var w []string
 	switch {
-	case sp.Anatomy.Horns > 0 && sp.Anatomy.Antlers > 0:
-		return "horns and antlers"
-	case sp.Anatomy.Antlers > 0:
-		return "antlers"
 	case sp.Anatomy.Horns == 1:
-		return "horn"
-	default:
+		w = append(w, "horn")
+	case sp.Anatomy.Horns > 1:
+		w = append(w, "horns")
+	}
+	if sp.Anatomy.Antlers > 0 {
+		w = append(w, "antlers")
+	}
+	if sp.Anatomy.Tusks > 0 {
+		w = append(w, "tusks")
+	}
+	if len(w) == 0 {
 		return "horns"
 	}
+	return joinList(w)
 }
 
 // attackPhrase is how a description says a species fights: "biting,
@@ -298,7 +306,11 @@ func (sp AlienSpecies) attackPhrase() string {
 	for i, m := range modes {
 		switch m {
 		case AttackClaw:
-			phrases[i] = "raking with their claws"
+			if sp.Anatomy.Pincers > 0 {
+				phrases[i] = "crushing with their pincers"
+			} else {
+				phrases[i] = "raking with their claws"
+			}
 		case AttackTail:
 			phrases[i] = "thrashing their tails"
 		case AttackStrangle:
@@ -308,7 +320,14 @@ func (sp AlienSpecies) attackPhrase() string {
 		case AttackSting:
 			phrases[i] = "stinging"
 		default:
-			phrases[i] = "biting"
+			switch sp.Anatomy.Mouth {
+			case MouthBeak:
+				phrases[i] = "tearing with their beaks"
+			case MouthMandibles:
+				phrases[i] = "shearing with their mandibles"
+			default:
+				phrases[i] = "biting"
+			}
 		}
 	}
 	return joinList(phrases)
@@ -465,6 +484,20 @@ type AlienSpecies struct {
 	FormCount int
 }
 
+// pairedLimbs rounds a rolled limb count and arm count down to an even
+// number of arms and an even number of legs: odd limbs always drew badly (a
+// three-legged thing reads as a mistake, not an alien). It rounds the rolled
+// values rather than drawing different ones, so the lore stream makes the
+// same draws as before and nothing else a seed rolls moves. Never below 2:
+// the roll is at least 2 limbs, and rounding loses at most one of each.
+// Species rolled before this (in a save, or stored by Creature Lab) keep the
+// odd counts they were stored with.
+func pairedLimbs(limbs, arms int) (int, int) {
+	arms &^= 1
+	legs := (limbs - arms) &^ 1
+	return arms + legs, arms
+}
+
 // Legs is how many of a species' Limbs are legs rather than arms -- derived,
 // not stored, so Arms is the one source of truth for the split.
 func (sp AlienSpecies) Legs() int { return sp.Limbs - sp.Arms }
@@ -517,6 +550,7 @@ func rollAlienSpecies(rng *rand.Rand, cfg Config, names []AlienNameEntry, used m
 	}
 	sp.Arms = rng.IntN(sp.Limbs + 1) // 0..Limbs; the rest are legs -- both
 	// "all legs" (Arms == 0) and "all arms" (Arms == Limbs) are valid rolls.
+	sp.Limbs, sp.Arms = pairedLimbs(sp.Limbs, sp.Arms)
 	sp.Tail = rng.IntN(2) == 0
 	sp.Pattern = rollPattern(rng)
 	// Before the name, so a name (and a scientific name) can ask for wings.
@@ -572,6 +606,10 @@ func rollAlienSpeciesRoster(rng *rand.Rand, cfg Config) []AlienSpecies {
 	anatomyRNG := newRand(cfg.Seed ^ alienAnatomySeed)
 	for i := range roster {
 		roster[i].Anatomy = rollAnatomy(anatomyRNG, roster[i])
+	}
+	lateRNG := newRand(cfg.Seed ^ alienLateAnatomySeed)
+	for i := range roster {
+		roster[i].Anatomy = rollLateFeatures(lateRNG, roster[i], roster[i].Anatomy)
 		// Horns gore and stingers sting: granted, not rolled, so no draw.
 		roster[i].AttackModes |= featureAttacks(roster[i].Anatomy)
 	}

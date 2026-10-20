@@ -274,10 +274,19 @@ func rollLifecycle(rng *rand.Rand, sp *AlienSpecies, cfg Config) {
 		if !word.inert {
 			// A mobile young form has the adult's body in part: fewer limbs,
 			// a tail only past halfway, no wings yet, and lesser features.
-			f.Limbs = (sp.Limbs*(i+1) + stages - 1) / stages
-			f.Arms = min(sp.Arms*(i+1)/stages, f.Limbs)
+			// Limbs come in pairs, like the adult's (pairedLimbs): legs
+			// round up to a pair and arms down, so a young form can walk
+			// before it can grasp. (An adult stored with odd counts, from
+			// before pairing, still grows by the same rule.)
+			legs := (sp.Legs()*(i+1) + stages - 1) / stages // rounded up, as limbs were
+			legs = min(sp.Legs(), legs+legs%2)
+			f.Arms = (sp.Arms * (i + 1) / stages) &^ 1
+			f.Limbs = f.Arms + legs
 			f.Tail = sp.Tail && (i+1)*2 >= stages
 			f.Anatomy = scaledAnatomy(sp.Anatomy, i+1, stages)
+			if f.Arms == 0 {
+				f.Anatomy.Pincers = 0 // pincers are hands: none before the arms come
+			}
 		}
 		forms = append(forms, f)
 	}
@@ -347,6 +356,9 @@ func pushedAnatomy(adult AlienAnatomy, pct int) AlienAnatomy {
 		Claws:   push(adult.Claws, 3),
 		Stinger: push(adult.Stinger, 2),
 		TailTip: adult.TailTip,
+		Tusks:   push(adult.Tusks, 3),
+		Mouth:   adult.Mouth,
+		Pincers: push(adult.Pincers, 3),
 	}
 }
 

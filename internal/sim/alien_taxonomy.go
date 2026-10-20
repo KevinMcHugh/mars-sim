@@ -241,21 +241,20 @@ func etymology(tx alienTaxonomy, name string) []TaxonGloss {
 	}
 	genus, epithet := strings.ToLower(words[0]), words[1]
 
-	// The epithet is a single entry, in whichever gender's form it took.
+	// The epithet is a single entry, in whichever gender's form it took. A
+	// form can stand for two genders (latirostris is both masculine and
+	// feminine), so this is the set of genders it agrees with, empty for an
+	// invariable epithet.
 	var ep *taxonEntry
-	gender := "" // the gender its form pins down, "" for an invariable one
+	genders := map[string]bool{}
 	for i, e := range tx.Epithets {
-		switch epithet {
-		case e.Form:
-			if e.Feminine != "" {
-				gender = "m"
-			}
-		case e.Feminine:
-			gender = "f"
-		case e.Neuter:
-			gender = "n"
-		default:
+		if epithet != e.Form && epithet != e.Feminine && epithet != e.Neuter {
 			continue
+		}
+		if e.Feminine != "" {
+			genders["m"] = epithet == e.Form
+			genders["f"] = epithet == e.Feminine
+			genders["n"] = epithet == e.Neuter
 		}
 		ep = &tx.Epithets[i]
 		break
@@ -270,7 +269,7 @@ func etymology(tx alienTaxonomy, name string) []TaxonGloss {
 	// before a mimic root, and a root agreeing with the epithet's gender.
 	// File order decides between two readings, so the answer is stable.
 	for _, r := range tx.Roots {
-		if !strings.HasSuffix(genus, r.Form) || (gender != "" && r.Gender != gender) {
+		if !strings.HasSuffix(genus, r.Form) || (len(genders) > 0 && !genders[r.Gender]) {
 			continue
 		}
 		for _, p := range tx.Prefixes {
