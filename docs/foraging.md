@@ -19,9 +19,11 @@ finishing it.
 ## Source
 
 - [`internal/sim/food.go`](../internal/sim/food.go) — `hungryWithoutFood`,
-  `planForage`, `foodCooking` (with `colonyMealsIn` and
+  `planForage`, `tryBuyScum`, `foodCooking` (with `colonyMealsIn` and
   `hungryWithoutMeals`), `tryForageScrape`, `tryProspect`,
   `unexploredAround`, `prospectingForFood`, `tryForageUnload`.
+- [`internal/sim/producer.go`](../internal/sim/producer.go) — `jobCarry`'s
+  `carryTake`, the fetch for scum bought away from a stove.
 - [`internal/sim/scumhouse.go`](../internal/sim/scumhouse.go) —
   `scrapeDestination` (split out of `tryAssignScrape`), and
   `finishScraping`, where a forager keeps a part load.
@@ -71,10 +73,13 @@ hungry.
    every turn.
 4. **A meal's worth of scum in hand**, counting what it already has in the
    scumhouse: take it in to cook.
-5. **Scum on sale at a scumhouse**: buy a meal's worth, topping up what it
-   already has there, and cook it (`tryBuyScum`). Only if the lot costs no
-   more than it would pay for a meal (`mealBidLimit`), and only at a free
-   scumhouse it may cook at.
+5. **Scum on sale**: buy a meal's worth (`tryBuyScum`). Each depot's best
+   ask is weighed at its price plus the colonist's time walking it to a
+   stove, at its reservation wage, and the lot must cost no more than it
+   would pay for a meal (`mealBidLimit`). At a free scumhouse it may cook
+   at, it buys what tops up its own scum there and cooks. Anywhere else (a
+   silo, a chest, someone's own kitchen) it walks over and takes the scum
+   into its pack (`JobCarry` at `carryTake`), and step 4 carries it home.
 6. **A pack with no room for scum**: unload all the rock and ore in one trip
    to the nearest chest (`tryForageUnload`).
 7. **Exposed scum**: scrape it, and keep it (`tryForageScrape`).
@@ -157,10 +162,18 @@ home used to die at the stove, one recipe short of the meal.
   74 units of scum on sale at $1. Buying scum and cooking it is the same
   supper for a fraction of the walk, so it comes before scraping or
   prospecting. It is capped at what the colonist would pay for a cooked
-  meal, so a dear market still sends it to the rock face. It only buys scum
-  already sitting at a scumhouse: scum at a silo or chest would need a job
-  that fetches goods home to cook (`JobCarry` fetches only to sell), which
-  is the next step if colony scum often sits away from the stoves.
+  meal, so a dear market still sends it to the rock face.
+- **The walk counts, at full precision.** The first version bought only at
+  a scumhouse. Buying anywhere means a cheap lot across the map can beat a
+  slightly dearer one at the stove, so the walk is priced at the colonist's
+  reservation wage. `laborCostFor` rounds up to whole dollars, and a walk
+  across the room and a step to the stove both came to $1, so the
+  comparison uses the unrounded wage (the cap still uses dollars).
+- **`carryTake`, not a new job.** `JobCarry` already fetches a colonist's
+  own goods out of a depot. Its other stages then deliver and post an ask.
+  `carryTake` stops after the fetch, leaving the scum in the pack, and the
+  forager's next plan hauls it to the stove as if it had scraped it.
+  `JobFetch` is guns only.
 - **A full pack.** Miners carry seven stacks of rubble. Plain rock still fit,
   so a forager dug past patch after patch it had no room to scrape. It now
   unloads first. `tryAssignStore` takes ore to the silo on one trip and the

@@ -250,3 +250,66 @@ func TestAForagerWithMoneyBuysScumOnSale(t *testing.T) {
 		t.Fatal("a colonist with no money bought scum")
 	}
 }
+
+// scumOnSale puts n of the colony's scum in the depot at p, on sale at price.
+func scumOnSale(t *testing.T, w *World, p Point, n int, price Money) {
+	t.Helper()
+	c := w.storageContainers[p]
+	c.Inventory.Add(CaveScum, n)
+	c.credit(Community, CaveScum, n)
+	if o, _ := w.post(Ask, CaveScum, n, price, Community, p, 0); o == nil {
+		t.Fatal("ask not posted")
+	}
+}
+
+// Scum on sale in a chest across the room is bought, fetched, carried to the
+// stove, cooked and eaten.
+func TestAForagerFetchesScumItBoughtFromAChest(t *testing.T) {
+	w, _ := forageWorld(t)
+	chest := Point{20, 14, LandingLevel}
+	w.SetTerrain(chest, Storage)
+	w.refreshSpatial()
+	scumOnSale(t, w, chest, 10, 1)
+	e := hungryColonist(w, Point{14, 10, LandingLevel})
+	w.transfer(Community, ColonistOwner(e.ID), 500)
+	id := e.ID
+	rock := w.landing().terrainCounts[Rock]
+	if !w.planForage(e) || e.Job != JobCarry || e.Target != chest {
+		t.Fatalf("job %v at %v; want fetching the scum it bought at the chest %v", e.Job, e.Target, chest)
+	}
+	w.clearJob(e) // let the turn plan it from scratch
+	fed := false
+	for i := 0; i < 300 && !fed; i++ {
+		w.step()
+		if e = w.entities[id]; e == nil {
+			t.Fatalf("starved at tick %d", w.tick)
+		}
+		fed = w.driveLevel(e, DriveFood) < w.cfg.Drives[DriveFood].SeekAt/2
+	}
+	if !fed {
+		t.Fatalf("not fed after 300 ticks: job %v, carrying %d scum", e.Job, e.ownCarried(CaveScum))
+	}
+	if dug := rock - w.landing().terrainCounts[Rock]; dug != 0 {
+		t.Fatalf("dug %d rock with scum on sale a few tiles away", dug)
+	}
+}
+
+// Its own time counts: at the same price, scum at the stove beats scum at a
+// chest it would have to walk to and back from. The chest sorts first by
+// position, so without the walk counted it would win the tie.
+func TestAForagerWeighsTheWalkAgainstThePrice(t *testing.T) {
+	w, house := forageWorld(t)
+	chest := Point{6, 5, LandingLevel}
+	w.SetTerrain(chest, Storage)
+	w.refreshSpatial()
+	if !lessPoint(chest, house) {
+		t.Fatal("the chest must win a tie on position for this test to mean anything")
+	}
+	scumOnSale(t, w, house, 10, 2)
+	scumOnSale(t, w, chest, 10, 2)
+	e := hungryColonist(w, Point{14, 10, LandingLevel})
+	w.transfer(Community, ColonistOwner(e.ID), 500)
+	if !w.tryBuyScum(e) || e.Job != JobCraft || e.Target != house {
+		t.Fatalf("job %v at %v; want cooking scum bought at the stove %v", e.Job, e.Target, house)
+	}
+}
