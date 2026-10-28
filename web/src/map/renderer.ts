@@ -48,6 +48,7 @@ import type { Atlas } from './atlas';
 import { Camera } from './camera';
 import * as palette from './palette';
 import { TILE_ART } from './tileart';
+import { bodyScale } from './bodyscale';
 
 const CHUNK_PAGES = 32;
 const CHUNK_TILES = CHUNK_PAGES * PAGE_SIDE; // 2048: under every WebGL2 max texture size
@@ -206,10 +207,12 @@ in vec2 aCorner;
 in ivec2 aPos;          // per instance: tile
 in uint aKind;          // per instance: palette index
 in uint aGlyph;         // per instance: atlas index
+in float aBody;         // per instance: body scale (bodyScale), 1 for refuse
 uniform vec2 uCam;
 uniform float uScale;
 uniform vec2 uView;
 uniform float uSize;    // sprite size in tiles
+uniform bool uFeet;     // scale by aBody, standing on the tile's bottom edge
 out vec2 vCorner;
 flat out uint vKind;
 flat out uint vGlyph;
@@ -217,7 +220,11 @@ void main() {
   vCorner = aCorner;
   vKind = aKind;
   vGlyph = aGlyph;
-  vec2 tile = vec2(aPos) + 0.5 + (aCorner - 0.5) * uSize;
+  // A body grows up from its feet (docs/body-sprites.md): at size 1 both
+  // anchors give the same quad.
+  vec2 anchor = uFeet ? vec2(0.5, 1.0) : vec2(0.5);
+  float size = uFeet ? uSize * aBody : uSize;
+  vec2 tile = vec2(aPos) + anchor + (aCorner - anchor) * size;
   vec2 px = (tile - uCam) * uScale;
   gl_Position = vec4(px.x / (uView.x * 0.5), -px.y / (uView.y * 0.5), 0.0, 1.0);
 }`;
@@ -343,6 +350,7 @@ export class MapRenderer {
   private entityPos: WebGLBuffer;
   private entityKind: WebGLBuffer;
   private entityGlyph: WebGLBuffer;
+  private entityBody: WebGLBuffer;
   private refusePos: WebGLBuffer;
   private refuseKind: WebGLBuffer;
   private refuseGlyph: WebGLBuffer;
@@ -424,7 +432,7 @@ export class MapRenderer {
     for (const [prog, names] of [
       [this.terrainProg, ['uOrigin', 'uSize', 'uCam', 'uScale', 'uView', 'uTerrain', 'uTerrainColors', 'uRockColors', 'uFog',
         'uGlyphs', 'uAtlas', 'uAtlasGrid', 'uTerrainGlyph', 'uGlyphBackdrop']],
-      [this.spriteProg, ['uCam', 'uScale', 'uView', 'uSize', 'uColors', 'uRound', 'uGlyphs', 'uAtlas', 'uAtlasGrid']],
+      [this.spriteProg, ['uCam', 'uScale', 'uView', 'uSize', 'uFeet', 'uColors', 'uRound', 'uGlyphs', 'uAtlas', 'uAtlasGrid']],
     ] as const) {
       for (const n of names) this.u[(prog === this.terrainProg ? 't.' : 's.') + n] = gl.getUniformLocation(prog, n);
     }
@@ -437,7 +445,8 @@ export class MapRenderer {
     this.entityPos = gl.createBuffer()!;
     this.entityKind = gl.createBuffer()!;
     this.entityGlyph = gl.createBuffer()!;
-    this.entityVAO = this.spriteVAO(this.entityPos, this.entityKind, this.entityGlyph);
+    this.entityBody = gl.createBuffer()!;
+    this.entityVAO = this.spriteVAO(this.entityPos, this.entityKind, this.entityGlyph, this.entityBody);
     this.refusePos = gl.createBuffer()!;
     this.refuseKind = gl.createBuffer()!;
     this.refuseGlyph = gl.createBuffer()!;
@@ -604,11 +613,19 @@ export class MapRenderer {
     const pos = new Int32Array(e.count * 2);
     const kind = new Uint8Array(e.count);
     const glyph = new Uint16Array(e.count);
-    let n = 0;
-    for (let i = 0; i < e.count; i++) {
-      if (!this.visible(e.x[i], e.y[i])) continue;
-      pos[2 * n] = e.x[i]; pos[2 * n + 1] = e.y[i]; kind[n] = e.kind[i]; glyph[n] = e.glyph[i];
-      n++;
+    const body = new Float32Array(e.count);
+    // Biggest first, so a queen spilling over the next tile never hides the
+    // colonist standing on it. Array.prototype.sort is stable: ties keep
+    // frame order.
+    const order: number[] = [];
+    for (let i = 0; i < e.count; i++) if (this.visible(e.x[i], e.y[i])) order.push(i);
+    const scales = order.map((i) => bodyScale(e.height[i]));
+    const byBody = order.map((_, j) => j).sort((a, b) => scales[b] - scales[a]);
+    const n = order.length;
+    for (let k = 0; k < n; k++) {
+      const i = order[byBody[k]];
+      pos[2 * k] = e.x[i]; pos[2 * k + 1] = e.y[i]; kind[k] = e.kind[i]; glyph[k] = e.glyph[i];
+      body[k] = scales[byBody[k]];
     }
     this.entityCount = n;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.entityPos);
@@ -617,6 +634,8 @@ export class MapRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, kind.subarray(0, n), gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.entityGlyph);
     gl.bufferData(gl.ARRAY_BUFFER, glyph.subarray(0, n), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBody);
+    gl.bufferData(gl.ARRAY_BUFFER, body.subarray(0, n), gl.DYNAMIC_DRAW);
 
     // Refuse, scum and salt arrive only when they change, but what is visible
     // changes as the colony digs, so keep the lists and refilter them
@@ -899,7 +918,7 @@ export class MapRenderer {
     return vao;
   }
 
-  private spriteVAO(posBuf: WebGLBuffer, kindBuf: WebGLBuffer, glyphBuf: WebGLBuffer): WebGLVertexArrayObject {
+  private spriteVAO(posBuf: WebGLBuffer, kindBuf: WebGLBuffer, glyphBuf: WebGLBuffer, bodyBuf?: WebGLBuffer): WebGLVertexArrayObject {
     const gl = this.gl;
     const vao = gl.createVertexArray()!;
     gl.bindVertexArray(vao);
@@ -919,6 +938,18 @@ export class MapRenderer {
     gl.enableVertexAttribArray(aGlyph);
     gl.vertexAttribIPointer(aGlyph, 1, gl.UNSIGNED_SHORT, 0, 0);
     gl.vertexAttribDivisor(aGlyph, 1);
+    // Without a buffer (refuse), aBody reads the generic value, 1: that is
+    // context state, not the VAO's, and nothing else sets it.
+    const aBody = gl.getAttribLocation(this.spriteProg, 'aBody');
+    if (bodyBuf) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, bodyBuf);
+      gl.enableVertexAttribArray(aBody);
+      gl.vertexAttribPointer(aBody, 1, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(aBody, 1);
+    } else {
+      gl.disableVertexAttribArray(aBody);
+      gl.vertexAttrib1f(aBody, 1);
+    }
     return vao;
   }
 
@@ -1053,12 +1084,16 @@ export class MapRenderer {
     if (this.refuseCount > 0) {
       gl.bindVertexArray(this.refuseVAO);
       gl.uniform1f(this.u['s.uSize'], glyphs ? 0.85 : Math.max(0.45, 3 / cam.zoom));
+      gl.uniform1i(this.u['s.uFeet'], 0);
       gl.uniform1i(this.u['s.uRound'], 0);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.refuseCount);
     }
     if (this.entityCount > 0) {
       gl.bindVertexArray(this.entityVAO);
       gl.uniform1f(this.u['s.uSize'], glyphs ? 1.0 : Math.max(0.9, 5 / cam.zoom));
+      // Zoomed out, a body is a dot sized in pixels: scaling it would only
+      // make the small ones vanish.
+      gl.uniform1i(this.u['s.uFeet'], glyphs ? 1 : 0);
       gl.uniform1i(this.u['s.uRound'], 1);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.entityCount);
     }

@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "paused": true,
   "fogOfWar": true,
   "tilesReset": false,
@@ -34,6 +34,7 @@
       "x": 10,
       "y": 3,
       "glyph": 19,
+      "height": 178,
       "kind": 0,
       "state": 2,
       "focus": 1
@@ -43,6 +44,7 @@
       "x": 70,
       "y": 20,
       "glyph": 23,
+      "height": 0,
       "kind": 2,
       "state": 8,
       "focus": 0
@@ -52,6 +54,7 @@
       "x": 149,
       "y": 69,
       "glyph": 38,
+      "height": 40,
       "kind": 1,
       "state": 6,
       "focus": 0
