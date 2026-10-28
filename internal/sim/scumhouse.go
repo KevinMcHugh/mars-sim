@@ -29,17 +29,34 @@ type Recipe struct {
 	Facility Terrain
 	Ticks    int       // labor at base skill, before the worker's skill and workScale
 	Skill    SkillKind // what working it practises, and whose rank speeds it up (skills.go)
+	// Cold marks the unpowered row of a recipe that has a powered one: no
+	// battery, but more inputs per output and more ticks. Only worked with
+	// power on (Config.Power); off, the powered row needs no battery.
+	Cold bool
 }
 
 // recipes is every recipe in the game, in preference order: a cook works the
 // first one it has the inputs for. Rendering an alien carcass comes first
 // because it is the most food for the work and the least pleasant thing to
 // leave lying in a depot.
+//
+// Every food recipe has a powered row, spending a battery, and a cold row
+// after all of them: three times the ticks, and two thirds the meals for its
+// inputs (three quarters for a carcass, which can't be split). Powered rows
+// come first, so a stove with a battery always spends it. See docs/power.md.
 var recipes = []Recipe{
-	{Name: "render an alien carcass", Inputs: []ItemStack{{AlienCorpse, 1}}, Outputs: []ItemStack{{Meal, 4}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking},
-	{Name: "render an animal carcass", Inputs: []ItemStack{{AnimalCorpse, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
-	{Name: "press viscera", Inputs: []ItemStack{{Viscera, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
-	{Name: "culture cave scum", Inputs: []ItemStack{{CaveScum, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 12, Skill: SkillCooking},
+	{Name: "render an alien carcass", Inputs: []ItemStack{{AlienCorpse, 1}, {Battery, 1}}, Outputs: []ItemStack{{Meal, 4}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking},
+	{Name: "render an animal carcass", Inputs: []ItemStack{{AnimalCorpse, 1}, {Battery, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
+	{Name: "press viscera", Inputs: []ItemStack{{Viscera, 2}, {Battery, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 10, Skill: SkillCooking},
+	{Name: "culture cave scum", Inputs: []ItemStack{{CaveScum, 2}, {Battery, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 12, Skill: SkillCooking},
+	{Name: "render an alien carcass cold", Inputs: []ItemStack{{AlienCorpse, 1}}, Outputs: []ItemStack{{Meal, 4}}, Facility: Scumhouse, Ticks: 90, Skill: SkillCooking, Cold: true},
+	{Name: "render an animal carcass cold", Inputs: []ItemStack{{AnimalCorpse, 1}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking, Cold: true},
+	{Name: "press viscera cold", Inputs: []ItemStack{{Viscera, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 30, Skill: SkillCooking, Cold: true},
+	{Name: "culture cave scum cold", Inputs: []ItemStack{{CaveScum, 2}}, Outputs: []ItemStack{{Meal, 1}}, Facility: Scumhouse, Ticks: 36, Skill: SkillCooking, Cold: true},
+	// The reactor: charge from the pellets it has before pressing more, so
+	// the rare ore is spent only when the last pellet is. See docs/power.md.
+	{Name: "charge batteries", Inputs: []ItemStack{{FuelPellet, 1}, {WaterIce, 1}}, Outputs: []ItemStack{{Battery, 12}}, Facility: Reactor, Ticks: 20},
+	{Name: "press fuel pellets", Inputs: []ItemStack{{UraniumOre, 1}}, Outputs: []ItemStack{{FuelPellet, 40}}, Facility: Reactor, Ticks: 60},
 	// The foundry's chain: ore to steel at the forge, steel to rifles at the
 	// gun bench. See docs/foundry.md.
 	{Name: "smelt steel", Inputs: []ItemStack{{IronOre, 2}}, Outputs: []ItemStack{{SteelIngot, 1}}, Facility: Forge, Ticks: 40, Skill: SkillSmithing},
@@ -448,8 +465,11 @@ func (w *World) nearestWorkshop(e *Entity, kind Terrain, ok func(*StorageContain
 // one, else c itself once the inputs are gone. A stove whose depot is full of
 // scum can still cook into an empty pantry.
 func (w *World) canCraft(c *StorageContainer, r Recipe, owner Owner) bool {
+	if !w.recipeEnabled(r) {
+		return false
+	}
 	for _, in := range r.Inputs {
-		if c.held(owner, in.Kind) < in.Count {
+		if w.needs(in) && c.held(owner, in.Kind) < in.Count {
 			return false
 		}
 	}
@@ -458,7 +478,9 @@ func (w *World) canCraft(c *StorageContainer, r Recipe, owner Owner) bool {
 	}
 	after := c.Inventory
 	for _, in := range r.Inputs {
-		after.Remove(in.Kind, in.Count)
+		if w.needs(in) {
+			after.Remove(in.Kind, in.Count)
+		}
 	}
 	return after.CanAddAll(r.Outputs...)
 }
@@ -504,7 +526,7 @@ func (w *World) tryAssignCraftFor(e *Entity, owners []Owner) bool {
 // one of owners (in preference order), if any.
 func (w *World) craftableRecipe(c *StorageContainer, owners []Owner) (int, Owner, bool) {
 	for i, r := range recipes {
-		if r.Facility != c.Terrain {
+		if r.Facility != c.Terrain || !w.recipeEnabled(r) {
 			continue
 		}
 		for _, o := range owners {
@@ -539,7 +561,9 @@ func (w *World) jobCraft(e *Entity) {
 		return
 	}
 	for _, in := range r.Inputs {
-		c.debit(e.craftFor, in.Kind, in.Count)
+		if w.needs(in) {
+			c.debit(e.craftFor, in.Kind, in.Count)
+		}
 	}
 	// Down the line: the output goes straight into the pantry, if the
 	// kitchen has one, or back into the stove's own depot if not.
@@ -573,7 +597,11 @@ func (w *World) jobCraft(e *Entity) {
 	if e.craftFor == ColonistOwner(e.ID) && e.plan == 0 {
 		w.offerOwnMeals(e, out.Pos)
 	}
-	if e.craftFor == Community {
+	if e.craftFor == Community && r.Facility == Reactor {
+		if w.cfg.WageReactor > 0 {
+			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageReactor)) // as far as the treasury goes
+		}
+	} else if e.craftFor == Community {
 		if w.cfg.WageCook > 0 {
 			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageCook)) // as far as the treasury goes
 		}
@@ -609,6 +637,9 @@ func (w *World) cooksOn(e *Entity, c *StorageContainer, r Recipe) bool {
 	}
 	switch e.craftFor {
 	case Community:
+		if r.Facility == Reactor {
+			return w.batteriesWanted() && w.canCraft(c, r, Community)
+		}
 		return w.foodWanted() && w.canCraft(c, r, Community)
 	case ColonistOwner(e.ID):
 		return w.canCraft(c, r, e.craftFor)
@@ -977,7 +1008,7 @@ func (w *World) refreshBiomatterBids() {
 // for every kind escrowed a chef's whole wallet in bids that never filled,
 // and it had nothing left to buy the scum it could have cooked.
 func (w *World) refreshChefBids() {
-	r, ok := scumMealRecipe()
+	r, ok := w.scumMealRecipe(true)
 	if !ok {
 		return
 	}
@@ -1290,10 +1321,15 @@ func (w *World) mealSellPrice() Money {
 	return p
 }
 
-// scumMealRecipe is the recipe that turns cave scum into meals.
-func scumMealRecipe() (Recipe, bool) {
+// scumMealRecipe is the recipe that turns cave scum into meals: the one the
+// colony's stoves cook (powered, its batteries) or, with own set, the one a
+// colonist cooking its own scum does. Colonists hold no batteries yet, so
+// with power on that is the cold row (docs/power.md). Cave scum is always
+// its first input.
+func (w *World) scumMealRecipe(own bool) (Recipe, bool) {
+	cold := own && w.cfg.Power
 	for _, r := range recipes {
-		if len(r.Inputs) == 1 && r.Inputs[0].Kind == CaveScum {
+		if r.Cold == cold && len(r.Inputs) > 0 && r.Inputs[0].Kind == CaveScum {
 			return r, true
 		}
 	}
@@ -1310,7 +1346,7 @@ func scumMealRecipe() (Recipe, bool) {
 // the charter's price it rarely does; when scarcity raises the colony's
 // price (colonyMealPrice), it does.
 func (w *World) foodPays(e *Entity) bool {
-	r, ok := scumMealRecipe()
+	r, ok := w.scumMealRecipe(true)
 	if !ok || w.countTerrain(r.Facility) == 0 {
 		return false
 	}

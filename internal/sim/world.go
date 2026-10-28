@@ -168,6 +168,11 @@ const (
 	// facility machinery; a casualty lies on the floor beside it. Blocks
 	// movement. See wounds.go and docs/emergency-services.md.
 	Cot
+	// Reactor burns uranium and water ice into batteries: a workshop with a
+	// depot, like the forge, working two recipes (ore to fuel pellets,
+	// pellets and ice to batteries). A fuelled reactor doses whoever stands
+	// beside it, as a uranium vein does. See power.go and docs/power.md.
+	Reactor
 
 	numTerrains // keep last: the number of terrain kinds
 )
@@ -218,6 +223,8 @@ func (t Terrain) String() string {
 		return "hole"
 	case Cot:
 		return "cot"
+	case Reactor:
+		return "reactor"
 	default:
 		return "unknown"
 	}
@@ -708,6 +715,9 @@ type World struct {
 	// hungryTick/hungryCache memoize hungryWithoutMeals for one tick; see
 	// foodCooking.
 	hungryTick, hungryCache int
+	// batteriesTick/batteriesCache memoize colonyBatteries for one tick; see
+	// batteriesWanted.
+	batteriesTick, batteriesCache int
 	// colonyMealAsk is the price the colony's meal asks were last posted at,
 	// so they're reposted only when colonyMealPrice moves (see scumhouse.go).
 	colonyMealAsk       Money
@@ -1205,6 +1215,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.trackFacility(Scumhouse)
 	// So do smiths and gunsmiths to the foundry's workshops.
 	w.trackFacility(Forge)
+	w.trackFacility(Reactor)
 	w.trackFacility(GunBench)
 	// Colonists walk to a meeting hall's chairs to socialize and to eat.
 	w.trackFacility(Chair)
@@ -1214,6 +1225,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.communityMealsTick = -1
 	w.storedMealsTick = -1
 	w.hungryTick = -1
+	w.batteriesTick = -1
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			w.refreshScumExposure(tc.Pos)

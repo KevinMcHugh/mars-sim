@@ -40,6 +40,9 @@ func testConfig() Config {
 	// (economy phase E8). Scarcity tests start from DefaultConfig or turn
 	// them back off themselves.
 	c.InfiniteFood, c.ConstructionCosts = true, false
+	// ...and cooking without batteries, as before power (docs/power.md):
+	// power tests turn it on.
+	c.Power = false
 	// ...and on trades moving prices from the first one: holding prices
 	// until the colony's kitchens run (free-prices-at) has a test of its own.
 	c.FreePricesAt = 0

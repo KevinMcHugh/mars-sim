@@ -56,13 +56,14 @@ func parseOccurrenceKind(s string) (OccurrenceKind, bool) {
 
 // DirectorOccurrence is one candidate thing the director can make happen: a kind plus
 // the parameters that kind reads. Only the fields a given Kind actually uses
-// are meaningful — Count for a plague/swarm, Pistols/Shotguns for a supply
-// drop — the rest sit at zero.
+// are meaningful — Count for a plague/swarm, Pistols/Shotguns/Batteries for
+// a supply drop — the rest sit at zero.
 type DirectorOccurrence struct {
-	Kind     OccurrenceKind
-	Count    int // OccRatPlague: rats spawned. OccAlienSwarm: aliens spawned. OccArrival: colonists.
-	Pistols  int // OccSupplyDrop only.
-	Shotguns int // OccSupplyDrop only.
+	Kind      OccurrenceKind
+	Count     int // OccRatPlague: rats spawned. OccAlienSwarm: aliens spawned. OccArrival: colonists.
+	Pistols   int // OccSupplyDrop only.
+	Shotguns  int // OccSupplyDrop only.
+	Batteries int // OccSupplyDrop only: the colony's, landed at its silo.
 }
 
 // Schedule is one entry from director.yaml: a tick window, and the candidate
@@ -206,7 +207,11 @@ func (w *World) fireSupplyDrop(ev scheduledEvent) {
 	}
 	shotguns := issue(Shotgun, ev.Occurrence.Shotguns)
 	pistols := issue(Pistol, ev.Occurrence.Pistols)
-	w.logEvent(LogArrival, fmt.Sprintf("%s: a supply drop lands (%d shotguns, %d pistols).", ev.Name, shotguns, pistols))
+	what := fmt.Sprintf("%d shotguns, %d pistols", shotguns, pistols)
+	if n := ev.Occurrence.Batteries; n > 0 {
+		what += fmt.Sprintf(", %s for the colony's stoves", batteryPhrase(w.deliverBatteries(n)))
+	}
+	w.logEvent(LogArrival, fmt.Sprintf("%s: a supply drop lands (%s).", ev.Name, what))
 }
 
 // livingColonistsShuffled returns every living colonist in random order. IDs
@@ -230,10 +235,11 @@ func (w *World) livingColonistsShuffled() []*Entity {
 // ---- director.yaml -----------------------------------------------------------
 
 type rawOccurrence struct {
-	Kind     string `yaml:"kind"`
-	Count    int    `yaml:"count"`
-	Pistols  int    `yaml:"pistols"`
-	Shotguns int    `yaml:"shotguns"`
+	Kind      string `yaml:"kind"`
+	Count     int    `yaml:"count"`
+	Pistols   int    `yaml:"pistols"`
+	Shotguns  int    `yaml:"shotguns"`
+	Batteries int    `yaml:"batteries"`
 }
 
 type rawSchedule struct {
@@ -297,14 +303,14 @@ func (rs rawSchedule) toSchedule() (Schedule, error) {
 				return Schedule{}, fmt.Errorf("occurrence %d: %s needs count >= 1 (got %d)", i, kind, ro.Count)
 			}
 		case OccSupplyDrop:
-			if ro.Pistols < 0 || ro.Shotguns < 0 {
+			if ro.Pistols < 0 || ro.Shotguns < 0 || ro.Batteries < 0 {
 				return Schedule{}, fmt.Errorf("occurrence %d: supply-drop quantities cannot be negative", i)
 			}
-			if ro.Pistols == 0 && ro.Shotguns == 0 {
-				return Schedule{}, fmt.Errorf("occurrence %d: supply-drop needs at least one pistol or shotgun", i)
+			if ro.Pistols == 0 && ro.Shotguns == 0 && ro.Batteries == 0 {
+				return Schedule{}, fmt.Errorf("occurrence %d: supply-drop needs at least one pistol, shotgun or battery", i)
 			}
 		}
-		occs[i] = DirectorOccurrence{Kind: kind, Count: ro.Count, Pistols: ro.Pistols, Shotguns: ro.Shotguns}
+		occs[i] = DirectorOccurrence{Kind: kind, Count: ro.Count, Pistols: ro.Pistols, Shotguns: ro.Shotguns, Batteries: ro.Batteries}
 	}
 	return Schedule{Name: rs.Name, EarliestTick: rs.EarliestTick, LatestTick: rs.LatestTick, Occurrences: occs}, nil
 }

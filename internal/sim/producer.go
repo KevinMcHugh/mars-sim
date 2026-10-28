@@ -389,7 +389,7 @@ func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, plann
 				out += o.Count
 			}
 		}
-		if out == 0 {
+		if out == 0 || !w.recipeEnabled(r) {
 			continue
 		}
 		usable := func(c *StorageContainer) bool {
@@ -416,6 +416,9 @@ func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, plann
 		var missing []ItemStack
 		feasible := true
 		for _, in := range r.Inputs {
+			if !w.needs(in) {
+				continue
+			}
 			have := min(c.held(me, in.Kind), in.Count)
 			spent += Money(have) * w.valueOf(in.Kind)
 			need := in.Count - have

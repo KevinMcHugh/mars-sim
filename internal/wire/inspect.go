@@ -517,7 +517,7 @@ func storageInfo(s *sim.Snapshot, st sim.StorageView) *StorageInfo {
 // storageLabel names a container as the TUI's storage tab does: a workshop's
 // store by the workshop, a kitchen's pantry, someone's locker, or a chest.
 func storageLabel(s *sim.Snapshot, st sim.StorageView) string {
-	if st.Terrain == sim.Scumhouse || st.Terrain == sim.Forge || st.Terrain == sim.GunBench || st.Terrain == sim.Incubator {
+	if st.Terrain == sim.Scumhouse || st.Terrain == sim.Forge || st.Terrain == sim.GunBench || st.Terrain == sim.Incubator || st.Terrain == sim.Reactor {
 		return st.Terrain.String()
 	}
 	if st.Pantry {

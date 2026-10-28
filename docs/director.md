@@ -68,7 +68,7 @@ director script every run.
 | --- | --- | --- |
 | `rat-plague` | `count` | Spawns `count` rats on open floor, same placement as starting rats. `mouse-plague`, from before rats replaced mice, still loads as the same thing. |
 | `alien-swarm` | `count` | Spawns `count` aliens with the same placement as starting aliens: dormant on hidden cave floor, or colony floor far from the landing site when there is no cave room (see [caverns.md](./caverns.md#aliens-in-the-caves)). |
-| `supply-drop` | `pistols`, `shotguns` | Hands weapons to that many distinct living colonists (in random order), one each. What a colonist receives is its own ([property.md](./property.md)). |
+| `supply-drop` | `pistols`, `shotguns`, `batteries` | Hands weapons to that many distinct living colonists (in random order), one each. What a colonist receives is its own ([property.md](./property.md)). Batteries are the colony's, landed at its silo for its stoves ([power.md](./power.md)); with no silo yet they are lost. |
 | `arrival` | `count` | Brings `count` new colonists down in colony ships of up to `ship-capacity` each, through `arriveWave` — exactly as the founders landed ([ships.md](./ships.md)). |
 
 A colonist with a full inventory is skipped rather than blocking the drop; an

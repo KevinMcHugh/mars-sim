@@ -17,7 +17,7 @@ import (
 // docs/valuation.md.
 
 // tracedGoods are the goods a trace follows, in column order.
-var tracedGoods = [...]ItemKind{Meal, CaveScum, IronOre, WaterIce, UraniumOre, Clay, SteelIngot, AssaultRifle}
+var tracedGoods = [...]ItemKind{Meal, CaveScum, IronOre, WaterIce, UraniumOre, Clay, SteelIngot, AssaultRifle, Battery}
 
 // TraceEconomy runs a world built from cfg for ticks ticks and writes a CSV
 // trace to out: a header, then a row every every ticks and one for the last.

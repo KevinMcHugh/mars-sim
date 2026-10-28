@@ -100,6 +100,12 @@ outputs**; the workshop's owner does not.
 | press viscera | 2 viscera | 1 meal | 10 |
 | culture cave scum | 2 cave scum | 1 meal | 12 |
 
+With `power` on (the default), each of these also spends a **battery**, and
+each has a **cold** row, worked only when the stove has no battery: the same
+inputs and meals, three times the ticks. Every powered row
+comes before every cold one, so a stove with a battery spends it. See
+[power.md](./power.md) for both tables and why.
+
 Chicken feed (1 cave scum to 4 feed) is mixed at a scumhouse too, but it is
 deliberately **not** in this table: a cook works the first recipe it has
 inputs for, so listing it would let the colony's cooks turn its scum into
