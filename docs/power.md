@@ -52,6 +52,7 @@ reason to exist.
 | P4 | The charter: the corporation as an owner, its capital, royalty and remittance | **Shipped** |
 | P5 | Changing policy mid-game: buyouts, sales, and the cooldown, from the browser's Trade tab | **Shipped** |
 | P6 | The player's view: the policy on the new-game form, the battery price on the Trade tab, power on the charts, the TUI's power section and keys | **Shipped** |
+| After | Uranium prospecting, the colony's fuel premium, the market measured on 72 seeds | **Shipped** |
 
 ## Source
 
@@ -304,7 +305,10 @@ and the skill tables for little gain.
   `standingAllowed`). The colony's general prospecting bids and its resale
   asks skip both goods, so it never resells its fuel. The colony is the only
   buyer of uranium, so its price is the price: `price-uranium-ore` went from 6
-  to **50**.
+  to **50**. It bids a little over the reference price (`fuelBidPrice`: a
+  tenth more, at least $2, so uranium $55 and ice $4), the same premium a
+  baron pays, for the reason the market's dead ends below give: a miner's own
+  stock is offered to a bid only above the reference price.
 - **Haul orders carry the fuel over** (`keepStocked`, the same machinery that
   stocks the stoves): `reactor-ice-stock` ice at each reactor, and one ore at
   each reactor that is out of pellets.
@@ -369,8 +373,40 @@ first eight seeds, watched closely, the first ore came between about tick
 starts charging once the landed batteries fall below `battery-reserve`, and
 by tick 40,000 those colonies held 64 to 113 batteries, with pellets left
 from their first ore. On the other eight seeds nobody happened to dig into
-uranium: nothing sends a miner looking for it yet, so the mother lode is
-found only where the colony happens to dig.
+uranium, because nothing sent a miner looking for it. Now something does:
+see [Prospecting for uranium](#prospecting-for-uranium).
+
+### Prospecting for uranium
+
+Built after P6. While anyone holds an open bid for uranium ore (the colony
+under the monopoly or the public option, or a baron) and there is none to
+sell (`uraniumWanted`: no uranium ore in any container but a reactor, nor in
+anyone's pack; memoized for the tick), **one colonist at a time prospects for
+it** (`tryProspectUranium`, in `assignWorkJob` just before frontier mining).
+The prospector claims the nearest reachable unclaimed frontier tile whose
+rock is uranium-bearing, and digs there. Miners already sense what a frontier
+tile is made of (`Composition`), so this needs no new survey mechanic. When
+no uranium-bearing face is in reach, the prospector falls back to the usual
+frontier prospecting (`tryProspect`). The ore it digs goes to the silo like
+any miner's and sells into the bid. `prospect-uranium` (default on) turns it
+off.
+
+Only one at a time (`uraniumProspector`, `uraniumProspectAt`), because one
+ore runs a reactor for weeks: a crew sent after uranium would leave the
+colony short of stone and ice for a single unit's worth of demand.
+
+On the same 72 seeds, run to 40,000 ticks under the monopoly:
+
+| | prospecting off | prospecting on |
+| --- | --- | --- |
+| seeds with a colony reactor | 71 | 71 |
+| average tick it stood | 6,302 | 5,193 |
+| starved | 21 | 15 |
+
+On today's maps a colony finds uranium on almost every seed anyway, because
+its digging usually reaches some (the "8 of 72" above was measured on an
+older main, before later changes to siting and mining). So prospecting mostly
+brings the reactor about 1,100 ticks sooner. The drop in starvation is within the noise between seeds.
 
 Mutation stays rare. On seeds 49–72 after 40,000 ticks there were 5 mutants
 among the living with power off, 8 with power and no reactor, and 6 with the
@@ -405,7 +441,7 @@ reactor.
 - **The owner fuels it as the colony would** (`refreshOwnerReactorBids`). It
   bids at the silo, from its own wallet, for water ice up to
   `reactor-ice-stock` and for one uranium ore whenever it has neither ore nor
-  pellets, at a little over the reference price (`ownerFuelPrice`: a tenth
+  pellets, at a little over the reference price (`fuelBidPrice`: a tenth
   more, at least $2, so uranium $55 and ice $4). Then it posts haul orders,
   paid from its wallet, to carry what it bought to its reactor
   (`keepStockedFor`, the colony's restocking with another payer).
@@ -493,10 +529,37 @@ batteries run low:
 - **The public option rarely triggers.** Under these defaults a baron
   usually arrives before the colony has gone three days without a battery.
   It latched on one seed, at tick 62,779, and the colony hadn't bought
-  uranium by the end of the run. Its bid is at the reference price, and the
-  barons' bids are above it. So the last resort works as written but comes
-  late. If it should be a real safety net, the colony's own fuel bids under
-  the public option want the barons' premium too.
+  uranium by the end of the run. Its bid was at the reference price, and the
+  barons' bids are above it. The colony's fuel bids now carry the barons'
+  premium (`fuelBidPrice`), so it no longer loses that race.
+
+### The market on 72 seeds
+
+The same 72 seeds P2 used, run to 80,000 ticks with prospecting on:
+
+| | monopoly | market, `reactor-savings` 300 | 150 | 100 | 60 |
+| --- | --- | --- | --- | --- | --- |
+| starved | 251 | 275 | 327 | 307 | 321 |
+| seeds with any reactor | 71 | 55 | 64 | 64 | 64 |
+| average tick of the first baron's reactor | | 54,761 | 54,025 | 54,024 | 54,024 |
+| meals cooked cold / powered | 79,038 / 26,858 | 92,035 / 13,907 | 90,426 / 15,330 | 90,609 / 15,414 | 90,764 / 14,886 |
+
+- **The market starves about as many as the monopoly.** Per seed, starvation
+  runs from 0 to 14, so the sum over 72 seeds moves by tens between runs
+  that differ only in a knob that barely matters. The 8-seed gap P3 saw
+  (35 to 22) doesn't survive: 275 to 251 is within that noise.
+- **`reactor-savings` isn't the lever, and stays at $300.** Halving it, or
+  more, brings no baron sooner. A baron waits for demand, an unfilled battery
+  bid at a stove, and that comes only when the landed batteries run out,
+  around tick 50,000 whatever the savings. A lower bar lets a colonist build
+  on 9 more seeds, and starvation doesn't improve. So the other lever, a
+  commission that starts when the stoves run *low* rather than dry, would
+  power more meals but has no starvation to win back. It isn't built.
+- **Cold cooking is most of the cooking under every policy.** Even under the
+  monopoly, three meals in four are cooked cold, because a colonist cooking
+  for itself has no battery (see [Not yet built](#not-yet-built): batteries
+  of a colonist's own). Power changes how fast the stoves cook, not whether
+  the colony eats, and starvation is decided elsewhere.
 
 ### Policy: charter (P4, built)
 
@@ -762,15 +825,15 @@ first came up.
 
 **Balance that needs measuring before it is tuned**
 
-- **Starvation under the market.** On 8 seeds the market starved 35 to the
-  monopoly's 22, from weeks without power between the lockers running dry and
-  the first baron ([What P3 measured](#what-p3-measured)). It needs the
-  72-seed treatment P2 got. The levers are a lower `reactor-savings`, or a
-  commission that starts when the stoves' stock is low rather than empty.
-- **The public option rarely triggers,** and when it does the colony's
-  uranium bid, at the reference price, loses to the barons' premium. If it's
-  meant to be a safety net, the colony's own fuel bids want `ownerFuelPrice`
-  too, and perhaps a shorter `public-option-days`.
+- **An earlier baron.** A colonist commissions a reactor only once the
+  stoves' battery bids go unfilled, around tick 50,000. A commission that
+  starts when the stoves run low would power more meals, but on 72 seeds the
+  market starves no more than the monopoly
+  ([The market on 72 seeds](#the-market-on-72-seeds)), so it waits for a
+  reason.
+- **The public option rarely triggers.** Its fuel bids now carry the barons'
+  premium, but a baron still usually comes first. If it's meant to be a
+  safety net, perhaps a shorter `public-option-days`.
 - **The charter's fiscal squeeze.** A long charter game drained the treasury
   to $1,100 in 76 days ([What P4 measured](#policy-charter-p4-built)), and an
   empty treasury halts public works. There's no safeguard but the player
@@ -779,10 +842,9 @@ first came up.
   P0 until the reactor added a dose source. Now it has; the retune wants
   more seeds than the 8 measured so far
   ([mutation.md](./mutation.md#after-uranium-got-rarer)).
-- **Nobody looks for uranium.** On 8 of 72 seeds no colony found any by tick
-  40,000. Miners dig the frontier, and the mother lode is found only where the
-  colony happens to dig. A prospecting plan for a uranium bid (like
-  foraging's for scum) is the fix. Ice for a baron is incidental the same way.
+- **Nobody looks for ice.** Uranium has a prospector now
+  ([Prospecting for uranium](#prospecting-for-uranium)). Ice for a reactor is
+  still whatever the miners happen to dig.
 
 **Mechanics**
 
