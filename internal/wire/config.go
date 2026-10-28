@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/kevinmchugh/mars-sim/internal/sim"
@@ -69,6 +70,8 @@ func knobValue(k sim.Knob) any {
 		return *p
 	case *bool:
 		return *p
+	case fmt.Stringer:
+		return p.String() // a named choice, like power-policy
 	}
 	return nil
 }

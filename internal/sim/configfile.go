@@ -42,8 +42,8 @@ type Knob struct {
 	Doc string
 	// Section, when non-empty, starts a new group in the template at this knob.
 	Section string
-	// Ptr points at the field inside the Config passed to Knobs: *int, *int64
-	// or *bool.
+	// Ptr points at the field inside the Config passed to Knobs: *int, *int64,
+	// *bool, or a named choice (a choiceSetting, like *PowerPolicy).
 	Ptr any
 }
 
@@ -357,6 +357,10 @@ func assign(k Knob, node *yaml.Node) error {
 			return fmt.Errorf("want true or false, got %q", node.Value)
 		}
 		*p = v
+	case choiceSetting:
+		if err := p.Set(node.Value); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unsupported setting type %T", k.Ptr)
 	}

@@ -8,7 +8,7 @@
   import { subscribe, topics } from '../game.svelte';
   import Section from './Section.svelte';
 
-  type Value = number | boolean | null;
+  type Value = number | boolean | string | null;
   interface Setting { key: string; doc: string; value: Value; default: Value }
   interface ConfigTopic { seed: number; sections: { title: string; settings: Setting[] }[] }
 
@@ -42,6 +42,7 @@
   function fmt(v: Value): string {
     if (typeof v === 'boolean') return v ? 'on' : 'off';
     if (typeof v === 'number') return v.toLocaleString();
+    if (typeof v === 'string') return v; // a named choice, like power-policy
     return '—';
   }
 </script>

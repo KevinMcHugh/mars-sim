@@ -642,6 +642,9 @@ func (w *World) cooksOn(e *Entity, c *StorageContainer, r Recipe) bool {
 		}
 		return w.foodWanted() && w.canCraft(c, r, Community)
 	case ColonistOwner(e.ID):
+		if r.Facility == Reactor && c.held(e.craftFor, Battery) >= w.cfg.BatteryReserve {
+			return false // a baron's stock is full: sell before charging more
+		}
 		return w.canCraft(c, r, e.craftFor)
 	}
 	return false
