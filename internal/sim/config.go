@@ -114,6 +114,14 @@ type Config struct {
 	StartAliens    int `cfg:"aliens" doc:"starting number of aliens"`
 	StartCats      int `cfg:"cats" doc:"starting number of stray cats (colonists also bring cats: see crash-pod-cat-weight)"`
 	StartRats      int `cfg:"rats" doc:"starting number of rats"`
+	// Sandbox starts an empty world for debugging and tuning: the landing
+	// cavern is carved (sized for one full ship, whatever StartColonists
+	// says) but nobody lands, no aliens, rats or cats are placed, caverns
+	// hold no nests and the director schedules nothing. With a species
+	// pack, the roster is the whole pack rather than AlienSpeciesCount of
+	// it. The player places creatures one by one with the Place command,
+	// which only a sandbox accepts. See docs/sandbox.md.
+	Sandbox bool `cfg:"sandbox" doc:"start an empty world (nobody lands, no aliens, no nests; colonists is ignored, and a species pack is used whole) and let the player place colonists and aliens by hand (the browser's Sandbox tab)"`
 
 	// GraveyardSize is how many recent deaths (any kind) are kept in the
 	// bounded graveyard feed used for the roster's "dead" filter on

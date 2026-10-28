@@ -56,8 +56,9 @@ import (
 // 20 showed only the landing level (no level in interest, dig or clear, no
 // dig-down); 21 had no defend, defend-detail or defend-cancel; 22 sited
 // every dig-down itself (no x, y); 23 dated topics by tick only (no when,
-// diedAt, queuedAt); 24 had no emt-detail; 25 no emt-wage; 26 no emt-fee.
-const hostAPI = 27
+// diedAt, queuedAt); 24 had no emt-detail; 25 no emt-wage; 26 no emt-fee;
+// 27 no place.
+const hostAPI = 28
 
 var (
 	eng *sim.Engine
@@ -317,9 +318,9 @@ type memoryResult struct {
 
 // command is a sim.Command as the page sends it.
 type command struct {
-	Type string `json:"type"` // pause | speed | spawn | flow | dig | dig-cancel | dig-down | zone | clear | clear-cancel | defend | defend-detail | defend-cancel | emt-detail | emt-wage | emt-fee | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
+	Type string `json:"type"` // pause | speed | spawn | place | flow | dig | dig-cancel | dig-down | zone | clear | clear-cancel | defend | defend-detail | defend-cancel | emt-detail | emt-wage | emt-fee | ship-move | ship-land | order-place | order-reprice | order-cancel | order-suspend | order-resume | order-wide-set | order-wide-clear | recruit-roll | recruit-hire
 	Rate int    `json:"rate,omitempty"`
-	// Kind is what to spawn; for zone the zone kind by name ("none"
+	// Kind is what to spawn or place; for zone the zone kind by name ("none"
 	// unzones); for dig-down what to dig: stair, shaft, hole or ladder.
 	Kind string `json:"kind,omitempty"`
 	// Level is the level a dig, clear or defend is on (the landing level if
@@ -351,6 +352,9 @@ type command struct {
 	// recruit-hire: the candidates to hire, by index into the set; none
 	// turns the set away.
 	Picks []int `json:"picks,omitempty"`
+	// place: an alien's species, an index into the lore topic's species;
+	// left out, one at random. The tile is (x, y) on level.
+	Species *int `json:"species,omitempty"`
 }
 
 func parseCommand(s string) (sim.Command, error) {
@@ -445,6 +449,16 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.RepriceColonyOrder{ID: sim.OrderID(c.ID), Price: sim.Money(c.Price)}, nil
 	case "order-cancel":
 		return sim.CancelColonyOrder{ID: sim.OrderID(c.ID)}, nil
+	case "place":
+		k, ok := parseKind(c.Kind)
+		if !ok {
+			return nil, fmt.Errorf("unknown kind %q", c.Kind)
+		}
+		species := -1
+		if c.Species != nil {
+			species = *c.Species
+		}
+		return sim.Place{Kind: k, At: sim.Point{X: c.X, Y: c.Y, Level: sim.Level(c.Level)}, Species: species}, nil
 	case "spawn":
 		for k := sim.Colonist; k <= sim.Rat; k++ {
 			if k.String() == c.Kind {
@@ -464,6 +478,16 @@ func parseCommand(s string) (sim.Command, error) {
 		return sim.ShowFlowField{Show: true, Field: last.FlowFields[*c.Field]}, nil
 	}
 	return nil, fmt.Errorf("unknown command %q", c.Type)
+}
+
+// parseKind is a creature kind by its name (sim.Kind.String).
+func parseKind(name string) (sim.Kind, bool) {
+	for i, n := range sim.EnumNames().Kinds {
+		if n == name {
+			return sim.Kind(i), true
+		}
+	}
+	return 0, false
 }
 
 type errorBody struct {

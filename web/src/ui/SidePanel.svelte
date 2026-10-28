@@ -32,7 +32,7 @@
       <div class="group {g.id}" role="group" aria-label={g.label}>
         <span class="glabel" aria-hidden="true">{g.label}</span>
         <div class="btns">
-          {#each g.tabs as t (t.id)}
+          {#each g.tabs.filter((t) => !t.when || t.when()) as t (t.id)}
             {@const out = isFloating(t.id)}
             <button type="button" class:on={ui.panel === t.id} class:out aria-pressed={ui.panel === t.id || out}
               title={out ? `${t.label} is popped out: bring it to the front` : undefined}

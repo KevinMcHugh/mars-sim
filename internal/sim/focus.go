@@ -242,11 +242,11 @@ func (w *World) focusDrive(e *Entity, d DriveKind) (level int, phase DrivePhase)
 // Without the band, stepping one tile out of FleeRadius dropped flee, the
 // next focus walked back in, and the colonist flickered every tick.
 func (w *World) focusThreat(e *Entity) (threat *Entity, held bool) {
-	if a, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius); ok {
+	if a, ok := w.nearestThreat(e.Pos, w.cfg.FleeRadius); ok {
 		return a, false
 	}
 	if e.focus == FocusFlee && w.cfg.FleeReleaseMargin > 0 {
-		if a, ok := w.nearestAlien(e.Pos, w.cfg.FleeRadius+w.cfg.FleeReleaseMargin); ok {
+		if a, ok := w.nearestThreat(e.Pos, w.cfg.FleeRadius+w.cfg.FleeReleaseMargin); ok {
 			return a, true
 		}
 	}

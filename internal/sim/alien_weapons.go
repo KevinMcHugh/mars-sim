@@ -1,7 +1,8 @@
 package sim
 
 // Features that fight: an alien's graded anatomy (alien_anatomy.go) turned
-// into combat. Horns and antlers gore, a stinger stings, claws rake harder,
+// into combat. Horns, antlers and tusks gore, a stinger stings, a beak or
+// mandibles bite harder, claws rake and pincers crush harder,
 // a clubbed tail hits harder, and a shell blunts what hits it. Everything
 // here is read from the alien's current form (a young form's lesser
 // features, a queen's pushed ones), so a species grows into its weapons.
@@ -19,11 +20,14 @@ var featureAttackModes = [...]AttackMode{AttackGore, AttackSting}
 // featureAttacks is the attack modes a body's features grant.
 func featureAttacks(a AlienAnatomy) AttackSet {
 	var s AttackSet
-	if a.Horns > 0 || a.Antlers > 0 {
+	if a.Horns > 0 || a.Antlers > 0 || a.Tusks > 0 {
 		s |= AttackSetOf(AttackGore)
 	}
 	if a.Stinger > 0 || a.TailTip == TailStinger {
 		s |= AttackSetOf(AttackSting)
+	}
+	if a.Pincers > 0 {
+		s |= AttackSetOf(AttackClaw) // a rolled mode, but pincers always use it
 	}
 	return s
 }
@@ -39,12 +43,17 @@ func (w *World) anatomyOf(e *Entity) AlienAnatomy {
 
 // attacksNow is the alien's species' attack modes that its current body can
 // use: a feature mode needs the feature (a young form may not have grown its
-// horns yet). It is never empty; with nothing left, it bites.
+// horns yet), and claws need arms (a pincered species' armless grub cannot
+// pinch). It is never empty; with nothing left, it bites.
 func (w *World) attacksNow(e *Entity) []AttackMode {
 	body := featureAttacks(w.anatomyOf(e))
+	f, young := w.formOf(e)
 	var modes []AttackMode
 	for _, m := range w.alienSpeciesFor(e).Attacks() {
 		if (m == AttackGore || m == AttackSting) && !body.Has(m) {
+			continue
+		}
+		if m == AttackClaw && young && f.Arms == 0 {
 			continue
 		}
 		modes = append(modes, m)
@@ -60,7 +69,10 @@ func (w *World) attacksNow(e *Entity) []AttackMode {
 // (AlienSpecies.Apex) use apexWeapons.
 type weaponTable struct {
 	gorePerHorn, gorePerTine, goreMax int    // gore damage, percent of base
+	gorePerTusk                       int    // gore bonus per tusk grade, percent
+	beakBite, mandibleBite            int    // bite mode with a beak or mandibles, percent
 	clawPerGrade                      int    // claw mode bonus per grade, percent
+	pincerPerGrade                    int    // claw mode bonus per pincer grade, percent
 	club, spikedClub                  int    // tail mode with a club, percent
 	sting, barbedSting                int    // sting damage, percent
 	shellBlocks                       [4]int // percent of a hit turned aside, by shell grade
@@ -71,8 +83,10 @@ type weaponTable struct {
 // impossible to clear); see docs/alien-lifecycles.md.
 var ordinaryWeapons = weaponTable{
 	gorePerHorn: 8, gorePerTine: 5, goreMax: 200,
-	clawPerGrade: 25,
-	club:         150, spikedClub: 175,
+	gorePerTusk: 15,
+	beakBite:    130, mandibleBite: 125,
+	clawPerGrade: 25, pincerPerGrade: 30,
+	club: 150, spikedClub: 175,
 	sting: 50, barbedSting: 75,
 	shellBlocks: [4]int{0, 10, 20, 30},
 }
@@ -81,8 +95,10 @@ var ordinaryWeapons = weaponTable{
 // (alien-apex-percent), not its numbers, is what keeps a colony's odds fair.
 var apexWeapons = weaponTable{
 	gorePerHorn: 15, gorePerTine: 10, goreMax: 300,
-	clawPerGrade: 50,
-	club:         200, spikedClub: 250,
+	gorePerTusk: 30,
+	beakBite:    175, mandibleBite: 160,
+	clawPerGrade: 50, pincerPerGrade: 60,
+	club: 200, spikedClub: 250,
 	sting: 100, barbedSting: 150,
 	shellBlocks: [4]int{0, 25, 45, 60},
 }
@@ -96,18 +112,26 @@ func (w *World) weaponsOf(e *Entity) *weaponTable {
 }
 
 // modeDamage scales a strike's base damage by the feature behind it, by the
-// alien's weaponTable: gore by horns and tines (capped), claws by grade, a
-// tail by its club, and a sting at a fixed share (more if barbed) that
-// always finds the body, a vital part (see strike). Bite and strangle, and
-// every mode of a featureless body, are unchanged.
+// alien's weaponTable: gore by horns, tines and tusks (capped), a bite by a
+// beak or mandibles, claws by grade, a tail by its club, and a sting at a
+// fixed share (more if barbed) that always finds the body, a vital part (see
+// strike). Strangle, a plain bite, and every mode of a featureless body are
+// unchanged.
 func (w *World) modeDamage(e *Entity, mode AttackMode, base int) int {
 	a, t := w.anatomyOf(e), w.weaponsOf(e)
 	pct := 100
 	switch mode {
 	case AttackGore:
-		pct = min(t.goreMax, 100+t.gorePerHorn*a.Horns+t.gorePerTine*a.Antlers)
+		pct = min(t.goreMax, 100+t.gorePerHorn*a.Horns+t.gorePerTine*a.Antlers+t.gorePerTusk*a.Tusks)
+	case AttackBite:
+		switch a.Mouth {
+		case MouthBeak:
+			pct = t.beakBite
+		case MouthMandibles:
+			pct = t.mandibleBite
+		}
 	case AttackClaw:
-		pct = 100 + t.clawPerGrade*a.Claws
+		pct = 100 + t.clawPerGrade*a.Claws + t.pincerPerGrade*a.Pincers
 	case AttackTail:
 		switch a.TailTip {
 		case TailClub:
@@ -147,13 +171,14 @@ const alienApexSeed = 0x13198A2E03707344
 
 // rollApex marks the rare apex species: alien-apex-percent of species that
 // have a feature and fight (a featureless body has nothing to be deadly
-// with, and a Friendly species never attacks). It draws once per species
+// with, nor has one whose only feature is a bill or a proboscis, and a
+// Friendly species never attacks). It draws once per species
 // whatever the anatomy or temperament, so one species never shifts
 // another's roll.
 func rollApex(cfg Config, roster []AlienSpecies) {
 	rng := newRand(cfg.Seed ^ alienApexSeed)
 	for i := range roster {
 		hit := rng.IntN(100) < cfg.AlienApexPercent
-		roster[i].Apex = hit && roster[i].Anatomy.any() && roster[i].Temperament != TemperamentFriendly
+		roster[i].Apex = hit && roster[i].Anatomy.armed() && roster[i].Temperament != TemperamentFriendly
 	}
 }

@@ -5,10 +5,11 @@
   // cursor's. Names of kin, acquaintances, owners and creatures on a tile
   // inspect them in turn.
   import { pickGlyph } from '../emoji';
-  import { centerOn, follow, inspect, selectionTopic, setPanel, subscribe, topics, ui } from '../game.svelte';
+  import { centerOn, follow, inspect, selectionTopic, setPanel, showSpecies, subscribe, topics, ui } from '../game.svelte';
   import Bar from './Bar.svelte';
   import Section from './Section.svelte';
   import type { EntityInfo, TileInfo } from './inspect';
+  import { spriteURL } from './sprite';
 
   // The tabs that open the inspector, for its way back.
   const backLabels: Record<string, string> = { roster: 'Roster', jobs: 'Jobs', storage: 'Storage', market: 'Market' };
@@ -21,6 +22,8 @@
   const entity = $derived(ui.selected && 'entity' in ui.selected ? (data as EntityInfo | undefined) : undefined);
   const tile = $derived(ui.selected && 'tile' in ui.selected ? (data as TileInfo | undefined) : undefined);
   const c = $derived(entity?.colonist);
+  // A packed alien's own form's sprite, as the map draws it, in place of the emoji.
+  const sprite = $derived(entity ? spriteURL(entity.sprite) : '');
 
 </script>
 
@@ -36,7 +39,9 @@
     <p class="muted">Creature #{entity.id} is gone: it died and has left the records.</p>
   {:else}
     <header>
-      <h3><span class="glyph">{pickGlyph(entity.look, entity.glyph)}</span> {entity.name}</h3>
+      <h3>
+        {#if sprite}<img class="sprite" src={sprite} alt="" />{:else}<span class="glyph">{pickGlyph(entity.look, entity.glyph)}</span>{' '}{/if}{entity.name}
+      </h3>
       {#if !entity.dead}
         <span class="actions">
         <button type="button" class="small" title="Center the map on it" onclick={() => centerOn(entity.x, entity.y, entity.level)}>Find</button>
@@ -53,7 +58,17 @@
       <p class="sub">{c.skin} skin · {c.hair} hair · ${c.wallet.toLocaleString()}</p>
       {#if c.backstory}<p class="sub">{c.backstory}</p>{/if}
     {:else}
-      <p class="sub">{[entity.kind, `(${entity.x}, ${entity.y}${entity.level !== ui.hello?.landingLevel ? `, level ${entity.level}` : ''})`, entity.species].filter(Boolean).join(' · ')}</p>
+      <p class="sub">
+        {entity.kind} · ({entity.x}, {entity.y}{entity.level !== ui.hello?.landingLevel ? `, level ${entity.level}` : ''})
+        {#if entity.species}
+          <span class="detail">·
+            {#if entity.speciesIndex >= 0}
+              <button type="button" class="link species" title="Open its entry in the Lore tab"
+                onclick={() => showSpecies(entity.speciesIndex)}>{entity.species}</button>
+            {:else}{entity.species}{/if}
+          </span>
+        {/if}
+      </p>
     {/if}
 
     <Section id="inspect.status" title="Status">
@@ -245,6 +260,9 @@
   header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   h3 { font-size: 16px; margin: 0 0 4px; }
   .glyph { font-size: 20px; }
+  h3:has(.sprite) { display: flex; align-items: center; }
+  .sprite { width: 28px; height: 28px; margin-right: 6px; flex: none; }
+  .species { font: inherit; }
   p { margin: 0 0 2px; line-height: 1.45; }
   .sub, .muted { color: var(--muted); }
   .bars { display: grid; gap: 4px; margin: 4px 0; }

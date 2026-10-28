@@ -607,7 +607,7 @@ type Entity struct {
 	// is copied into EntityView so frontends cannot mutate the live world.
 	Memories   []Memory
 	perceiving map[perceptionKey]Occurrence // persistent facts currently in range
-	seesThreat bool                         // cached alien-presence edge; fight/flee still use nearestAlien
+	seesThreat bool                         // cached threat-presence edge; fight/flee still use nearestThreat
 
 	// Social conversation fatigue is counted within a rolling social window.
 	socialTalkCount   int

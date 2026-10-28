@@ -223,8 +223,9 @@ nearby alien, rat, or gore exists. A custom persistent rule does not flip
 that path by existing: set `interrupt_rest: true` on the rule that should
 wake a rester. Tuning a shipped radius (or adding a flavor-only sighting)
 must not disable rest. Threat presence (`seesThreat`) stays alien-only —
-flee/fight eligibility still reads `nearestAlien`, so a rat or a
-configured “saw wolf” percept cannot become a legal fight/flee target.
+flee/fight eligibility still reads `nearestThreat`, so a rat, a
+configured “saw wolf” percept, or a Friendly alien cannot become a legal
+fight/flee target.
 
 ### Wear as a policy, not a conversation exception
 
