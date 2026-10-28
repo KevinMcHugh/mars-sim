@@ -12,7 +12,7 @@
   import { spriteURL } from './sprite';
 
   // The tabs that open the inspector, for its way back.
-  const backLabels: Record<string, string> = { roster: 'Roster', jobs: 'Jobs', storage: 'Storage', market: 'Market' };
+  const backLabels: Record<string, string> = { roster: 'Roster', jobs: 'Jobs', storage: 'Storage', market: 'Market', power: 'Power' };
 
   const topic = $derived(ui.selected ? selectionTopic(ui.selected) : null);
   $effect(() => {

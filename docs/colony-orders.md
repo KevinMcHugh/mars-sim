@@ -59,10 +59,11 @@ audit changes.
 
 ## How it works
 
-**Power.** Above the order desk, the Trade tab has a **Power** section: the
-colony's power policy, its reactors and who owns them, and a control to
-change the policy. That one moves reactors between owners rather than
-placing orders; see [power.md](./power.md#changing-policy-p5-built).
+**Power.** The power policy and the battery price used to sit above the
+order desk. They moved to their own **Power** tab, under View
+([power.md](./power.md#the-power-tab)); the Trade tab keeps a line pointing
+there. Changing the policy moves reactors between owners rather than placing
+orders, so it never belonged on the order desk.
 
 **Placing.** `PlaceColonyOrder` names a side, an item, a quantity, a price and
 a depot. It is refused, with a log line saying why, unless:

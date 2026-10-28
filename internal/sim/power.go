@@ -1128,8 +1128,49 @@ func (w *World) powerView() PowerView {
 	sort.Slice(at, func(i, j int) bool { return lessPoint(at[i], at[j]) })
 	for _, p := range at {
 		o := w.fixtureOwner(p)
-		v.Reactors = append(v.Reactors, ReactorView{Pos: p, Owner: o, Price: w.reactorPrice(p), ForSale: forSale[p],
-			Batteries: w.storageContainers[p].held(o, Battery)})
+		c := w.storageContainers[p]
+		r := ReactorView{Pos: p, Owner: o, Price: w.reactorPrice(p), ForSale: forSale[p],
+			Batteries: c.held(o, Battery), Ore: c.held(o, UraniumOre), Pellets: c.held(o, FuelPellet), Ice: c.held(o, WaterIce)}
+		if id := w.workshopClaims[p]; id != 0 {
+			if e := w.entities[id]; e != nil && e.Alive() && e.Job == JobCraft && e.Target == p {
+				r.Operator = id
+			}
+		}
+		switch {
+		case o == Community:
+			r.Full = w.colonyBatteries() >= w.cfg.BatteryReserve
+		case o.Kind == OwnerCorporation:
+			r.Full = w.charterHolds(Battery) >= w.cfg.BatteryReserve
+		default:
+			r.Full = r.Batteries >= w.cfg.BatteryReserve
+		}
+		v.Reactors = append(v.Reactors, r)
+	}
+	for _, p := range w.projects {
+		for _, t := range p.tasks {
+			if t.terrain == Reactor && !w.taskDone(t) {
+				v.Building = append(v.Building, ReactorBuildView{Pos: t.pos, Owner: p.issuer})
+			}
+		}
+	}
+	sort.Slice(v.Building, func(i, j int) bool { return lessPoint(v.Building[i].Pos, v.Building[j].Pos) })
+	v.Charged, v.CookedPowered, v.CookedCold = w.batteriesCharged, w.cookedPowered, w.cookedCold
+	v.BatteryReserve = w.cfg.BatteryReserve
+	v.ColonyUranium, v.ColonyPellets, v.UraniumReserve = w.colonyHolds(UraniumOre), w.colonyHolds(FuelPellet), w.cfg.UraniumReserve
+	if e := w.entities[w.uraniumProspector]; e != nil && e.Alive() && e.Job == JobMine && e.Target == w.uraniumProspectAt {
+		v.Prospector, v.ProspectAt = e.ID, w.uraniumProspectAt
+	}
+	v.PublicReactor, v.DryTicks, v.PublicOptionDays = w.publicReactor, -1, w.cfg.PublicOptionDays
+	if w.powerPolicy == PolicyPublicOption && !w.publicReactor && w.powerDrySince >= 0 {
+		v.DryTicks = int(w.tick) - w.powerDrySince
+	}
+	if w.colonistsBuildReactors() && w.cfg.ReactorSavings > 0 {
+		v.ReactorSavings = Money(w.cfg.ReactorSavings)
+		for id := range w.kindEntities[Colonist] { // a count: map order can't change it
+			if e := w.entities[id]; e.Alive() && !e.reactorCommissioned && e.wallet >= v.ReactorSavings {
+				v.CanCommission++
+			}
+		}
 	}
 	if w.charter.granted {
 		v.Charter = CharterView{Granted: true, Name: w.charterName(), Wallet: w.charter.wallet, Royalties: w.charter.royalties,

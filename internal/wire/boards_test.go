@@ -188,12 +188,15 @@ func TestAccountHoldings(t *testing.T) {
 	}
 }
 
-// The order desk carries the power policy: the policy now, every one the
-// player may pick, and the reactors (none yet, a few hundred ticks in).
-func TestTheDeskCarriesThePowerPolicy(t *testing.T) {
+// The power topic carries the power policy: the policy now, every one the
+// player may pick, and the reactors (none yet, a few hundred ticks in), with
+// nothing the monopoly doesn't have (no public option clock, no commissions).
+func TestThePowerTopicCarriesThePolicy(t *testing.T) {
 	snap := colony(t, 300)
-	d := colonyDesk(snap).Power
-	if !d.On || d.Policy != "monopoly" || len(d.Policies) != 4 || d.Reactors == nil || d.CooldownHours != 0 || d.Charter != nil {
-		t.Fatalf("power desk = %+v", d)
+	var d PowerDesk
+	due(t, snap, "power", &d)
+	if !d.On || d.Policy != "monopoly" || len(d.Policies) != 4 || d.Reactors == nil || d.Building == nil || d.CooldownHours != 0 ||
+		d.Charter != nil || d.PublicOption != nil || d.Commission != nil || d.Reserve <= 0 {
+		t.Fatalf("power topic = %+v", d)
 	}
 }

@@ -226,16 +226,53 @@ type PowerView struct {
 	// tariff, the colony's bid, or the charter's (which the player can't set).
 	Price     Money
 	PriceKind BatteryPriceKind
+	// Building is every reactor room still going up, by position.
+	Building []ReactorBuildView
+	// Charged, CookedPowered and CookedCold count since the landing:
+	// batteries charged, and food recipes worked with power and without.
+	Charged, CookedPowered, CookedCold int64
+	// BatteryReserve is battery-reserve: a reactor charges while its owner
+	// holds fewer.
+	BatteryReserve int
+	// ColonyUranium and ColonyPellets are the colony's fuel, everywhere, and
+	// UraniumReserve the ore it keeps in hand (uranium-reserve).
+	ColonyUranium, ColonyPellets, UraniumReserve int
+	// Prospector is the colonist digging for uranium (0: nobody), at
+	// ProspectAt.
+	Prospector EntityID
+	ProspectAt Point
+	// Under the public option: PublicReactor once the colony runs a reactor
+	// of its own, and until then DryTicks, how long it has gone without a
+	// battery (-1: it has some), against PublicOptionDays.
+	PublicReactor    bool
+	DryTicks         int
+	PublicOptionDays int
+	// ReactorSavings is what a colonist needs to commission a reactor, and
+	// CanCommission how many could now, under the market and the public
+	// option (0 otherwise).
+	ReactorSavings Money
+	CanCommission  int
 }
 
 // ReactorView is one reactor: who owns it, what it would change hands for,
-// whether the colony is selling it, and its owner's batteries there.
+// whether the colony is selling it, and its owner's batteries and fuel
+// there. Operator is the colonist working it now (0: nobody), and Full that
+// its owner holds battery-reserve and it has stopped charging.
 type ReactorView struct {
-	Pos       Point
-	Owner     Owner
-	Price     Money
-	ForSale   bool
-	Batteries int
+	Pos               Point
+	Owner             Owner
+	Price             Money
+	ForSale           bool
+	Batteries         int
+	Ore, Pellets, Ice int
+	Operator          EntityID
+	Full              bool
+}
+
+// ReactorBuildView is a reactor room still going up: where, and whose.
+type ReactorBuildView struct {
+	Pos   Point
+	Owner Owner
 }
 
 // CharterView is the power charter, when one is granted.

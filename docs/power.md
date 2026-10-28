@@ -52,7 +52,7 @@ reason to exist.
 | P4 | The charter: the corporation as an owner, its capital, royalty and remittance | **Shipped** |
 | P5 | Changing policy mid-game: buyouts, sales, and the cooldown, from the browser's Trade tab | **Shipped** |
 | P6 | The player's view: the policy on the new-game form, the battery price on the Trade tab, power on the charts, the TUI's power section and keys | **Shipped** |
-| After | Uranium prospecting, the colony's fuel premium, the market measured on 72 seeds | **Shipped** |
+| After | Uranium prospecting, the colony's fuel premium, the market measured on 72 seeds, the Power tab | **Shipped** |
 
 ## Source
 
@@ -66,7 +66,13 @@ P5 is in `power.go` (`SetPowerPolicy`, `setPowerPolicy`, `reactorPrice`,
 `sellReactor`, `reactorsForSale`, `buyColonyReactor`, `endCharter`,
 `powerView`), `World.powerPolicy`, `PowerView` in `snapshot.go`, `PowerDesk`
 in `wire/boards.go`, the `power-policy` command in `cmd/mars-sim-wasm`,
-`web/src/ui/PowerDesk.svelte` on the Trade tab, and `power_change_test.go`.
+`web/src/ui/PowerDesk.svelte` (on the Trade tab then, the Power tab now), and
+`power_change_test.go`.
+
+The Power tab is `PowerPanel.svelte` with `PowerDesk.svelte` and `power.ts`
+(its words, tested in `power.test.mjs`) in `web/src/ui`, the `power` topic
+(`powerDesk` in `wire/boards.go`), the fuller `PowerView` from `powerView`,
+and `power_view_test.go`.
 
 P4 is in `power.go` (`charterState`, `grantCharter`,
 `commissionCharterReactor`, `refreshCharterSales`, `chargeRoyalty`,
@@ -680,7 +686,7 @@ the one `power-policy` set at the start.
   refuse. The terminal and headless runs take `-power-policy` or
   `mars-sim.yaml`.
 - **The battery price** (`SetBatteryPrice`, `battery-price` on the wire). The
-  Trade tab's Power section has −/+ buttons for whichever price the policy
+  Power tab's Policy section (the Trade tab's, when P6 shipped) has −/+ buttons for whichever price the policy
   gives the player (`batteryPrice`):
   - under the **monopoly**, the **tariff**: what a colony battery is worth,
     and so its share of every meal's cost floor (`World.powerTariff`,
@@ -708,6 +714,42 @@ the one `power-policy` set at the start.
   the battery price a dollar. A change the colony can't afford is refused
   in the log, as in the browser. There is no confirmation step, which is why
   `p` only steps to the *next* policy rather than offering a menu.
+
+### The Power tab
+
+Power had a corner of the Trade tab: the policy, the price and a bare list
+of reactors. It was easy to miss, and it sat under Act, among the tabs that
+place orders, when most of what a player wants is to *see* how the colony's
+power is doing. So it has a tab of its own under View (`PowerPanel.svelte`,
+the `power` topic), in four foldable sections:
+
+- **Power**: one line, "⚡ 1 of 2 reactors working · 1 going up", then the
+  colony's batteries against `battery-reserve`, the battery price in force,
+  the batteries charged so far, and the share of cooking that had power
+  (cold cooking is slower, so this is the power gap at a glance).
+- **Reactors**: every reactor, by position, with its owner, its buyout
+  price, whether the colony is selling it, its owner's batteries, pellets,
+  ore and ice there, and how it runs. The status is one word on the wire,
+  worked out in `powerDesk`: `working` (someone is at it, named),
+  `full` (its owner holds `battery-reserve`, so it rests), `no-uranium`,
+  `no-ice` (pellets but nothing to charge them with), or `idle` (fuelled,
+  nobody free to work it). The two fuel shortages are marked, because those
+  are the ones a player can do something about (the market's prices, the
+  dig tool). Reactor rooms still going up follow, with whose they are, and
+  a click on any of them opens its tile in the inspector.
+- **Fuel**: the colony's uranium ore and pellets, and the uranium
+  prospector, if one is digging, and where.
+- **Policy**: what the policy is and how it works in a sentence, the price
+  control, the charter's account, the public option's clock (how long the
+  colony has gone without a battery against `public-option-days`), how many
+  colonists hold `reactor-savings`, and the control to change the policy
+  (moved here from the Trade tab, which keeps a line pointing to it).
+
+The topic is its own rather than a field of the market topic, which is
+large and was the only way to read power before: the Power tab shouldn't pull
+every order book to show four reactors. The status is decided on the Go
+side, not in the page, so the TUI can show the same word if it grows a
+Power screen.
 
 ### Reactor exposure
 
