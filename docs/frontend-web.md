@@ -22,7 +22,8 @@ readout. Around it is a Svelte chrome:
   opens with **Save game** / **Load game…** (Ctrl/⌘+S saves too;
   see [save-load.md](./save-load.md)), then **New game**, a foldable section
   holding the new-game form, which can also start a colony that zones for itself
-  (`zoning-auto`) or chooses where to dig down (`siting-auto`), or an empty
+  (`zoning-auto`), chooses where to dig down (`siting-auto`), or runs its power
+  under another policy (`power-policy`, [power.md](./power.md)), or an empty
   sandbox to place creatures in by hand ([sandbox.md](./sandbox.md)), and under them a read-only list of
   every setting the game runs with ([game-settings.md](./game-settings.md)).
   Last is a link to [Scum Lab](./scum-lab.md). It is a relative `scum-lab/`,

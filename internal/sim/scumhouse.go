@@ -588,6 +588,7 @@ func (w *World) jobCraft(e *Entity) {
 	for _, o := range outputs {
 		out.credit(e.craftFor, o.Kind, o.Count)
 	}
+	w.noteCooked(r, outputs)
 	w.practise(e, r.Skill, r.Ticks)
 	if r.Facility == Scumhouse {
 		w.emitDone(e, ActionCook, NounMeal, "Worked the scumhouse: %s.", r.Name)
@@ -597,9 +598,9 @@ func (w *World) jobCraft(e *Entity) {
 	if e.craftFor == ColonistOwner(e.ID) && e.plan == 0 {
 		w.offerOwnMeals(e, out.Pos)
 	}
-	if e.craftFor == Community && r.Facility == Reactor {
+	if r.Facility == Reactor && w.hiresOperator(e.craftFor) {
 		if w.cfg.WageReactor > 0 {
-			w.transfer(Community, ColonistOwner(e.ID), Money(w.cfg.WageReactor)) // as far as the treasury goes
+			w.transfer(e.craftFor, ColonistOwner(e.ID), Money(w.cfg.WageReactor)) // as far as its owner's money goes
 		}
 	} else if e.craftFor == Community {
 		if w.cfg.WageCook > 0 {
@@ -641,6 +642,8 @@ func (w *World) cooksOn(e *Entity, c *StorageContainer, r Recipe) bool {
 			return w.batteriesWanted() && w.canCraft(c, r, Community)
 		}
 		return w.foodWanted() && w.canCraft(c, r, Community)
+	case w.charterOwner():
+		return w.charter.granted && w.charterWantsBatteries() && w.canCraft(c, r, e.craftFor)
 	case ColonistOwner(e.ID):
 		if r.Facility == Reactor && c.held(e.craftFor, Battery) >= w.cfg.BatteryReserve {
 			return false // a baron's stock is full: sell before charging more

@@ -36,10 +36,13 @@ Every holder of money is an `Owner`: the community (`Community`), one colonist
 (`ColonistOwner(id)`), or nobody (`Nobody`). The type is shared with
 [property](./property.md), so a wallet, a ledger line, and a bunk all name
 their holder the same way. `OwnerNone` can own goods (abandoned property) but
-never money. An organization owner kind is a commented-out TODO.
+never money. `OwnerCorporation` is the first organization: the power
+charter's company back home, with a wallet of its own (see
+[power.md](./power.md)).
 
 `account(owner)` resolves an owner to the balance its money lives in: the
-treasury, a **living** colonist's `wallet`, or an open market order's escrow
+treasury, a **living** colonist's `wallet`, the charter company's wallet, or
+an open market order's escrow
 (an unexported owner kind, see [market.md](./market.md)). Anyone else has no
 account.
 

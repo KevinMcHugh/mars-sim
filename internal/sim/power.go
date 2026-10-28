@@ -65,7 +65,8 @@ func (w *World) keepStockedFor(owner Owner, item ItemKind, dests []Point, stock 
 	wants := make([]int, len(dests))
 	short := false
 	for i, d := range dests {
-		wants[i] = stock - w.storageContainers[d].held(owner, item) - coming[d]
+		// What is on offer there (an ask's escrow) is still there.
+		wants[i] = stock - w.storageContainers[d].held(owner, item) - w.openQty(Ask, item, d, owner) - coming[d]
 		short = short || wants[i] > 0
 	}
 	if !short {
@@ -206,30 +207,55 @@ func (w *World) colonyBatteries() int {
 	return n
 }
 
+// hiresOperator reports whether a reactor's owner pays a colonist to work
+// it: the colony and the charter company, which can't work one themselves.
+// A baron works its own.
+func (w *World) hiresOperator(o Owner) bool {
+	return o == Community || o.Kind == OwnerCorporation
+}
+
+// reactorWanted reports whether a reactor's owner wants more batteries: the
+// colony while it holds fewer than battery-reserve (batteriesWanted), the
+// charter company likewise of its own.
+func (w *World) reactorWanted(o Owner) bool {
+	if o.Kind == OwnerCorporation {
+		return w.charterWantsBatteries()
+	}
+	return w.batteriesWanted()
+}
+
+// operatorWanted is the work ladder's cheap test before tryAssignReactor:
+// some reactor that hires an operator wants batteries.
+func (w *World) operatorWanted() bool {
+	return w.batteriesWanted() || w.charterWantsBatteries()
+}
+
 // batteriesWanted reports whether the colony's reactors should charge: power
 // is on, a reactor stands, and the colony holds fewer than battery-reserve.
 func (w *World) batteriesWanted() bool {
 	return w.cfg.Power && w.countTerrain(Reactor) > 0 && w.colonyBatteries() < w.cfg.BatteryReserve && len(w.colonyReactors()) > 0
 }
 
-// tryAssignReactor sends e to work the nearest free reactor holding the
-// colony's inputs for one of its recipes, paid wage-reactor a recipe.
+// tryAssignReactor sends e to work the nearest free reactor that hires an
+// operator (the colony's, or the charter company's) and wants batteries,
+// holding its owner's inputs for one of its recipes, paid wage-reactor a
+// recipe by that owner.
 func (w *World) tryAssignReactor(e *Entity) bool {
-	owners := []Owner{Community}
 	p, ok := w.nearestWorkshop(e, Reactor, func(c *StorageContainer) bool {
 		if id := w.workshopClaims[c.Pos]; id != 0 && id != e.ID {
 			return false // one operator per reactor
 		}
-		if w.fixtureOwner(c.Pos) != Community {
-			return false // a baron's, which only its owner works
+		owner := w.fixtureOwner(c.Pos)
+		if !w.hiresOperator(owner) || !w.reactorWanted(owner) {
+			return false // a baron's, which only its owner works, or full
 		}
-		_, _, ok := w.craftableRecipe(c, owners)
+		_, _, ok := w.craftableRecipe(c, []Owner{owner})
 		return ok
 	})
 	if !ok {
 		return false
 	}
-	recipe, owner, _ := w.craftableRecipe(w.storageContainers[p], owners)
+	recipe, owner, _ := w.craftableRecipe(w.storageContainers[p], []Owner{w.fixtureOwner(p)})
 	w.workshopClaims[p] = e.ID
 	e.Job, e.Target, e.Progress = JobCraft, p, 0
 	e.recipe, e.craftFor, e.craftRun = recipe, owner, 0
@@ -242,10 +268,16 @@ func (w *World) tryAssignReactor(e *Entity) bool {
 // ice until it holds reactor-ice-stock a reactor; then it has them hauled to
 // each reactor: the ice, and one ore whenever a reactor is out of pellets.
 func (w *World) refreshReactorFuel() {
-	if !w.colonyRunsPower() {
+	if !w.cfg.Power {
 		return
 	}
+	// A colony that owns a reactor fuels it, whatever the policy: under the
+	// market one it hasn't sold yet (setPowerPolicy) keeps running until a
+	// baron buys it.
 	reactors := w.colonyReactors()
+	if !w.colonyRunsPower() && len(reactors) == 0 {
+		return
+	}
 	if silo, ok := w.marketDepot(); ok {
 		pellets := 0
 		for _, p := range reactors {
@@ -332,10 +364,11 @@ const (
 	PolicyMonopoly     PowerPolicy = iota // the colony builds, fuels and runs every reactor
 	PolicyMarket                          // colonists commission reactors; the colony buys batteries
 	PolicyPublicOption                    // a market, and a colony reactor once it goes without power
+	PolicyCharter                         // one corporation from back home holds the right to make power
 	numPowerPolicies
 )
 
-var powerPolicyNames = [numPowerPolicies]string{"monopoly", "market", "public-option"}
+var powerPolicyNames = [numPowerPolicies]string{"monopoly", "market", "public-option", "charter"}
 
 func (p PowerPolicy) String() string {
 	if p < numPowerPolicies {
@@ -352,7 +385,7 @@ func (p *PowerPolicy) Set(s string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("want monopoly, market or public-option, got %q", s)
+	return fmt.Errorf("want monopoly, market, public-option or charter, got %q", s)
 }
 
 // choiceSetting is a setting that takes one of a set of names: what a
@@ -377,7 +410,7 @@ func (w *World) colonyRunsPower() bool {
 	if !w.cfg.Power {
 		return false
 	}
-	switch w.cfg.PowerPolicy {
+	switch w.powerPolicy {
 	case PolicyMonopoly:
 		return true
 	case PolicyPublicOption:
@@ -393,11 +426,27 @@ func (w *World) colonyBuysBatteries() bool {
 	if !w.cfg.Power {
 		return false
 	}
-	switch w.cfg.PowerPolicy {
-	case PolicyMarket, PolicyPublicOption:
+	switch w.powerPolicy {
+	case PolicyMarket, PolicyPublicOption, PolicyCharter:
 		return true
 	}
 	return false
+}
+
+// batteryBidPrice is what the colony bids for a battery at its stoves: the
+// charter's price under the charter, which sets it, and price-battery
+// otherwise.
+func (w *World) batteryBidPrice() Money {
+	if w.powerPolicy == PolicyCharter {
+		return Money(w.cfg.CharterPrice)
+	}
+	return w.batteryBid
+}
+
+// colonistsBuildReactors reports whether a colonist may commission a reactor
+// of its own: under the market and the public option.
+func (w *World) colonistsBuildReactors() bool {
+	return w.cfg.Power && (w.powerPolicy == PolicyMarket || w.powerPolicy == PolicyPublicOption)
 }
 
 // refreshColonyBatteryBids keeps a standing bid at each colony stove for
@@ -405,7 +454,7 @@ func (w *World) colonyBuysBatteries() bool {
 // there, at price-battery, as far as the treasury stretches. The batteries a
 // baron sells into it come straight to the stove (planSupply).
 func (w *World) refreshColonyBatteryBids() {
-	price := Money(w.cfg.PriceBattery)
+	price := w.batteryBidPrice()
 	if !w.colonyBuysBatteries() || price <= 0 {
 		return
 	}
@@ -436,7 +485,20 @@ func (w *World) refreshColonyBatteryBids() {
 // a time tries, and a second follows when there is room for one. One per
 // planning cycle.
 func (w *World) commissionReactors() {
-	if !w.colonyBuysBatteries() || w.cfg.ReactorSavings <= 0 || w.projectFacilityTasks(Reactor) > 0 {
+	if !w.colonistsBuildReactors() || w.cfg.ReactorSavings <= 0 {
+		return
+	}
+	if len(w.reactorsForSale()) > 0 {
+		// A reactor the colony is selling goes to the first colonist who can
+		// afford one, demand or not: it is already built.
+		for _, id := range w.entityIDsSorted() {
+			e := w.entities[id]
+			if e.Kind == Colonist && e.Alive() && !e.reactorCommissioned && e.wallet >= Money(w.cfg.ReactorSavings) && w.buyColonyReactor(e) {
+				return
+			}
+		}
+	}
+	if w.projectFacilityTasks(Reactor) > 0 {
 		return
 	}
 	demand := false
@@ -459,6 +521,9 @@ func (w *World) commissionReactors() {
 		if e.Kind != Colonist || !e.Alive() || e.reactorCommissioned || e.wallet < Money(w.cfg.ReactorSavings) {
 			continue
 		}
+		if w.buyColonyReactor(e) {
+			return
+		}
 		if w.planRoomFor(reactorRoom, ColonistOwner(e.ID)) {
 			e.reactorCommissioned = true
 			w.logEventProject(LogBuildStart, w.lastProject(), fmt.Sprintf("%s commissions a reactor of %s own.", e.displayName(), e.possessive()))
@@ -467,15 +532,21 @@ func (w *World) commissionReactors() {
 	}
 }
 
-// ownReactors is every reactor a living colonist owns, sorted, with its
-// owner.
+// ownReactors is every reactor a living colonist or the charter company
+// owns, sorted: the ones that fuel themselves (refreshOwnerReactorBids).
 func (w *World) ownReactors() []Point {
 	var out []Point
 	w.eachFacility(Reactor, func(p Point) {
-		if o := w.fixtureOwner(p); o.Kind == OwnerColonist && w.storageContainers[p] != nil {
+		if w.storageContainers[p] == nil {
+			return
+		}
+		switch o := w.fixtureOwner(p); o.Kind {
+		case OwnerColonist:
 			if e := w.entities[o.ID]; e != nil && e.Alive() {
 				out = append(out, p)
 			}
+		case OwnerCorporation:
+			out = append(out, p)
 		}
 	})
 	sort.Slice(out, func(i, j int) bool { return lessPoint(out[i], out[j]) })
@@ -575,7 +646,7 @@ func (w *World) tryAssignOwnReactor(e *Entity) bool {
 // public-option-days: the market left it without power, so it will run a
 // reactor of its own (colonyRunsPower).
 func (w *World) notePowerShortage() {
-	if !w.cfg.Power || w.cfg.PowerPolicy != PolicyPublicOption || w.publicReactor {
+	if !w.cfg.Power || w.powerPolicy != PolicyPublicOption || w.publicReactor {
 		return
 	}
 	if w.colonyBatteries() > 0 {
@@ -589,5 +660,587 @@ func (w *World) notePowerShortage() {
 	if int(w.tick)-w.powerDrySince >= w.cfg.PublicOptionDays*w.cfg.TicksPerDay() {
 		w.publicReactor = true
 		w.logEvent(LogBuildStart, "The colony has gone without power long enough: it will run a reactor of its own.")
+	}
+}
+
+// ---- The charter (P4) -----------------------------------------------------------
+//
+// One of the seed's corporations holds the only right to make power. It
+// brings capital from off-world, builds and fuels its reactor as a baron
+// would (refreshOwnerReactorBids), hires an operator as the colony does,
+// hauls its batteries to the colony's stoves and sells them there at its own
+// price, pays the colony a royalty on every sale (settle), and sends home
+// whatever it holds above its capital once a day. See docs/power.md.
+
+// charterState is the power charter: which corporation holds it, its money
+// in the colony, and what it has done with it.
+type charterState struct {
+	granted   bool
+	corp      int   // index into World.corporations
+	wallet    Money // its spendable money in the colony
+	sold      int   // batteries sold
+	royalties Money // paid to the treasury
+	remitted  Money // sent home, out of the money supply
+	remitDay  int   // the last colony day it sent money home
+	// owedCents is royalty owed but not yet a whole dollar: most sales are
+	// a battery at a time, and 10% of $6 rounds to nothing.
+	owedCents int64
+}
+
+// charterOwner is the charter company as an owner.
+func (w *World) charterOwner() Owner {
+	return Owner{Kind: OwnerCorporation, ID: EntityID(w.charter.corp)}
+}
+
+// charterName is the charter company's name, from the roster.
+func (w *World) charterName() string {
+	if w.charter.corp < len(w.corporations) {
+		return w.corporations[w.charter.corp].Name
+	}
+	return "the charter company"
+}
+
+// grantCharter grants the power charter, once, under power-policy charter:
+// to charter-corporation (clamped to the roster), with charter-capital from
+// off-world. The capital is minted like a founding grant: money entering the
+// colony's supply, as a recruiter's fee is money leaving it.
+func (w *World) grantCharter() {
+	if !w.cfg.Power || w.powerPolicy != PolicyCharter || w.charter.granted || len(w.corporations) == 0 {
+		return
+	}
+	w.charter.corp = min(max(0, w.cfg.CharterCorporation), len(w.corporations)-1)
+	w.charter.granted = true
+	w.mint(w.charterOwner(), Money(max(0, w.cfg.CharterCapital)))
+	w.logEvent(LogArrival, fmt.Sprintf("%s takes up the colony's power charter, with $%d from back home.", w.charterName(), w.cfg.CharterCapital))
+}
+
+// charterHolds is how many units of k the charter company owns, in every
+// depot and on offer.
+func (w *World) charterHolds(k ItemKind) int {
+	if !w.charter.granted {
+		return 0
+	}
+	me := w.charterOwner()
+	n := 0
+	w.eachContainer(func(c *StorageContainer) { n += c.held(me, k) })
+	for _, o := range w.orders {
+		if o.Actor == me && o.Side == Ask && o.Item == k {
+			n += o.Qty
+		}
+	}
+	return n
+}
+
+// charterReactors is every reactor the charter company owns, sorted.
+func (w *World) charterReactors() []Point {
+	var out []Point
+	if !w.charter.granted {
+		return out
+	}
+	me := w.charterOwner()
+	w.eachFacility(Reactor, func(p Point) {
+		if w.storageContainers[p] != nil && w.fixtureOwner(p) == me {
+			out = append(out, p)
+		}
+	})
+	sort.Slice(out, func(i, j int) bool { return lessPoint(out[i], out[j]) })
+	return out
+}
+
+// charterWantsBatteries reports whether the charter's reactor should charge:
+// it stands, and the company holds fewer than battery-reserve.
+func (w *World) charterWantsBatteries() bool {
+	return w.charter.granted && len(w.charterReactors()) > 0 && w.charterHolds(Battery) < w.cfg.BatteryReserve
+}
+
+// commissionCharterReactor has the charter company commission its reactor,
+// paid from its capital, as soon as the colony has a kitchen to sell to and
+// it has none built or going up. Unlike a baron it doesn't wait for the
+// stoves to run short: power is its whole business and it has the capital,
+// so it charges ahead of the lockers running dry. One is enough: it is the
+// only seller, so a second would only compete with itself.
+func (w *World) commissionCharterReactor() {
+	if !w.charter.granted || len(w.charterReactors()) > 0 {
+		return
+	}
+	me := w.charterOwner()
+	for _, p := range w.projects {
+		if p.issuer == me {
+			return
+		}
+	}
+	if len(w.colonyKitchens()) > 0 && w.planRoomFor(reactorRoom, me) {
+		w.logEventProject(LogBuildStart, w.lastProject(), fmt.Sprintf("%s commissions the colony's reactor.", w.charterName()))
+	}
+}
+
+// refreshCharterSales has the charter company stock the colony's stoves with
+// its batteries (kitchen-battery-stock each, hauled for hire from its
+// reactor) and offer what it has there at charter-price, where the colony's
+// bids and any cook's take them.
+func (w *World) refreshCharterSales() {
+	if !w.charter.granted {
+		return
+	}
+	me := w.charterOwner()
+	kitchens := w.colonyKitchens()
+	w.keepStockedFor(me, Battery, kitchens, w.cfg.KitchenBatteryStock)
+	price := Money(w.cfg.CharterPrice)
+	if price <= 0 {
+		return
+	}
+	for _, k := range kitchens {
+		if n := w.storageContainers[k].held(me, Battery); n > 0 {
+			w.post(Ask, Battery, n, price, me, k, 0)
+		}
+	}
+}
+
+// chargeRoyalty pays the colony charter-royalty percent of a sale the
+// charter company just made (settle calls it), and counts the sale.
+func (w *World) chargeRoyalty(seller Owner, item ItemKind, n int, price Money) {
+	if seller.Kind != OwnerCorporation || !w.charter.granted {
+		return
+	}
+	if item == Battery {
+		w.charter.sold += n
+	}
+	if pct := w.cfg.CharterRoyalty; pct > 0 {
+		w.charter.owedCents += int64(n) * int64(price) * int64(pct)
+		if due := Money(w.charter.owedCents / 100); due > 0 && w.transfer(seller, Community, due) {
+			w.charter.owedCents -= int64(due) * 100
+			w.charter.royalties += due
+		}
+	}
+}
+
+// remitCharterProfit sends home, once a day, whatever the charter company
+// holds above charter-capital: profit leaving the colony's money supply for
+// good (export). Over a long game the charter drains the colony's money;
+// that is the price of a company town.
+func (w *World) remitCharterProfit() {
+	if !w.charter.granted {
+		return
+	}
+	// The market's upkeep runs every few ticks, not every tick, so a day is
+	// counted, not landed on.
+	ticksPerDay := w.cfg.TicksPerDay()
+	if ticksPerDay <= 0 {
+		return
+	}
+	day := int(w.tick) / ticksPerDay
+	if day <= w.charter.remitDay {
+		return
+	}
+	w.charter.remitDay = day
+	if over := w.charter.wallet - Money(max(0, w.cfg.CharterCapital)); over > 0 && w.export(w.charterOwner(), over) {
+		w.charter.remitted += over
+	}
+}
+
+// ---- Changing policy (P5) --------------------------------------------------------
+//
+// The player may change power-policy during a game (SetPowerPolicy). The rules
+// for who builds and who sets the price change at once; reactors that already
+// stand change hands at a buyout price, all or nothing; and a change must
+// wait power-policy-cooldown days after the last. See docs/power.md.
+
+// SetPowerPolicy changes who runs the colony's reactors, in a running game.
+type SetPowerPolicy struct{ Policy PowerPolicy }
+
+func (SetPowerPolicy) isCommand() {}
+
+// reactorPrice is what the reactor at p changes hands for: reactor-buyout
+// (about what its room costs to build) plus the seller's goods in its depot
+// at their value, which go with it.
+func (w *World) reactorPrice(p Point) Money {
+	price := Money(max(0, w.cfg.ReactorBuyout))
+	seller := w.fixtureOwner(p)
+	if c := w.storageContainers[p]; c != nil {
+		for _, l := range c.Ledger {
+			if l.Owner == seller && l.Count > 0 {
+				price += Money(l.Count) * w.valueOf(l.Item)
+			}
+		}
+	}
+	return price
+}
+
+// sellReactor moves the reactor at p and its seller's goods there to buyer,
+// for price, reporting whether the buyer could pay.
+func (w *World) sellReactor(p Point, buyer Owner, price Money) bool {
+	seller := w.fixtureOwner(p)
+	if !w.transfer(buyer, seller, price) {
+		return false
+	}
+	if c := w.storageContainers[p]; c != nil {
+		for _, l := range append([]LedgerLine(nil), c.Ledger...) {
+			if l.Owner == seller && l.Count > 0 {
+				c.moveLine(seller, buyer, l.Item, l.Count)
+			}
+		}
+	}
+	w.setFixtureOwner(p, buyer, AccessCommunal)
+	return true
+}
+
+// reactorsForSale is the colony's reactors it is selling, sorted: every one
+// under the market, all but its first under the public option (its reactor
+// of last resort), none otherwise.
+func (w *World) reactorsForSale() []Point {
+	rs := w.colonyReactors()
+	switch w.powerPolicy {
+	case PolicyMarket:
+		return rs
+	case PolicyPublicOption:
+		if len(rs) > 1 {
+			return rs[1:]
+		}
+	}
+	return nil
+}
+
+// buyColonyReactor has e buy the first reactor the colony is selling, at its
+// price, reporting whether it did. It is e's reactor commission: one each.
+func (w *World) buyColonyReactor(e *Entity) bool {
+	for _, p := range w.reactorsForSale() {
+		price := w.reactorPrice(p)
+		if e.wallet < price {
+			continue
+		}
+		w.cancelColonyReactorOrders(p)
+		if w.sellReactor(p, ColonistOwner(e.ID), price) {
+			e.reactorCommissioned = true
+			w.logEventAt(LogNote, p, fmt.Sprintf("%s buys the colony's reactor for $%d.", e.displayName(), price))
+			return true
+		}
+	}
+	return false
+}
+
+// cancelColonyReactorOrders closes the colony's haul orders bound for the
+// reactor at p: once sold, what the colony hauls there would be on its
+// ledger in someone else's reactor.
+func (w *World) cancelColonyReactorOrders(p Point) {
+	for _, o := range w.sortedWork(func(o *WorkOrder) bool {
+		return o.Issuer == Community && o.Kind == WorkHaul && o.Pos == p
+	}) {
+		w.closeWork(o)
+	}
+}
+
+// policyCooldownLeft is how many ticks the player must still wait before
+// changing power-policy again (0: it may now).
+func (w *World) policyCooldownLeft() int {
+	if w.lastPolicyChange < 0 {
+		return 0
+	}
+	wait := w.cfg.PolicyCooldownDays * w.cfg.TicksPerDay()
+	return max(0, w.lastPolicyChange+wait-int(w.tick))
+}
+
+// setPowerPolicy changes the policy to to, buying out whichever reactors the
+// new rules say change hands, and reports whether it did. A change the new
+// owner can't pay for in full is refused, and the log says why.
+//
+//   - to the monopoly: the colony buys every reactor it doesn't own, a
+//     baron's or the charter company's, from the treasury. Nationalization.
+//     A charter ends.
+//   - to the charter: the company is granted the charter, with its capital
+//     and what it needs to buy every reactor, and buys them.
+//   - to the market or the public option from the charter: the colony buys
+//     the company out (its reactors and its goods) and the charter ends.
+//     From the monopoly, nothing changes hands at once: the colony's
+//     reactors are for sale (reactorsForSale), and run until one sells.
+//
+// An owner can't refuse: a buyout at a fair price needs no enforcement.
+func (w *World) setPowerPolicy(to PowerPolicy) bool {
+	from := w.powerPolicy
+	switch {
+	case !w.cfg.Power:
+		w.logEvent(LogNote, "Power is off in this game: there is no power policy to change.")
+		return false
+	case to >= numPowerPolicies || to == from:
+		return false
+	case w.policyCooldownLeft() > 0:
+		hours := (w.policyCooldownLeft()*24 + w.cfg.TicksPerDay() - 1) / max(1, w.cfg.TicksPerDay())
+		w.logEvent(LogNote, fmt.Sprintf("The colony changed its power policy too recently: it can change again in %d hours.", hours))
+		return false
+	}
+	// Who buys what, priced before anything moves.
+	type deal struct {
+		at    Point
+		price Money
+	}
+	var deals []deal
+	var buyer Owner
+	switch {
+	case to == PolicyMonopoly:
+		buyer = Community
+		w.eachFacility(Reactor, func(p Point) {
+			if w.storageContainers[p] != nil && w.fixtureOwner(p) != Community {
+				deals = append(deals, deal{p, w.reactorPrice(p)})
+			}
+		})
+	case to == PolicyCharter:
+		w.eachFacility(Reactor, func(p Point) {
+			if w.storageContainers[p] != nil && w.fixtureOwner(p).Kind != OwnerCorporation {
+				deals = append(deals, deal{p, w.reactorPrice(p)})
+			}
+		})
+	case from == PolicyCharter:
+		buyer = Community
+		for _, p := range w.charterReactors() {
+			deals = append(deals, deal{p, w.reactorPrice(p)})
+		}
+	}
+	sort.Slice(deals, func(i, j int) bool { return lessPoint(deals[i].at, deals[j].at) })
+	var total Money
+	for _, d := range deals {
+		total += d.price
+	}
+	// Leaving the charter, the colony also buys the company's goods: its
+	// batteries at the stoves and fuel at the silo.
+	var goods Money
+	if from == PolicyCharter && w.charter.granted {
+		w.cancelOrdersOf(w.charterOwner()) // its asks' and bids' goods and money come home first
+		goods = w.charterGoodsValue()
+	}
+	if buyer == Community && w.treasury < total+goods {
+		w.logEvent(LogNote, fmt.Sprintf("The colony can't afford to change its power policy to %s: the buyout comes to $%d, and the treasury holds $%d.", to, total+goods, w.treasury))
+		return false
+	}
+	w.powerPolicy = to
+	w.lastPolicyChange = int(w.tick)
+	if to == PolicyCharter {
+		w.grantCharter()
+		if !w.charter.granted {
+			w.powerPolicy = from // no corporation in the roster to hold it
+			w.lastPolicyChange = -1
+			return false
+		}
+		buyer = w.charterOwner()
+		w.mint(buyer, total) // its backers fund the buyout
+	}
+	sellers := map[Owner]bool{}
+	for _, d := range deals {
+		seller := w.fixtureOwner(d.at)
+		w.cancelColonyReactorOrders(d.at)
+		if seller.Kind == OwnerColonist {
+			w.cancelFuelOrdersOf(seller)
+		}
+		if w.sellReactor(d.at, buyer, d.price) {
+			sellers[seller] = true
+		}
+	}
+	if from == PolicyCharter && w.charter.granted {
+		w.endCharter(goods)
+	}
+	if to == PolicyPublicOption && len(w.colonyReactors()) > 0 {
+		w.publicReactor = true // it already runs the reactor of last resort
+	}
+	msg := fmt.Sprintf("The colony changes its power policy from %s to %s.", from, to)
+	if len(deals) > 0 {
+		msg += fmt.Sprintf(" %s change hands for $%d.", plural(len(deals), "reactor"), total)
+	}
+	if n := len(w.reactorsForSale()); n > 0 {
+		msg += fmt.Sprintf(" The colony offers its %s for sale.", plural(n, "reactor"))
+	}
+	w.logEvent(LogNote, msg)
+	return true
+}
+
+// cancelFuelOrdersOf withdraws a bought-out baron's open bids for reactor
+// fuel and its haul orders for it: it has no reactor to fuel.
+func (w *World) cancelFuelOrdersOf(o Owner) {
+	for _, ord := range w.sortedOrders(func(x *Order) bool {
+		return x.Actor == o && x.Side == Bid && (x.Item == UraniumOre || x.Item == WaterIce)
+	}) {
+		w.cancel(ord)
+	}
+	for _, wo := range w.sortedWork(func(x *WorkOrder) bool {
+		return x.Issuer == o && x.Kind == WorkHaul && (x.Item == UraniumOre || x.Item == WaterIce)
+	}) {
+		w.closeWork(wo)
+	}
+}
+
+// charterGoodsValue is what the charter company's goods outside its
+// reactors are worth: what the colony pays for them when it buys the
+// company out.
+func (w *World) charterGoodsValue() Money {
+	me := w.charterOwner()
+	var v Money
+	w.eachContainer(func(c *StorageContainer) {
+		if c.Terrain == Reactor && w.fixtureOwner(c.Pos) == me {
+			return // priced with the reactor
+		}
+		for _, l := range c.Ledger {
+			if l.Owner == me && l.Count > 0 {
+				v += Money(l.Count) * w.valueOf(l.Item)
+			}
+		}
+	})
+	return v
+}
+
+// endCharter ends the charter: the colony pays goods for the company's
+// goods outside its reactors and takes them, the company's open work closes,
+// and whatever money it has left goes home with it.
+func (w *World) endCharter(goods Money) {
+	me := w.charterOwner()
+	w.cancelWorkOf(me)
+	if w.transfer(Community, me, goods) {
+		w.eachContainer(func(c *StorageContainer) {
+			for _, l := range append([]LedgerLine(nil), c.Ledger...) {
+				if l.Owner == me && l.Count > 0 {
+					c.moveLine(me, Community, l.Item, l.Count)
+				}
+			}
+		})
+	}
+	if left := w.charter.wallet; left > 0 && w.export(me, left) {
+		w.charter.remitted += left
+	}
+	w.logEvent(LogNote, fmt.Sprintf("%s gives up the colony's power charter and goes home.", w.charterName()))
+	w.charter.granted = false
+}
+
+// powerView is the power policy and the reactors, for a frame.
+func (w *World) powerView() PowerView {
+	v := PowerView{On: w.cfg.Power, Policy: w.powerPolicy, CooldownTicks: w.policyCooldownLeft(),
+		TicksPerDay: w.cfg.TicksPerDay()}
+	if !w.cfg.Power {
+		return v
+	}
+	forSale := map[Point]bool{}
+	for _, p := range w.reactorsForSale() {
+		forSale[p] = true
+	}
+	var at []Point
+	w.eachFacility(Reactor, func(p Point) {
+		if w.storageContainers[p] != nil {
+			at = append(at, p)
+		}
+	})
+	sort.Slice(at, func(i, j int) bool { return lessPoint(at[i], at[j]) })
+	for _, p := range at {
+		o := w.fixtureOwner(p)
+		v.Reactors = append(v.Reactors, ReactorView{Pos: p, Owner: o, Price: w.reactorPrice(p), ForSale: forSale[p],
+			Batteries: w.storageContainers[p].held(o, Battery)})
+	}
+	if w.charter.granted {
+		v.Charter = CharterView{Granted: true, Name: w.charterName(), Wallet: w.charter.wallet, Royalties: w.charter.royalties,
+			Remitted: w.charter.remitted, Sold: w.charter.sold}
+	}
+	v.ColonyBatteries = w.colonyBatteries()
+	v.Price, v.PriceKind = w.batteryPrice()
+	return v
+}
+
+// PowerPolicies is every policy, by name, in order: what a frontend offers.
+func PowerPolicies() []string {
+	return append([]string(nil), powerPolicyNames[:]...)
+}
+
+// ---- The battery price (P6) -------------------------------------------------------
+
+// SetBatteryPrice sets the battery price the player controls under the
+// current policy (BatteryPriceKind), in dollars.
+type SetBatteryPrice struct{ Dollars int }
+
+func (SetBatteryPrice) isCommand() {}
+
+// BatteryPriceKind says which battery price the player sets under a policy.
+type BatteryPriceKind uint8
+
+const (
+	// PriceTariff is what a colony battery is worth (the monopoly's): the
+	// battery's share of a meal's cost floor.
+	PriceTariff BatteryPriceKind = iota
+	// PriceColonyBid is what the colony bids for a battery at its stoves
+	// (the market's and the public option's).
+	PriceColonyBid
+	// PriceCharter is the charter company's own price: the player reads it
+	// and can't set it (charter-price), short of taking the charter back.
+	PriceCharter
+)
+
+func (k BatteryPriceKind) String() string {
+	switch k {
+	case PriceColonyBid:
+		return "bid"
+	case PriceCharter:
+		return "charter"
+	}
+	return "tariff"
+}
+
+// maxBatteryPrice bounds the price a player may set: well past what the cold
+// recipe's ceiling makes worth paying.
+const maxBatteryPrice = 200
+
+// batteryPrice is the battery price in force under the current policy, and
+// which kind it is.
+func (w *World) batteryPrice() (Money, BatteryPriceKind) {
+	switch w.powerPolicy {
+	case PolicyMarket, PolicyPublicOption:
+		return w.batteryBid, PriceColonyBid
+	case PolicyCharter:
+		return Money(w.cfg.CharterPrice), PriceCharter
+	}
+	return w.powerTariff, PriceTariff
+}
+
+// setBatteryPrice sets the player's battery price under the current policy
+// and reports whether it changed. A new bid price withdraws the colony's
+// standing battery bids, so the next upkeep posts them at it; the charter's
+// price isn't the player's to set.
+func (w *World) setBatteryPrice(dollars int) bool {
+	if !w.cfg.Power || dollars < 0 || dollars > maxBatteryPrice {
+		return false
+	}
+	price := Money(dollars)
+	switch _, kind := w.batteryPrice(); kind {
+	case PriceCharter:
+		w.logEvent(LogNote, fmt.Sprintf("%s sets its own price for power.", w.charterName()))
+		return false
+	case PriceColonyBid:
+		if price == w.batteryBid {
+			return false
+		}
+		w.batteryBid = price
+		for _, o := range w.sortedOrders(func(o *Order) bool {
+			return o.Actor == Community && o.Side == Bid && o.Item == Battery && !o.manual
+		}) {
+			w.cancel(o)
+		}
+		w.logEvent(LogNote, fmt.Sprintf("The colony will pay $%d a battery at its stoves.", dollars))
+	default:
+		if price == w.powerTariff {
+			return false
+		}
+		w.powerTariff = price
+		w.logEvent(LogNote, fmt.Sprintf("The colony's power tariff is now $%d a battery.", dollars))
+	}
+	return true
+}
+
+// noteCooked counts a recipe worked, for the charts: batteries charged, and
+// food cooked with power and without.
+func (w *World) noteCooked(r Recipe, outputs []ItemStack) {
+	for _, o := range outputs {
+		if o.Kind == Battery {
+			w.batteriesCharged += int64(o.Count)
+		}
+	}
+	if r.Facility != Scumhouse || !recipeMakesMeals(r) {
+		return
+	}
+	switch {
+	case r.Cold:
+		w.cookedCold++
+	case w.cfg.Power:
+		w.cookedPowered++
 	}
 }

@@ -318,6 +318,8 @@ the inspector shows its full build and a narrative description.
 | `shift+↑↓`, `pgup`/`pgdn` | scroll the roster inspector, or the log, a line / a screenful |
 | `home` / `end` (log) | jump to the oldest retained event / back to the live tail |
 | `c` (activity only) | switch the activity chart between shares of colonist time and average colonists |
+| `p` (market only) | change the power policy to the next one: monopoly → market → public option → charter → monopoly (`SetPowerPolicy`; reactors may change hands at once, see [power.md](./power.md)) |
+| `[` / `]` (market only) | the battery price a dollar lower / higher: the tariff, or what the colony bids, by policy (`SetBatteryPrice`) |
 | `ctrl+s` | save the game to `mars-sim-<seed>-<time>.marssave` in the working directory (`SaveGame`); the footer says where it went. See [save-load.md](./save-load.md) |
 | `tab` | cycle map → roster → job board → storage → market → lore → population → activity → log → perf → map |
 | `q` / `esc` | quit (`esc` returns to the map from any details panel, or cancels an open menu) |

@@ -226,6 +226,41 @@ var metricDefs = []MetricDef{
 		read: func(c *metricCtx, k int64) (int64, bool) { return c.w.tradedValue[k], true }},
 	{Key: "work-orders", Label: "Open work orders", Group: "Market", Doc: "paid jobs waiting for a worker",
 		read: func(c *metricCtx, _ int64) (int64, bool) { return int64(len(c.w.workOrders)), true }},
+
+	// Power (docs/power.md). Batteries in storage, their price and the
+	// reactors standing are the per-item and per-fixture metrics above.
+	{Key: "colony-batteries", Label: "Colony's batteries", Group: "Power", Doc: "batteries the colony owns, everywhere: the stoves' power",
+		read: func(c *metricCtx, _ int64) (int64, bool) {
+			if !c.w.cfg.Power {
+				return 0, false
+			}
+			return int64(c.w.colonyBatteries()), true
+		}},
+	{Key: "battery-price", Label: "Battery price", Group: "Power", Unit: UnitDollars,
+		Doc: "the battery price in force: the tariff, the colony's bid, or the charter's",
+		read: func(c *metricCtx, _ int64) (int64, bool) {
+			if !c.w.cfg.Power {
+				return 0, false
+			}
+			p, _ := c.w.batteryPrice()
+			return int64(p), true
+		}},
+	{Key: "batteries-charged", Label: "Batteries charged", Group: "Power", Kind: Total, Doc: "batteries charged at any reactor",
+		read: func(c *metricCtx, _ int64) (int64, bool) { return c.w.batteriesCharged, c.w.cfg.Power }},
+	{Key: "cooked-powered", Label: "Cooked with power", Group: "Power", Kind: Total, Doc: "food recipes worked with a battery",
+		read: func(c *metricCtx, _ int64) (int64, bool) { return c.w.cookedPowered, c.w.cfg.Power }},
+	{Key: "cooked-cold", Label: "Cooked cold", Group: "Power", Kind: Total, Doc: "food recipes worked without a battery: three times as slow",
+		read: func(c *metricCtx, _ int64) (int64, bool) { return c.w.cookedCold, c.w.cfg.Power }},
+	{Key: "charter-royalties", Label: "Charter royalties", Group: "Power", Kind: Total, Unit: UnitDollars,
+		Doc: "what the charter company has paid the colony",
+		read: func(c *metricCtx, _ int64) (int64, bool) {
+			return int64(c.w.charter.royalties), c.w.powerPolicy == PolicyCharter || c.w.charter.royalties > 0
+		}},
+	{Key: "charter-remitted", Label: "Charter profit sent home", Group: "Power", Kind: Total, Unit: UnitDollars,
+		Doc: "what the charter company has sent off-world, out of the money supply",
+		read: func(c *metricCtx, _ int64) (int64, bool) {
+			return int64(c.w.charter.remitted), c.w.powerPolicy == PolicyCharter || c.w.charter.remitted > 0
+		}},
 }
 
 // MetricDefs is every metric, for a frontend's picker. It is shared: do not

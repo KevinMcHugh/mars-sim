@@ -44,6 +44,8 @@ export type Command =
   | { type: 'defend-cancel'; id: number }
   /** Keep qty colonists on call as EMTs (0 stands the detail down; docs/emergency-services.md). */
   | { type: 'emt-detail'; qty: number }
+  | { type: 'power-policy'; kind: string }
+  | { type: 'battery-price'; qty: number }
   /** Offer EMTs qty cents an hour; colonists take the place only if it meets their ask. */
   | { type: 'emt-wage'; qty: number }
   /** Pay an on-call EMT qty dollars for each casualty it sees to (0: no fee). */

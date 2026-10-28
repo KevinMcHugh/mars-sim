@@ -527,6 +527,7 @@ func (w *World) planRooms() {
 		w.commissionHouses()
 		w.commissionKitchens()
 		w.commissionReactors()
+		w.commissionCharterReactor()
 	}
 	if w.roomProjects() >= w.maxConcurrentProjects() {
 		return
