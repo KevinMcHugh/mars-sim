@@ -86,3 +86,18 @@ func TestLoreForms(t *testing.T) {
 		t.Fatalf("title %q", rolled.Title)
 	}
 }
+
+// The inspector shows a packed alien's sprite and links its species' lore
+// entry; anything else gets -1 for both.
+func TestEntityTopicSprite(t *testing.T) {
+	snap := &sim.Snapshot{Entities: []sim.EntityView{
+		{ID: 1, Kind: sim.Alien, Sprite: 2, SpeciesIndex: 1},
+		{ID: 2, Kind: sim.Colonist},
+	}}
+	if a := entityTopic(snap, 1); a.Sprite != 1 || a.SpeciesIndex != 1 {
+		t.Errorf("alien sprite %d species %d, want 1 and 1", a.Sprite, a.SpeciesIndex)
+	}
+	if c := entityTopic(snap, 2); c.Sprite != -1 || c.SpeciesIndex != -1 {
+		t.Errorf("colonist sprite %d species %d, want -1 and -1", c.Sprite, c.SpeciesIndex)
+	}
+}

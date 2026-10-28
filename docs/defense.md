@@ -93,8 +93,8 @@ would block, `idleWouldBlock`) patrols to a random tile of the area
 fights). If the way to its station is shut, it picks another; with none
 reachable it gives the post up.
 
-Every tick, before moving, a guard looks for an alien within `guard-sight` of
-itself whose position is also within `guard-sight` of the area, and fights it
+Every tick, before moving, a guard looks for an alien (`nearestThreat`, so
+never a Friendly one) within `guard-sight` of itself whose position is also within `guard-sight` of the area, and fights it
 with `fightAlien`, the same gunfight any armed colonist has (see
 [combat.md](./combat.md)). `guard-sight` (8) is wider than `flee-radius` (5),
 so a guard opens fire on something an ordinary colonist would not yet have

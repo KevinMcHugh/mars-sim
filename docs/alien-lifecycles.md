@@ -7,8 +7,10 @@
 Some alien species change over a life: an egg that hatches into a grub, a
 joey that pupates, a nymph that becomes a queen. Each seed rolls them with
 its roster. Most species have a single form, and every species, single-form
-or not, rolls **graded anatomy**: horns, antlers, quills, a shell, claws, a
-stinger, a tail club, in degrees a life can grow along. A species with a
+or not, rolls **graded anatomy**: horns, antlers, tusks, quills, a shell,
+claws or a crab's pincers, a stinger, a tail club, in degrees a life can grow along, and some
+have a **mouthpart** in place of a plain mouth: a beak, a bill, mandibles or
+a proboscis. A species with a
 lifecycle also **breeds**: its adult (or its queen, betty, jill or matriarch)
 lays the first form of its life, an egg or live young, until its nest or its
 numbers are full. The tone is the platypus: plausible parts assembled
@@ -19,7 +21,8 @@ each form of a life is its own species value with its own behavior ladder.
 
 ## Source
 
-- [`internal/sim/alien_anatomy.go`](../internal/sim/alien_anatomy.go) — `AlienAnatomy`, `TailTip`, `rollAnatomy`, `scaledAnatomy` (a young form's lesser features), `featurePhrases`.
+- [`internal/sim/alien_anatomy.go`](../internal/sim/alien_anatomy.go) — `AlienAnatomy`, `TailTip`, `Mouthpart`, `rollAnatomy`, `rollLateFeatures` (tusks, mouthparts and pincers, on `alienLateAnatomySeed`), `scaledAnatomy` (a young form's lesser features), `featurePhrases`, `armed`.
+- [`internal/sim/alien_anatomy_test.go`](../internal/sim/alien_anatomy_test.go) — tusks, mouthparts and pincers: their own stream, their rates, their descriptions and names.
 - [`internal/sim/alien_lifecycle.go`](../internal/sim/alien_lifecycle.go) — `AlienForm`, the stage vocabulary (`stageWords`) and caste sets (`casteSets`), `rollLifecycle`, `pushedAnatomy` (a caste's), and the individual side: `beginLife`, `growUp`, `layBrood` (with `broodCrowded`, `speciesPopulation`, `startYoung`), `resizeAlien`, `alienDamage`, `inert`, `alienFormNoun`, and the lore tab's `lifePhrase` and `broodPhrase`.
 - [`internal/sim/components.go`](../internal/sim/components.go) — `LifeStage`, the component an alien of a multi-form species carries.
 - [`internal/sim/species.go`](../internal/sim/species.go) — `newAlienSpeciesTable`: one species per form, each with its ladder.
@@ -51,7 +54,8 @@ each form of a life is its own species value with its own behavior ladder.
    (`early` or `middle`), never one the line already used. A middle stage is a
    casing (cocoon, pupa, chrysalis, husk; or an egg) 35% of the time when the
    stage before it was not. A mobile young form has part of the adult's body:
-   fewer limbs, a tail only past halfway through the life, no wings yet, and
+   fewer limbs, still in pairs (legs round up to a pair and arms down, so a
+   young form walks before it grasps), a tail only past halfway through the life, no wings yet, and
    `scaledAnatomy`'s lesser features. A casing shows nothing.
 5. **The adult, or its castes.** 30% of multi-stage lines end in castes: a
    caste set that fits the family (queen/worker/drone, bull/betty, jack/jill,
@@ -83,6 +87,26 @@ nubs" to "scythe-like", a stinger or a barbed one, and a tail ending in a
 club, a spiked club or a stinger. Most of them fight (below); spines do
 not, yet.
 
+**Tusks and mouthparts** came later and roll in `rollLateFeatures`, on a
+stream of their own (`alienLateAnatomySeed`), so adding them moved no species'
+horns, shell or claws (`TestLateFeaturesDoNotShiftOtherAnatomy`). Tusks
+(12%) have three grades: "stubby tusks", "a pair of tusks", "great curving
+tusks". A mouthpart (20%) is one of four, evenly: "a hooked beak", "a flat,
+ducklike bill", "clacking mandibles", "a long proboscis". A species has at
+most one mouthpart (it is the whole mouth) but tusks sit beside any of them;
+a tusked, billed thing is the platypus tone. Neither depends on skin: a
+furry thing with a beak is a find, not an error. A young form has its
+species' mouthpart from the first form that has one (it is how it eats) and
+grows its tusks like any graded feature; a big caste pushes them further.
+
+**Pincers**, like a crab's, roll on the same stream, after the mouthpart:
+"small pincers", "crushing pincers", "great serrated pincers". They are
+hands, so only a species with arms gets them (25% of those), and not one
+whose arms already end in claws: a hand is clawed or pincered, never both.
+The roll and its grade are drawn for every species, armed or not, so one
+species' arms never shift the next species' draws. A young form has none
+until it has arms.
+
 ### Features that fight
 
 `alien_weapons.go` turns the body into combat, always reading the alien's
@@ -91,9 +115,12 @@ pushed ones. A species grows into its weapons.
 
 | Feature | In a fight |
 | --- | --- |
-| horns or antlers | grant **gore**: +8% damage per horn and +5% per antler tine, at most double |
+| horns, antlers or tusks | grant **gore**: +8% damage per horn, +5% per antler tine and +15% per tusk grade, at most double |
+| a beak or mandibles | the bite mode tears 30% harder with a beak, 25% with mandibles |
+| a bill or a proboscis | nothing: a bill dabbles, a proboscis sips |
 | a stinger, or a tail ending in one | grant **sting**: half damage (three quarters if barbed), but always to the torso, a vital part |
 | claws | the claw mode rakes 25% harder per grade |
+| pincers | grant the **claw** mode (normally a rolled coin flip) and it crushes 30% harder per grade ("crushing with their pincers"); a young form without arms cannot use it |
 | a clubbed tail | the tail mode hits 50% harder (75% for a spiked club) |
 | a shell | every hit on it, gunshot or strike, is blunted 10% / 20% / 30% (patch, plates, carapace); a hit that does damage still does at least 1 |
 
@@ -105,20 +132,25 @@ lore stream and appending to it would have re-rolled every later species'
 attacks. At the moment of a blow, `attacksNow` drops a feature mode the body
 cannot use yet (a hornless grub of a horned species bites). A body without
 any feature fights exactly as before: same modes, same damage, same draws.
-Descriptions say "goring with their horns" and "stinging"; narration says
-"gores" and "stings".
+Descriptions say "goring with their horns" (or "horns and tusks"),
+"stinging", "tearing with their beaks" and "shearing with their mandibles";
+narration says "gores" and "stings" (a beaked bite is still narrated as a
+bite).
 
 ### Apex species
 
 A few species are **very deadly on purpose**. `rollApex` marks
 `alien-apex-percent` (8%) of the species that both fight (not Friendly) and
-have a feature; their features hit by `apexWeapons` instead of
+have a feature (`armed`: a bill or a proboscis alone does not count, since
+neither fights); their features hit by `apexWeapons` instead of
 `ordinaryWeapons`:
 
 | | ordinary | apex |
 | --- | --- | --- |
-| gore | +8% per horn, +5% per tine, at most 2x | +15% per horn, +10% per tine, at most 3x |
+| gore | +8% per horn, +5% per tine, +15% per tusk grade, at most 2x | +15% per horn, +10% per tine, +30% per tusk grade, at most 3x |
+| beak / mandible bite | 1.3x / 1.25x | 1.75x / 1.6x |
 | claws | +25% per grade | +50% per grade |
+| pincers | +30% per grade | +60% per grade |
 | club / spiked club tail | 1.5x / 1.75x | 2x / 2.5x |
 | sting (to the torso) | 0.5x / 0.75x barbed | 1x / 1.5x barbed |
 | shell blocks | 10% / 20% / 30% | 25% / 45% / 60% |
@@ -160,8 +192,8 @@ it is, and the tick it grows into the next stage.
   is just "a grelk". The inspector and roster show the form after the
   species label.
 - **Threat**: an egg or casing is no threat. Colonists do not perceive it,
-  flee it or fight it (`nearestAlien` and `observePersistent` skip it as they skip
-  a dormant alien). Hostile aliens of another species can still eat one.
+  flee it or fight it (`nearestAlien`, the `nearestThreat` built on it, and
+  `observePersistent` skip it as they skip a dormant alien). Hostile aliens of another species can still eat one.
 
 ### Broods
 
@@ -277,6 +309,20 @@ queens lay eggs.", "Adults bear young."
   "fatal" bite sometimes was not. It now uses `alienDamage`, what this alien
   actually deals. A test on `DefaultConfig` gets a different roster every
   run; it must not assume an adult, a single form, or no features.
+
+- **Tusks, mouthparts and pincers on a stream of their own.** Adding draws to
+  the end of `rollAnatomy` would have been simpler, but the anatomy stream
+  is shared by the whole roster in order: species 1's new draws would have
+  re-rolled species 2's horns. A fresh stream keeps every existing feature
+  where it was. Feature names, scientific names and the apex roll can still
+  change for a seed whose species gained a tusk or a beak, because they read
+  the anatomy; that is the point of them.
+- **A bill or a proboscis does not make a species apex-eligible.** `any()`
+  is "has any feature", and the apex roll used it. With mouthparts, a
+  Hostile species whose only feature was a duck bill could have been
+  whispered about as the deadliest thing in the caves while hitting like
+  any other. `armed()` drops the two harmless mouthparts and is otherwise
+  `any()`, so no species that was apex before stopped being apex.
 
 ## Extending it
 

@@ -13,9 +13,17 @@ import (
 //
 // They roll on their own stream (alienAnatomySeed), after the roster and its
 // taxonomy, so adding them re-rolled no species' build, name or temperament.
+// Tusks, mouthparts and pincers came later and roll on a stream of their own
+// again (alienLateAnatomySeed), so adding them moved no existing horn, shell
+// or claw.
 
 // alienAnatomySeed separates the anatomy stream from the other lore streams.
 const alienAnatomySeed = 0x2B7E151628AED2A6
+
+// alienLateAnatomySeed separates the later features' stream (tusks,
+// mouthparts, pincers) from the anatomy stream, so adding them re-rolled no
+// other feature.
+const alienLateAnatomySeed = 0x5BE0CD19137E2179
 
 // TailTip is what a tail ends in.
 type TailTip uint8
@@ -42,6 +50,37 @@ func (t TailTip) String() string {
 	}
 }
 
+// Mouthpart is what a species has in place of a plain mouth.
+type Mouthpart uint8
+
+const (
+	MouthPlain     Mouthpart = iota
+	MouthBeak                // a hooked, tearing beak
+	MouthBill                // a flat, ducklike bill: the platypus
+	MouthMandibles           // a pair of side-closing insect jaws
+	MouthProboscis           // a long sucking tube
+)
+
+// mouthparts is every non-plain mouthpart, in roll order.
+var mouthparts = [...]Mouthpart{MouthBeak, MouthBill, MouthMandibles, MouthProboscis}
+
+// String is the mouthpart's word in a name condition: plain, beak, bill,
+// mandibles, proboscis.
+func (m Mouthpart) String() string {
+	switch m {
+	case MouthBeak:
+		return "beak"
+	case MouthBill:
+		return "bill"
+	case MouthMandibles:
+		return "mandibles"
+	case MouthProboscis:
+		return "proboscis"
+	default:
+		return "plain"
+	}
+}
+
 // AlienAnatomy is a body's graded features. Zero is absent for each.
 type AlienAnatomy struct {
 	Horns   int // count: 1 nub ... a crown of a dozen
@@ -51,10 +90,23 @@ type AlienAnatomy struct {
 	Claws   int // 1 blunt nubs, 2 hooked claws, 3 scythes
 	Stinger int // 1 a stinger, 2 a barbed stinger (on the body, not the tail)
 	TailTip TailTip
+	Tusks   int       // 1 stubby tusks, 2 a pair of tusks, 3 great curving tusks
+	Mouth   Mouthpart // a beak, a bill, mandibles or a proboscis, or plain
+	Pincers int       // 1 small pincers, 2 crushing pincers, 3 great serrated pincers
 }
 
 // any reports whether the body has any graded feature at all.
 func (a AlienAnatomy) any() bool { return a != AlienAnatomy{} }
+
+// armed reports whether the body has a feature that could make it deadly:
+// anything but a harmless mouthpart (a bill, a proboscis) alone. The apex
+// roll needs one. (Spines count, as they did before mouthparts existed.)
+func (a AlienAnatomy) armed() bool {
+	if a.Mouth == MouthBill || a.Mouth == MouthProboscis {
+		a.Mouth = MouthPlain
+	}
+	return a.any()
+}
 
 // features are the most a fully grown body can carry.
 const (
@@ -91,6 +143,28 @@ func rollAnatomy(rng *rand.Rand, sp AlienSpecies) AlienAnatomy {
 	return a
 }
 
+// rollLateFeatures gives a species its tusks, mouthpart and pincers, on
+// their own stream (alienLateAnatomySeed): each is rare, like the other
+// features. A mouthpart is a whole mouth, so a species has at most one;
+// tusks can sit beside any of them (a tusked, billed thing is the platypus
+// tone). Pincers are hands, like a crab's: only a species with arms has
+// them, and not one whose arms already end in claws. The pincer roll is
+// drawn for every species whatever its arms, so one species never shifts
+// another's.
+func rollLateFeatures(rng *rand.Rand, sp AlienSpecies, a AlienAnatomy) AlienAnatomy {
+	if rng.IntN(100) < 12 {
+		a.Tusks = 1 + rng.IntN(3)
+	}
+	if rng.IntN(100) < 20 {
+		a.Mouth = mouthparts[rng.IntN(len(mouthparts))]
+	}
+	roll, grade := rng.IntN(100), 1+rng.IntN(3)
+	if sp.Arms > 0 && a.Claws == 0 && roll < 25 {
+		a.Pincers = grade
+	}
+	return a
+}
+
 // scaledAnatomy is the adult's features at a fraction of the way through its
 // growth (num/den, 0 < num/den <= 1): each graded feature shrinks with it and
 // may not have appeared yet, but never exceeds the adult's, so every stage
@@ -114,6 +188,9 @@ func scaledAnatomy(adult AlienAnatomy, num, den int) AlienAnatomy {
 		Shell:   scale(adult.Shell),
 		Claws:   scale(adult.Claws),
 		Stinger: scale(adult.Stinger),
+		Tusks:   scale(adult.Tusks),
+		Mouth:   adult.Mouth, // a mouth is there from the first form that eats
+		Pincers: scale(adult.Pincers),
 	}
 	if adult.TailTip != TailPlain && num*3 >= den*2 {
 		a.TailTip = adult.TailTip // a tail's ornament comes late
@@ -143,6 +220,24 @@ func (a AlienAnatomy) featurePhrases() []string {
 	case a.Antlers >= 6:
 		out = append(out, fmt.Sprintf("branching antlers of %d tines", a.Antlers))
 	}
+	switch a.Tusks {
+	case 1:
+		out = append(out, "stubby tusks")
+	case 2:
+		out = append(out, "a pair of tusks")
+	case 3:
+		out = append(out, "great curving tusks")
+	}
+	switch a.Mouth {
+	case MouthBeak:
+		out = append(out, "a hooked beak")
+	case MouthBill:
+		out = append(out, "a flat, ducklike bill")
+	case MouthMandibles:
+		out = append(out, "clacking mandibles")
+	case MouthProboscis:
+		out = append(out, "a long proboscis")
+	}
 	switch a.Spines {
 	case 1:
 		out = append(out, "a few quills")
@@ -166,6 +261,14 @@ func (a AlienAnatomy) featurePhrases() []string {
 		out = append(out, "hooked claws")
 	case 3:
 		out = append(out, "scythe-like claws")
+	}
+	switch a.Pincers {
+	case 1:
+		out = append(out, "small pincers")
+	case 2:
+		out = append(out, "crushing pincers")
+	case 3:
+		out = append(out, "great serrated pincers")
 	}
 	switch a.Stinger {
 	case 1:

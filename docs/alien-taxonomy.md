@@ -51,11 +51,24 @@ tooth, `-therium` beast) and **epithets** (`ferox` fierce, `martis` of Mars,
 `gigas` giant). Each entry has a `when` that uses the same `nameCondition`
 tree as [alien-names.yaml](./lore.md#naming-a-condition-gated-pool-not-a-flat-table)
 (temperament, skin, color, pattern, height/weight tier, tail, wings, counts of
-legs, arms, limbs and eyes, and the graded features and apex roll of
+legs, arms, limbs and eyes, and the graded features (`tusks` and `mouth`
+among them), mouthpart and apex roll of
 [alien-lifecycles.md](./alien-lifecycles.md)). Scientific names are built
 after anatomy, so a horned species can be a *Ceratoceras cornutum*, a
 stinger a *Kentrodon aculeatus*, an apex species a *Thanatoraptor
-horridus*. `scientificName` draws in this order:
+horridus*. Tusks, quills, pincers and mouthparts have word parts taken from real
+genera and species: a tusked species can be a *Chauliodus* ("outthrust
+tooth", the viperfish), a *Sus*, an *Elephas* or an *Odobenus* (walrus, if
+its tusks are great), and *dentatus* or *grandidens*; a billed one a
+*Platyrhynchus*, an *Anas* or an *Ornithorhynchus anatinus*, the platypus's
+own name; a beaked one a *Rhamphus*, *Aquila* or *Psittacus*,
+*aduncirostris* "hook-beaked"; mandibles give *Gnatho-*, *Lucanus* (stag
+beetle), *Formica*, *forcipatus*; a proboscis *Siphono-*, *Culex*,
+*Tapirus* (only on four legs), *proboscideus*; quills *Echino-*,
+*Erinaceus* (hedgehog), *echinatus*; pincers *Labido-* "forceps" (as in
+*Labidura*, the earwig), *Chelifer*, *Astacus* (crayfish), *Cancer* (crab),
+*Homarus* (lobster, for the greatest), *forficatus*, *cancroides*.
+`scientificName` draws in this order:
 
 1. A **root**, from those whose condition the species meets.
 2. A **prefix**, from those that match. A prefix marked `mimic: true`
@@ -88,8 +101,12 @@ martis 2"), the same way `distinctAlienName` numbers a common name.
 
 `ScientificEtymology(name)` undoes `scientificName`. The epithet is matched
 against every epithet's masculine, feminine and neuter forms, which also
-pins the genus's gender when it declines. The genus is then split by trying
-each root it ends in (of that gender) against each prefix that `joinTaxa`
+pins the genus's gender when it declines. A form can stand for two genders:
+*latirostris* is masculine and feminine alike, so it allows a root of
+either (the first version took the first matching form as the only gender
+and could not parse *Phobochelys latirostris*;
+`TestScientificEtymologySharedGenderForms`). The genus is then split by
+trying each root it ends in (of an allowed gender) against each prefix that `joinTaxa`
 would glue to it to spell the genus exactly, which undoes the vowel elision
 for free: `pseudursus` ends in `ursus`, and `joinTaxa("pseudo", "ursus")`
 is `pseudursus`. The mimic rule is enforced the same way (no `pseudo-`
@@ -143,7 +160,9 @@ dropped). The TUI does not show it yet.
   The declining ones are the adjectives that were worth the machinery:
   *hirsutus*, *villosus*, *lapideus*, *lignosus*, *muscosus*, *plumosus*,
   *alatus*, *ruber*, *niger*, *albus*. When adding one, give all three
-  forms, and check irregular ones (*ruber/rubra/rubrum*, not *rubrus*).
+  forms, and check irregular ones (*ruber/rubra/rubrum*, not *rubrus*). A
+  third-declension adjective in *-is* has the same masculine and feminine
+  and a neuter in *-e*: *latirostris, latirostris, latirostre*.
   When adding a root, look up its gender rather than guessing from the
   ending: *Medusa* is feminine, but *-cephalus* is masculine and
   *-phasma* neuter.

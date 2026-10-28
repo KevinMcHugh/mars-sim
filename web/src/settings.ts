@@ -1,4 +1,4 @@
-// New-game settings, from the URL (?width=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&deepest-level=3&alien-species-count=2&power-policy=market) over
+// New-game settings, from the URL (?width=2000&seed=7&fog-of-war=false&zoning-auto=true&siting-auto=true&deepest-level=3&alien-species-count=2&sandbox=true&power-policy=market) over
 // these defaults. Keys are mars-sim.yaml's (see docs/config-file.md); a seed
 // left out lets the engine pick one. They fill the New game form, which a
 // cold load opens rather than starting a game (docs/frontend-web.md).
@@ -10,7 +10,7 @@ import type { Settings } from './sim/client';
 // the landing level (docs/z-levels.md). 20 colonists (one full ship) and 3
 // alien species, not the engine's 6 and 1, so a browser game starts with a
 // colony and a world big enough to be interesting.
-const DEFAULTS: Settings = { width: 10000, height: 10000, colonists: 20, 'alien-species-count': 3, 'fog-of-war': true, 'zoning-auto': false, 'siting-auto': false, 'deepest-level': 3, 'power-policy': 'monopoly' };
+const DEFAULTS: Settings = { width: 10000, height: 10000, colonists: 20, 'alien-species-count': 3, 'fog-of-war': true, 'zoning-auto': false, 'siting-auto': false, 'deepest-level': 3, sandbox: false, 'power-policy': 'monopoly' };
 
 /**
  * The power policies a game may start under (docs/power.md), in
@@ -56,7 +56,7 @@ export function initialSettings(): Settings {
   }
   const fog = params.get('fog-of-war');
   if (fog !== null) s['fog-of-war'] = fog !== 'false';
-  for (const key of ['zoning-auto', 'siting-auto']) {
+  for (const key of ['zoning-auto', 'siting-auto', 'sandbox']) {
     const v = params.get(key);
     if (v !== null) s[key] = v !== 'false';
   }

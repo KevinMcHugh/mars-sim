@@ -69,6 +69,8 @@ export const ui = $state({
    * keeps following.
    */
   follow: null as number | null,
+  /** The species the Lore tab shows, an index into the lore topic's species. */
+  loreSpecies: 0,
   /** The tab a selection was made from, for the inspector's way back. */
   inspectFrom: null as string | null,
   /** The roster's filters, kept while the tab is closed (the TUI's f). */
@@ -84,6 +86,8 @@ export const ui = $state({
   zone: { armed: false, tool: 'residence', rect: null, preview: null, detail: 2 } as ZoneState,
   /** The Dig tab's dig-down tool: while set, a click on the map orders it dug from that tile (DigPanel.svelte). */
   siteTool: null as SiteTool | null,
+  /** The Sandbox tab's tool: while set, a click on the map places a creature there (SandboxPanel.svelte, docs/sandbox.md). */
+  placeTool: null as PlaceTool | null,
   /** The Ships tab's tool: the ship a click on the map relands, or null (ShipsPanel.svelte). */
   shipTool: null as number | null,
   /** The aloft ship last sent down: the Ships tab does not pick it up again while the topic catches up. */
@@ -271,6 +275,7 @@ export function shipSiteFree(ships: ShipLine[], s: ShipLine, o: { x: number; y: 
 export function armShip(id: number | null): void {
   // Ships land on the landing level: show it.
   if (id !== null && ui.hello) setLevel(ui.hello.landingLevel);
+  if (id !== null) armPlace(null);
   ui.shipTool = id;
   ctl?.shipToolChanged();
 }
@@ -312,6 +317,12 @@ export function inspect(s: Selection, from: string | null = null): void {
   if (isFloating('inspect')) raiseFloat('inspect');
   else ui.panel = 'inspect';
   ctl?.selected();
+}
+
+/** Open the Lore tab on species i (the lore topic's index), as the inspector's species link does. */
+export function showSpecies(i: number): void {
+  ui.loreSpecies = i;
+  setPanel('lore');
 }
 
 /**
@@ -473,6 +484,8 @@ export interface Controller {
   siteToolChanged(): void;
   /** The ship tool was picked up or put down: redraw (or clear) its preview. */
   shipToolChanged(): void;
+  /** The sandbox's place tool was picked up, changed or put down: redraw (or clear) its preview. */
+  placeToolChanged(): void;
   /** Tint these tiles on the map (a job's), or none. */
   highlight(tiles: { x: number; y: number; color: Uint8Array }[] | null): void;
 }
@@ -533,7 +546,7 @@ export function highlight(tiles: { x: number; y: number; color: Uint8Array }[] |
 /** Arm or disarm the dig tool; disarming leaves the marked area alone. */
 export function armDig(on: boolean): void {
   ui.dig.armed = on;
-  if (on) { ui.zone.armed = false; armSite(null); } // one map tool at a time
+  if (on) { ui.zone.armed = false; armSite(null); armPlace(null); } // one map tool at a time
 }
 
 /** Whether a zone tool works below the landing level: clearing and defense do. */
@@ -546,7 +559,7 @@ export function armZone(tool: string, on: boolean): void {
   if (on && !anyLevelTool(tool) && !onLandingLevel()) return; // zones are the landing level's
   ui.zone.tool = tool;
   ui.zone.armed = on;
-  if (on) { ui.dig.armed = false; armSite(null); }
+  if (on) { ui.dig.armed = false; armSite(null); armPlace(null); }
   ctl?.zoneChanged();
 }
 
@@ -646,7 +659,7 @@ export function armSite(kind: DigDownKind | null, levels = 1): void {
   const was = ui.siteTool;
   if (kind === null && was === null) return;
   ui.siteTool = kind === null ? null : { kind, levels: Math.max(1, levels) };
-  if (kind !== null) { ui.dig.armed = false; ui.zone.armed = false; }
+  if (kind !== null) { ui.dig.armed = false; ui.zone.armed = false; armPlace(null); }
   ctl?.siteToolChanged();
 }
 
@@ -665,6 +678,39 @@ export function orderSite(x: number, y: number): void {
   if (!t) return;
   ctl?.command({ type: 'dig-down', kind: t.kind, levels: t.levels, x, y, level: ui.level });
   armSite(null);
+}
+
+/**
+ * The sandbox's tool (docs/sandbox.md): what a click on the map places. An
+ * alien's species indexes the lore topic's species; null is one at random.
+ */
+export type PlaceTool = { kind: 'colonist' } | { kind: 'alien'; species: number | null };
+
+/**
+ * Pick up the sandbox's place tool, or put it down (null). It stays up after
+ * each click, so a crowd can be placed one tile at a time.
+ */
+export function armPlace(tool: PlaceTool | null): void {
+  if (tool === null && ui.placeTool === null) return;
+  ui.placeTool = tool;
+  if (tool !== null) {
+    ui.dig.armed = false;
+    ui.zone.armed = false;
+    if (ui.siteTool) armSite(null);
+    if (ui.shipTool !== null) armShip(null);
+  }
+  ctl?.placeToolChanged();
+}
+
+/**
+ * Place what the tool holds on tile (x, y) of the level the map shows. The
+ * engine checks the tile; a refusal, and why, lands in the log.
+ */
+export function placeAt(x: number, y: number): void {
+  const t = ui.placeTool;
+  if (!t) return;
+  const species = t.kind === 'alien' && t.species !== null ? { species: t.species } : {};
+  ctl?.command({ type: 'place', kind: t.kind, x, y, level: ui.level, ...species });
 }
 
 /** Cancel an open excavation order; what it still held goes back to the treasury. */

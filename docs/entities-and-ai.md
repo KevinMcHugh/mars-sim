@@ -96,8 +96,9 @@ observation/executor machinery when no nearby threat, rat, or gore exists,
 while retaining per-tick starvation, uranium, fatal-drive, and facility
 checks. A custom persistent perception wakes them only when it sets
 `interrupt_rest`. Threat presence is still alien-only: `seesThreat` and
-`nearestAlien` answer the same question, so fight/flee cannot target a
-rat or a configured non-alien sighting.
+`nearestThreat` answer the same question, so fight/flee cannot target a
+rat, a configured non-alien sighting, or a Friendly alien (see
+[lore.md](./lore.md#colonists-and-temperament)).
 
 Execution order and invariants:
 
@@ -108,8 +109,8 @@ Execution order and invariants:
    before anything below can return): a colonist beside a uranium deposit or
    carrying uranium ore accumulates exposure whatever else it is doing, and a
    full dose rolls for a mutation. See [mutation.md](./mutation.md).
-2. **Weighted focus arbitration** — visible aliens enable flee and, when armed,
-   fight; pressing drives enable their matching focus; valid work and idle
+2. **Weighted focus arbitration** — visible aliens that are not Friendly
+   enable flee and, when armed, fight; pressing drives enable their matching focus; valid work and idle
    provide the ordinary alternatives. A visible alien's starting stimulus
    weight dominates even critical hunger. A colonist already fleeing keeps
    flee eligible until the alien is past `FleeRadius+FleeReleaseMargin`

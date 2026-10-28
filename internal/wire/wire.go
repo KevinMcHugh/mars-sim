@@ -58,6 +58,10 @@ type Hello struct {
 	// where to dig down itself (docs/siting.md), so the page can offer
 	// orders without a tile.
 	SitingAuto bool `json:"sitingAuto"`
+	// Sandbox is the sandbox setting: an empty world the player fills by
+	// hand with the place command, so the page shows its Sandbox tab
+	// (docs/sandbox.md).
+	Sandbox bool `json:"sandbox"`
 }
 
 // HelloGlyphs is the map's emoji (internal/glyphs) as the page needs them: the
@@ -157,6 +161,7 @@ func NewHello(snap *sim.Snapshot) Hello {
 		LandingLevel: int(sim.LandingLevel),
 		DeepestLevel: deepestLevel(snap),
 		SitingAuto:   snap.Config != nil && snap.Config.SitingAuto,
+		Sandbox:      snap.Config != nil && snap.Config.Sandbox,
 	}
 }
 

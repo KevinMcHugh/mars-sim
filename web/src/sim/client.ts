@@ -12,6 +12,12 @@ export type Command =
   | { type: 'pause' }
   | { type: 'speed'; rate: number }
   | { type: 'spawn'; kind: string }
+  /**
+   * Sandbox only: put a new creature of a kind ('colonist', 'alien') on tile
+   * (x, y) of a level; an alien's species indexes the lore topic's species,
+   * left out for one at random (docs/sandbox.md).
+   */
+  | { type: 'place'; kind: string; x: number; y: number; level: number; species?: number }
   /** Show a flow field (an index into Hello.flowFields), or none (-1). */
   | { type: 'flow'; field: number }
   /** Order the rectangle (tiles, inclusive) mined out, paid for by the colony. */
@@ -80,7 +86,7 @@ export interface Started {
  * A mismatch means mars-sim.wasm is from another build: usually a pull without
  * rerunning npm run wasm.
  */
-export const HOST_API = 27;
+export const HOST_API = 28;
 
 export class SimClient {
   private worker: Worker;

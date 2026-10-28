@@ -268,7 +268,7 @@ func (w *World) jobGuard(e *Entity) {
 		return
 	}
 	e.resting = false
-	if a, ok := w.nearestAlien(e.Pos, w.cfg.GuardSight); ok && d.near(a.Pos, w.cfg.GuardSight) {
+	if a, ok := w.nearestThreat(e.Pos, w.cfg.GuardSight); ok && d.near(a.Pos, w.cfg.GuardSight) {
 		w.fightAlien(e, a, weapon)
 		w.serveGuard(e, d)
 		return

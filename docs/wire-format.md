@@ -66,7 +66,9 @@ header words, the frame's **level** and the **levels** that exist, and
 Hello's `landingLevel` and `deepestLevel` (see "Levels" below). Hello's
 `sitingAuto` (no version bump: the frame layout is unchanged) is the
 `siting-auto` setting, so the Dig tab can offer orders that leave the tile to
-the colony ([siting.md](./siting.md)).
+the colony ([siting.md](./siting.md)). Hello's `sandbox` (no version bump
+either) is the `sandbox` setting, so the page shows its Sandbox tab for a
+sandbox game, a loaded one included ([sandbox.md](./sandbox.md)).
 
 ### A frame
 

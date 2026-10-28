@@ -56,8 +56,8 @@ func (w *World) trackCavernsForNests() {
 func (w *World) rollNests(centers []Point) {
 	for _, c := range centers {
 		delete(w.unfoundCaverns, c)
-		if w.nestRNG == nil || len(w.alienSpecies) == 0 {
-			continue
+		if w.nestRNG == nil || len(w.alienSpecies) == 0 || w.cfg.Sandbox {
+			continue // a sandbox's aliens are the ones the player places
 		}
 		if w.nestRNG.IntN(100) < depthConfig(w.cfg, c.Level).CavernNestPercent {
 			w.spawnNest(c)

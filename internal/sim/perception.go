@@ -507,13 +507,16 @@ func (w *World) observePersistent(observer *Entity, only NounID) {
 	}
 	observer.perceiving = current
 	// Threat presence is still alien-only. Flee/fight eligibility and
-	// fightAlien read nearestAlien — a rat or a custom "saw wolf" percept
-	// can dirty the mind but cannot become a legal fight/flee target.
-	// seesThreat is the cheap edge detector for that same alien-presence
+	// fightAlien read nearestThreat — a rat, a custom "saw wolf" percept, or
+	// a Friendly alien can dirty the mind but cannot become a legal
+	// fight/flee target. seesThreat is the cheap edge detector for that same
 	// question, not a general "something scary is nearby" flag.
 	observer.seesThreat = false
-	for key := range current {
-		if key.Noun == NounAlien {
+	for key, o := range current {
+		if key.Noun != NounAlien {
+			continue
+		}
+		if a := w.entities[o.Actor.Entity]; a != nil && w.threatens(a) {
 			observer.seesThreat = true
 			break
 		}

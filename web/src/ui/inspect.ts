@@ -40,6 +40,10 @@ export interface EntityInfo {
   hp: number; maxHp: number; parts: PartHP[];
   dead: boolean; diedTick?: number; diedAt?: string; cause?: string;
   species?: string;
+  /** Indexes the lore topic's species; -1 for anything but an alien. */
+  speciesIndex: number;
+  /** A species-pack sprite, an index into Hello.glyphs.sprites; -1 for none. */
+  sprite: number;
   colonist?: Colonist;
 }
 

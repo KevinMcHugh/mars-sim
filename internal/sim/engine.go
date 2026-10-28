@@ -423,6 +423,9 @@ func (e *Engine) apply(cmd Command) (rateChanged bool) {
 	case Spawn:
 		e.spawn(c.Kind)
 		e.requestPublish()
+	case Place:
+		e.world.place(c)
+		e.requestPublish()
 	case OrderFacilityRoom:
 		e.world.manualFacilityRooms++
 	case OrderDormitory:

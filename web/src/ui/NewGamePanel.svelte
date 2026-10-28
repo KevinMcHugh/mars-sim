@@ -45,6 +45,11 @@
     'public-option': 'Public option: a market, and a colony reactor of last resort',
     charter: 'Charter: one corporation from back home',
   };
+  // On: an empty world for debugging, filled by hand from the Sandbox tab
+  // (docs/sandbox.md). The colonist and species counts are hidden then: the
+  // engine ignores the first (nobody lands, and the landing cavern is sized
+  // for one ship) and takes every species in the pack instead of the second.
+  let sandbox = $state(init.sandbox === true);
   // The founders' ships, which the player lands one by one after Start
   // (docs/ships.md).
   let saveHelp = $state(false);
@@ -52,7 +57,7 @@
 
   function start(e: SubmitEvent) {
     e.preventDefault();
-    const s: Settings = { width, height, colonists, 'alien-species-count': Math.max(1, species || 1), 'fog-of-war': fog, 'zoning-auto': autoZoning, 'siting-auto': autoSiting, 'deepest-level': Math.max(1, deepest || 1), 'power-policy': policy };
+    const s: Settings = { width, height, colonists, 'alien-species-count': Math.max(1, species || 1), 'fog-of-war': fog, 'zoning-auto': autoZoning, 'siting-auto': autoSiting, 'deepest-level': Math.max(1, deepest || 1), sandbox, 'power-policy': policy };
     if (seed !== null && Number.isFinite(seed)) s.seed = seed;
     newGame(s);
   }
@@ -80,20 +85,25 @@
   {#snippet newHelp()}Choose a world and its founders, then land their ships.{/snippet}
   <Section id="game.new" tag="h2" title="New game" help={newHelp}>
     <form onsubmit={start}>
-      <p class="muted" aria-live="polite">{colonists} colonists in {ships}, {species} alien species</p>
+      <p class="muted" aria-live="polite">
+        {#if sandbox}An empty sandbox: place colonists and aliens of any species by hand{:else}{colonists} colonists in {ships}, {species} alien species{/if}
+      </p>
       <Section id="game.new.options" title="Options" shut>
         <div class="options">
           <label>Width <input type="number" min="64" bind:value={width} /></label>
           <label>Height <input type="number" min="64" bind:value={height} /></label>
-          <label>Colonists <input type="number" min="1" bind:value={colonists} aria-describedby="ship-count" /></label>
-          <p id="ship-count" class="muted ships" aria-live="polite">{ships} to land</p>
-          <label>Alien species <input type="number" min="1" bind:value={species} /></label>
+          {#if !sandbox}
+            <label>Colonists <input type="number" min="1" bind:value={colonists} aria-describedby="ship-count" /></label>
+            <p id="ship-count" class="muted ships" aria-live="polite">{ships} to land</p>
+            <label>Alien species <input type="number" min="1" bind:value={species} /></label>
+          {/if}
           <label title="How many levels down the colony may dig: 1 keeps it on the level its ships land on">Deepest level <input type="number" min="1" max="16" bind:value={deepest} /></label>
           <label>Seed <input type="number" placeholder="random" bind:value={seed} /></label>
           <label class="check"><input type="checkbox" bind:checked={fog} /> Fog of war</label>
           <label class="check"><input type="checkbox" bind:checked={autoZoning} /> Colonists zone for themselves</label>
           <label class="check" title="Colonists may choose where stairs, shafts, holes and ladders go, and dig stairs down on their own when they run out of rock"><input type="checkbox" bind:checked={autoSiting} /> Colonists choose where to dig down</label>
           <label title="Who builds and runs the reactors that charge the colony's batteries; the Trade tab can change it during the game">Power <select bind:value={policy}>{#each POWER_POLICIES as p (p)}<option value={p}>{policyLabel[p]}</option>{/each}</select></label>
+          <label class="check" title="A debugging tool: nobody lands, no aliens or nests, nothing arrives on its own; place colonists and aliens by hand from the Sandbox tab"><input type="checkbox" bind:checked={sandbox} /> Sandbox: start empty, place creatures by hand</label>
         </div>
       </Section>
       <button type="submit">Start</button>
