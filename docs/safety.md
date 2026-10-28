@@ -575,8 +575,8 @@ is a client's), but `JobEscort` keeps every rule of `JobGuard`:
   never need guards: whoever is on station is, by construction, not afraid.
 - **On station.** The escort walks to within `escort-radius` (3) of the
   client, on its level, re-pathing when the client moves, and stands by
-  there. Every tick it looks for an alien within `guard-sight` of itself
-  and of the client and fights it with `fightAlien`. The client is the area
+  there. Every tick it looks for an alien (not a Friendly one; see
+  `nearestThreat`) within `guard-sight` of itself and of the client and fights it with `fightAlien`. The client is the area
   bound, so an escort does not chase.
 - **Pay.** `serveEscort` counts ticks within the radius and calls `payWork`
   for each full hour, from the contract's escrow. Time walking to the

@@ -91,6 +91,8 @@ more.
     (`tryEmergencyScumhouse`, the scarcity version of the emergency pod);
   - cooks what a scumhouse holds;
   - waits for a meal on the colony's stove;
+  - buys a meal's worth of scum on sale, weighing price against the walk,
+    and cooks it, fetching it first if it isn't at a stove;
   - scrapes exposed scum to keep;
   - otherwise digs into rock nobody has seen, to expose more.
 

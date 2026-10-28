@@ -84,7 +84,7 @@ func (w *World) jobEscort(e *Entity) {
 		return
 	}
 	e.resting = false
-	if a, ok := w.nearestAlien(e.Pos, w.cfg.GuardSight); ok && a.Pos.Level == c.Pos.Level &&
+	if a, ok := w.nearestThreat(e.Pos, w.cfg.GuardSight); ok && a.Pos.Level == c.Pos.Level &&
 		a.Pos.Chebyshev(c.Pos) <= w.cfg.GuardSight {
 		w.fightAlien(e, a, weapon)
 		w.serveEscort(e, o, c)

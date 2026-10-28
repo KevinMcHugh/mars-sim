@@ -1,0 +1,92 @@
+# Test Creature Lab, then redeploy it to its sprites.dev sprite by running
+# creature-lab/deploy/redeploy.sh there. See docs/creature-lab.md, "Deploy".
+#
+# It runs on every push to main that could change the lab (internal/sim too:
+# the lab rolls species with the game's own code), and by hand from the
+# Actions tab, which works from the GitHub mobile app.
+#
+# One-time setup: create a token at https://sprites.dev/account for the org
+# that owns the creature-lab sprite, and save it as the repository secret
+# SPRITES_TOKEN (Settings -> Secrets and variables -> Actions).
+name: Creature Lab
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/creature-lab/**"
+      - "internal/creaturelab/**"
+      - "internal/sim/**"
+      - "creature-lab/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/creature-lab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Deploys run one at a time and never cancel each other: a deploy killed
+# halfway (after migrating, before restarting) is worse than a queued one.
+concurrency:
+  group: creature-lab
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: creaturelab_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 15
+    env:
+      # A scratch database the end-to-end tests may wipe.
+      CREATURE_LAB_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/creaturelab_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build -o "$RUNNER_TEMP/creature-lab" ./cmd/creature-lab
+
+      - name: Test
+        run: |
+          go test -count=1 ./internal/creaturelab/... ./internal/labpull/...
+          go test -count=1 -run TestRollLabSpecies ./internal/sim
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install the sprite CLI
+        run: |
+          curl -fsSL https://sprites.dev/install.sh | bash
+          # The installer puts the binary in one of these; take whichever it used.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.sprites/bin" >> "$GITHUB_PATH"
+
+      - name: Sign in
+        env:
+          SPRITES_TOKEN: ${{ secrets.SPRITES_TOKEN }}
+        run: |
+          if [ -z "$SPRITES_TOKEN" ]; then
+            echo "::error::SPRITES_TOKEN is not set; see the comment at the top of this workflow"
+            exit 1
+          fi
+          sprite auth setup --token "$SPRITES_TOKEN"
+
+      # Pull before running the script, so the first deploy after this
+      # workflow lands works on a checkout that predates redeploy.sh.
+      - name: Redeploy
+        run: |
+          sprite exec -s creature-lab -- bash -lc \
+            'git -C ~/mars-sim pull -q --ff-only origin main && ~/mars-sim/creature-lab/deploy/redeploy.sh'

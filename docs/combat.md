@@ -138,6 +138,9 @@ it.
 alien. Now: if `bestWeapon(e.Inventory)` finds a weapon, the colonist calls
 `fightAlien` instead of fleeing; unarmed colonists flee exactly as before —
 a colonist who lands without a gun (a manifest of zero) is unaffected.
+Neither happens for a Friendly alien: the threat search (`nearestThreat`)
+skips a species that never starts a fight, so colonists leave one be (see
+[lore.md](./lore.md#colonists-and-temperament)).
 
 `fightAlien` is deliberately simple: if the alien is farther than the
 weapon's range, close the distance with `travelTo` (the same pathfinding

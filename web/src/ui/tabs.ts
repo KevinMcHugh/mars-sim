@@ -1,6 +1,7 @@
 // The side panel's tabs, shared by the panel (SidePanel.svelte) and the
 // windows a tab pops out into (FloatingPanels.svelte).
 import type { Component } from 'svelte';
+import { ui } from '../game.svelte';
 import ChartsPanel from './ChartsPanel.svelte';
 import DigPanel from './DigPanel.svelte';
 import InspectPanel from './InspectPanel.svelte';
@@ -13,12 +14,14 @@ import NewGamePanel from './NewGamePanel.svelte';
 import PerfPanel from './PerfPanel.svelte';
 import RecruitPanel from './RecruitPanel.svelte';
 import RosterPanel from './RosterPanel.svelte';
+import SandboxPanel from './SandboxPanel.svelte';
 import ShipsPanel from './ShipsPanel.svelte';
 import StoragePanel from './StoragePanel.svelte';
 import TradePanel from './TradePanel.svelte';
 import ZonesPanel from './ZonesPanel.svelte';
 
-export type Tab = { id: string; label: string; component: Component };
+/** A side-panel tab; `when`, if given, says whether the strip shows it (the Sandbox tab, only in a sandbox). */
+export type Tab = { id: string; label: string; component: Component; when?: () => boolean };
 
 // Two groups, one strip each: tabs that only show the colony, and tabs whose
 // job is to change it (arm a map tool, send a command). The market is split
@@ -46,6 +49,7 @@ export const groups: { id: string; label: string; tabs: Tab[] }[] = [
       { id: 'ships', label: 'Ships', component: ShipsPanel },
       { id: 'trade', label: 'Trade', component: TradePanel },
       { id: 'recruit', label: 'Recruit', component: RecruitPanel },
+      { id: 'sandbox', label: 'Sandbox', component: SandboxPanel, when: () => !!ui.hello?.sandbox },
       { id: 'game', label: 'Game', component: NewGamePanel },
     ],
   },

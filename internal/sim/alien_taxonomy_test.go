@@ -252,3 +252,16 @@ func TestScientificEtymologyExamples(t *testing.T) {
 		}
 	}
 }
+
+// An epithet whose masculine and feminine are spelled alike (latirostris)
+// still parses after a feminine genus, and its neuter after a neuter one.
+func TestScientificEtymologySharedGenderForms(t *testing.T) {
+	for _, name := range []string{"Areochelys latirostris", "Areomorphus latirostris", "Areozoon latirostre"} {
+		if got := ScientificEtymology(name); len(got) != 3 {
+			t.Errorf("%q gave %d parts, want 3", name, len(got))
+		}
+	}
+	if got := ScientificEtymology("Areozoon latirostris"); got != nil {
+		t.Errorf("a neuter genus with the masculine form parsed: %v", got)
+	}
+}

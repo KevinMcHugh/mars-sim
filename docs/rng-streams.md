@@ -42,6 +42,7 @@ the RNG half of save/load ([save-load.md](./save-load.md)).
 | alien lore roster | `Seed ^ alienLoreSeed` | `newWorld` only | no |
 | arms-maker lore (corporations, gun models) | `Seed ^ armsLoreSeed` | `newWorld` only | no |
 | alien scientific names | `Seed ^ alienTaxonomySeed` | `newWorld` only | no |
+| alien tusks, mouthparts and pincers | `Seed ^ alienLateAnatomySeed` | `newWorld` only | no |
 
 Why the streams are split is covered per stream in
 [personality.md](./personality.md), [caverns.md](./caverns.md),
