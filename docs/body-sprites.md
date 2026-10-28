@@ -2,7 +2,7 @@
 
 > Part of the [mars-sim documentation](./README.md).
 
-**Proposal. Nothing here is built yet.** Phases S1 to S3 below. When a phase
+**S1 (scale) is built. S2 and S3 (paper dolls) are proposals.** When a phase
 ships, move its text into the present tense and note anywhere the build
 departed from the plan, as [z-levels.md](./z-levels.md) does.
 
@@ -13,7 +13,7 @@ Two browser-map changes that share a payoff: you can see what a body is like.
 1. **Scale (S1).** Every colonist and alien is drawn at a size that follows its
    height. A ten-foot mutant stands over the dormitory door, a two-foot one
    barely clears the table, a grub is a speck and a queen fills the tunnel.
-   Today every entity is exactly one tile.
+   Before S1, every entity was exactly one tile.
 2. **Paper dolls (S2, S3).** A colonist is drawn as a composited SVG figure:
    a base body in their own skin and hair, with layers for the mutant parts
    they actually grew (third arm, extra eye, tail, vestigial twin). S2 does
@@ -25,15 +25,25 @@ the simulation, so no seed changes.
 
 ## Source
 
-Planned, not yet written:
+S1, built:
 
-- `internal/wire/wire.go`: a `uint16 heightCM × N` array in the frame's
-  entities section, `Version` 6 → 7. `entityHeight(EntityView)`.
-- `internal/sim/snapshot.go`: `EntityView.HeightCM`. For a colonist this is
-  `Profile.HeightCM`. For an alien it is its species' midpoint height scaled
-  by its form's `SizePct`.
-- `web/src/map/renderer.ts`: a per-instance `aHeight` attribute in
-  `SPRITE_VS`, applied as a scale on top of `uSize` and anchored at the feet.
+- [`internal/sim/snapshot.go`](../internal/sim/snapshot.go):
+  `EntityView.HeightCM`, set in `entityView`. Tested by `TestEntityViewHeight`
+  in [`alien_lifecycle_test.go`](../internal/sim/alien_lifecycle_test.go).
+- [`internal/wire/encoder.go`](../internal/wire/encoder.go),
+  [`internal/wire/wire.go`](../internal/wire/wire.go): the frame's
+  `uint16 height × N` entities array, `entityHeight`, `Version` 7.
+  [`web/wire/decode.js`](../web/wire/decode.js) reads it as
+  `entities.height`.
+- [`web/src/map/bodyscale.ts`](../web/src/map/bodyscale.ts): `bodyScale`, the
+  curve from centimetres to tiles, and its constants. Tested by
+  `bodyscale.test.mjs`.
+- [`web/src/map/renderer.ts`](../web/src/map/renderer.ts): the per-instance
+  `aBody` attribute and the `uFeet` uniform in `SPRITE_VS`, and the
+  biggest-first sort in `update`.
+
+S2, planned and not yet written:
+
 - `internal/glyphs/dolls.go` (S2): `DollKey`, `DollIndex(e)`, the key's
   mixed-radix layout. `HelloGlyphs.Dolls` gives the base index and the radixes.
 - `web/src/map/dolls.ts` (S2): the part library (SVG fragments) and
@@ -77,24 +87,32 @@ drawn at now. Some sample sizes:
 | huge adult | 320 | 1.55 |
 | queen at 200% of a huge adult | 640 | 2.0 (clamped) |
 
-The exponent and the clamps are first guesses. Tune them by eye in a sandbox
-world ([sandbox.md](./sandbox.md)) with one of each. They are constants in the
-page, not `sim.Config` keys, because they never affect the simulation.
+The exponent and the clamps are first guesses, checked by eye in a sandbox
+world ([sandbox.md](./sandbox.md)). They are constants in `bodyscale.ts`, not
+`sim.Config` keys, because they never affect the simulation. Bear in mind that
+the committed species pack runs big: most adults stand 2 to 4 m, so most
+packed aliens draw at 1.3 to 1.8 tiles and their queens at the 2.0 cap. If the
+map feels crowded, lower `MAX_SCALE` or the exponent before anything else.
 
 **Rendering.**
 
-- `SPRITE_VS` takes a per-instance `aHeight` (`uint16`, like `aGlyph`), turns
-  it into `scale` and multiplies `uSize` by it. The sprite is **anchored at
-  the bottom centre** of its tile, not the middle. A giant grows up into the
+- The page turns each height into a scale (`bodyScale`) as it uploads the
+  frame, and `SPRITE_VS` takes it as a per-instance float `aBody`, multiplied
+  into `uSize` when `uFeet` is set. The sprite is then **anchored at the
+  bottom centre** of its tile, not the middle; at scale 1 the two anchors
+  give the same quad, so an unscaled body draws exactly as before. A giant grows up into the
   tile above, and a small body sits on its own floor instead of floating in
   the middle of the tile.
 - **Draw order:** biggest first. A 2-tile queen must not hide the colonist
-  standing in front of her. The page sorts the instance arrays by height
+  standing in front of her. The page sorts the instance arrays by scale
   before upload. N is the number of entities in view, so a per-frame sort is
   cheap. Ties keep frame order, which is entity order.
 - **Zoomed out** (dot mode, `uGlyphs` false), sizes stay as they are. Dots are
   sized in pixels so they stay visible, and scaling them would only make small
   creatures vanish.
+- **Refuse** (corpses, gore) does not scale: its VAO has no `aBody` buffer
+  and reads the attribute's generic value, 1, and its pass leaves `uFeet`
+  off.
 - **Hover and click** stay per tile. A queen spilling into the next tile is
   still picked from her own tile.
 - **Atlas cells** stay 128 px. At the top zoom a 2-tile sprite is upscaled

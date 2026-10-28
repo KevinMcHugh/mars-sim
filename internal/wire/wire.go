@@ -25,7 +25,7 @@ import (
 // Version is the frame layout's version, carried in every frame header and in
 // Hello. Bump it on any change to the layout, and update the decoder
 // (web/wire/decode.js) and the golden files in the same change.
-const Version = 6
+const Version = 7
 
 // Hello is the once-per-game message.
 type Hello struct {
@@ -99,6 +99,12 @@ var glyphIndex = func() map[string]uint16 {
 	}
 	return m
 }()
+
+// entityHeight is the height a frame carries for e, in centimetres, clamped
+// to a uint16; 0 means the kind has none. See docs/body-sprites.md.
+func entityHeight(e sim.EntityView) uint16 {
+	return uint16(min(max(e.HeightCM, 0), 0xFFFF))
+}
 
 // entityGlyph is the glyph index a frame carries for e: its sprite past the
 // looks when it has one, its look past the end of glyphs.All when it has one,

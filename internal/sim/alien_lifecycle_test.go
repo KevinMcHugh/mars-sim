@@ -577,3 +577,28 @@ func TestPairedLimbs(t *testing.T) {
 		}
 	}
 }
+
+// A snapshot carries every body's height for the map to scale by
+// (docs/body-sprites.md): an alien's is its species' midpoint at its form's
+// size, a colonist's is their own.
+func TestEntityViewHeight(t *testing.T) {
+	cfg := lifecycleConfig(3, false)
+	w := newTestWorld(t, cfg)
+	sp := w.alienSpecies[0]
+	mid := (sp.HeightMinCM + sp.HeightMaxCM) / 2
+	e := w.spawn(Alien, Point{5, 5, LandingLevel})
+	for form := range sp.LifeForms() {
+		e.life.form = form
+		want := scaleRound(mid, sp.Forms[form].SizePct, 100)
+		if got := w.entityView(e, nil, false).HeightCM; got != want || got <= 0 {
+			t.Errorf("form %d (%d%%): height %d, want %d", form, sp.Forms[form].SizePct, got, want)
+		}
+	}
+	c := w.spawn(Colonist, Point{6, 5, LandingLevel})
+	if c.Profile == nil || c.Profile.HeightCM <= 0 {
+		t.Fatal("spawned colonist has no height")
+	}
+	if got := w.entityView(c, nil, false).HeightCM; got != c.Profile.HeightCM {
+		t.Errorf("colonist height %d, profile says %d", got, c.Profile.HeightCM)
+	}
+}
