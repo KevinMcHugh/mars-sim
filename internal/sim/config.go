@@ -168,6 +168,7 @@ type Config struct {
 	UraniumReserve  int   `cfg:"uranium-reserve" doc:"units of uranium ore the colony keeps a standing bid at its silo to hold, counting what its reactors hold"`
 	ReactorIceStock int   `cfg:"reactor-ice-stock" doc:"units of water ice the colony keeps at each reactor, hauled in for hire"`
 	ReactorExposure bool  `cfg:"reactor-exposure" doc:"a reactor holding uranium ore or fuel pellets doses whoever stands beside it, as a uranium vein does"`
+	ProspectUranium bool  `cfg:"prospect-uranium" doc:"while someone bids for uranium and there is none to sell, one colonist at a time prospects for it"`
 	// PowerPolicy is who runs the reactors (docs/power.md, P3). Under the
 	// market and the public option the colony buys batteries for its stoves
 	// at PriceBattery, and a colonist with ReactorSavings may commission a
@@ -931,6 +932,7 @@ func DefaultConfig() Config {
 		UraniumReserve:     2,
 		ReactorIceStock:    8,
 		ReactorExposure:    true,
+		ProspectUranium:    true,
 		PowerPolicy:        PolicyMonopoly,
 		PriceBattery:       4,
 		ReactorSavings:     300,
