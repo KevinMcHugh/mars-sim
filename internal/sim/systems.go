@@ -1221,6 +1221,12 @@ func (w *World) assignWorkJob(e *Entity) {
 	if w.tryAssignCraftFor(e, []Owner{ColonistOwner(e.ID)}) {
 		return
 	}
+	// Uranium, while someone bids for it and there is none to sell: one
+	// prospector goes after it (docs/power.md). Before the frontier, which
+	// finds a vein only by chance.
+	if w.uraniumWanted() && w.unclaimedFrontier() > 0 && w.tryProspectUranium(e) {
+		return
+	}
 	// Mining: big colonies/maps follow the shared frontier field (claim on
 	// arrival); small ones use cached A* to the nearest claimed tile. Either way
 	// only take a job when unclaimed frontier remains.

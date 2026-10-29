@@ -742,6 +742,13 @@ type World struct {
 	// landing, batteries charged at any reactor and food recipes worked
 	// with power and without, for the charts (metrics.go).
 	batteriesCharged, cookedPowered, cookedCold int64
+	// uraniumProspector is the colonist prospecting for uranium, and
+	// uraniumProspectAt the rock it is digging (tryProspectUranium);
+	// uraniumWantedTick/Cache memoize uraniumWanted for the tick.
+	uraniumProspector  EntityID
+	uraniumProspectAt  Point
+	uraniumWantedTick  int
+	uraniumWantedCache bool
 	// colonyMealAsk is the price the colony's meal asks were last posted at,
 	// so they're reposted only when colonyMealPrice moves (see scumhouse.go).
 	colonyMealAsk       Money
@@ -1254,6 +1261,7 @@ func newWorld(cfg Config, src *rand.PCG) *World {
 	w.powerPolicy = w.cfg.PowerPolicy
 	w.powerTariff, w.batteryBid = Money(w.cfg.PowerTariff), Money(w.cfg.PriceBattery)
 	w.lastPolicyChange = -1
+	w.uraniumWantedTick = -1
 	w.subscribe(func(e WorldEvent) {
 		if tc, ok := e.(TileChanged); ok {
 			w.refreshScumExposure(tc.Pos)

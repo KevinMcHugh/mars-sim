@@ -42,6 +42,7 @@ var topicTable = map[string]topic{
 	"jobs":       {every: boardEvery, build: func(s *sim.Snapshot) any { return jobsTopic(s) }},
 	"storage":    {every: boardEvery, build: func(s *sim.Snapshot) any { return storageTopic(s) }},
 	"market":     {every: boardEvery, build: func(s *sim.Snapshot) any { return marketTopic(s) }},
+	"power":      {every: boardEvery, build: func(s *sim.Snapshot) any { return powerDesk(s) }},
 	"roster":     {every: rosterEvery, build: func(s *sim.Snapshot) any { return rosterTopic(s, false, false) }},
 	"zones":      {every: boardEvery, build: func(s *sim.Snapshot) any { return zonesTopic(s) }},
 	"zoning":     {every: boardEvery, build: func(s *sim.Snapshot) any { return zoningTopic(s) }},

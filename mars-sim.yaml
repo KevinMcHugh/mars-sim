@@ -188,6 +188,9 @@
 ## a reactor holding uranium ore or fuel pellets doses whoever stands beside it, as a uranium vein does
 # reactor-exposure: true
 
+## while someone bids for uranium and there is none to sell, one colonist at a time prospects for it
+# prospect-uranium: true
+
 ## who runs the reactors: monopoly (the colony), market (colonists who can afford one), public-option (a market, and a colony reactor of last resort), or charter (one corporation from back home)
 # power-policy: monopoly
 

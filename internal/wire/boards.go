@@ -198,14 +198,13 @@ type ColonyDesk struct {
 	Suspended []Suspended `json:"suspended"`
 	// Wide is every colony-wide order, bids first, then in item order.
 	Wide []WideOrder `json:"wide"`
-	// Power is who runs the reactors, and what changing it would mean
-	// (docs/power.md).
-	Power PowerDesk `json:"power"`
 }
 
-// PowerDesk is the power policy on the order desk: the policy now, the ones
-// the player may pick, how long until it may change again, the reactors and
-// who owns them, and the charter if one is granted.
+// PowerDesk is the Power tab (the "power" topic): the policy now, the ones
+// the player may pick, how long until it may change again, the reactors, who
+// owns them and how they run, the reactors going up, the colony's fuel and
+// cooking, and whatever the policy adds (the charter, the public option's
+// clock, who could commission a reactor). See docs/power.md.
 type PowerDesk struct {
 	On            bool           `json:"on"`
 	Policy        string         `json:"policy"`
@@ -220,17 +219,81 @@ type PowerDesk struct {
 	// to set).
 	Price     int64  `json:"price"`
 	PriceKind string `json:"priceKind"`
+	// Building is every reactor room still going up.
+	Building []PowerBuild `json:"building"`
+	// Charged is batteries charged since the landing; CookedPowered and
+	// CookedCold the food recipes worked with power and without.
+	Charged       int64 `json:"charged"`
+	CookedPowered int64 `json:"cookedPowered"`
+	CookedCold    int64 `json:"cookedCold"`
+	// Reserve is battery-reserve: a reactor charges while its owner holds
+	// fewer batteries.
+	Reserve int `json:"reserve"`
+	// Uranium and Pellets are the colony's fuel, everywhere; UraniumReserve
+	// the ore it keeps in hand.
+	Uranium        int `json:"uranium"`
+	Pellets        int `json:"pellets"`
+	UraniumReserve int `json:"uraniumReserve"`
+	// Prospector is the colonist digging for uranium, if one is.
+	Prospector *PowerProspector `json:"prospector,omitempty"`
+	// PublicOption is the public option's clock, under that policy.
+	PublicOption *PowerPublicOption `json:"publicOption,omitempty"`
+	// Commission is who could commission a reactor, under the market and
+	// the public option.
+	Commission *PowerCommission `json:"commission,omitempty"`
+}
+
+// PowerBuild is a reactor room going up: where, and whose.
+type PowerBuild struct {
+	X     int    `json:"x"`
+	Y     int    `json:"y"`
+	L     int    `json:"l"`
+	Owner string `json:"owner"`
+}
+
+// PowerProspector is the colonist digging for uranium, and where.
+type PowerProspector struct {
+	Name string `json:"name"`
+	X    int    `json:"x"`
+	Y    int    `json:"y"`
+	L    int    `json:"l"`
+}
+
+// PowerPublicOption is the public option's clock: whether the colony runs a
+// reactor of its own yet, and if not how long it has gone without a battery
+// (DryHours, -1 while it has some) against Days.
+type PowerPublicOption struct {
+	Latched  bool `json:"latched"`
+	DryHours int  `json:"dryHours"`
+	Days     int  `json:"days"`
+}
+
+// PowerCommission is what a colonist needs to commission a reactor, and how
+// many could now.
+type PowerCommission struct {
+	Savings int64 `json:"savings"`
+	Able    int   `json:"able"`
 }
 
 // PowerReactor is one reactor: where, whose, what it would change hands for,
-// whether the colony is selling it, and its owner's batteries there.
+// whether the colony is selling it, and its owner's batteries and fuel
+// there. Operator is who is working it now, and Status one word for how it
+// runs: "working" (someone at it), "full" (its owner holds battery-reserve),
+// "no-uranium" (no ore or pellets), "no-ice" (pellets but no ice to charge
+// them), or "idle" (fuelled, nobody at it).
 type PowerReactor struct {
 	X         int    `json:"x"`
 	Y         int    `json:"y"`
+	L         int    `json:"l"`
 	Owner     string `json:"owner"`
 	Price     int64  `json:"price"`
 	ForSale   bool   `json:"forSale"`
 	Batteries int    `json:"batteries"`
+	Ore       int    `json:"ore"`
+	Pellets   int    `json:"pellets"`
+	Ice       int    `json:"ice"`
+	Operator  string `json:"operator,omitempty"`
+	Status    string `json:"status"`
 }
 
 // PowerCharter is the charter company's account.
@@ -599,7 +662,6 @@ func colonyDesk(s *sim.Snapshot) ColonyDesk {
 	for _, su := range econ.Suspended {
 		d.Suspended = append(d.Suspended, Suspended{Side: su.Side.String(), Item: su.Item.String()})
 	}
-	d.Power = powerDesk(s)
 	for _, wo := range econ.Wide {
 		d.Wide = append(d.Wide, WideOrder{Side: wo.Side.String(), Item: wo.Item.String(), Qty: wo.Qty,
 			Price: int64(wo.Price), Open: wo.Open, Depots: wo.Depots})
@@ -651,21 +713,61 @@ func digHas(p sim.ProjectView, pos sim.Point) bool {
 	return false
 }
 
-// powerDesk is the order desk's power section.
+// powerDesk is the "power" topic.
 func powerDesk(s *sim.Snapshot) PowerDesk {
 	pv := s.Economy.Power
 	d := PowerDesk{On: pv.On, Policy: pv.Policy.String(), Policies: sim.PowerPolicies(), Reactors: []PowerReactor{},
-		Batteries: pv.ColonyBatteries, Price: int64(pv.Price), PriceKind: pv.PriceKind.String()}
-	if pv.TicksPerDay > 0 && pv.CooldownTicks > 0 {
-		d.CooldownHours = (pv.CooldownTicks*24 + pv.TicksPerDay - 1) / pv.TicksPerDay
+		Batteries: pv.ColonyBatteries, Price: int64(pv.Price), PriceKind: pv.PriceKind.String(), Building: []PowerBuild{},
+		Charged: pv.Charged, CookedPowered: pv.CookedPowered, CookedCold: pv.CookedCold, Reserve: pv.BatteryReserve,
+		Uranium: pv.ColonyUranium, Pellets: pv.ColonyPellets, UraniumReserve: pv.UraniumReserve}
+	hours := func(ticks int) int { // rounded up: "0 hours" only when it is over
+		if pv.TicksPerDay <= 0 || ticks <= 0 {
+			return 0
+		}
+		return (ticks*24 + pv.TicksPerDay - 1) / pv.TicksPerDay
+	}
+	d.CooldownHours = hours(pv.CooldownTicks)
+	owner := func(o sim.Owner) string {
+		if o.Kind == sim.OwnerCorporation && pv.Charter.Granted {
+			return pv.Charter.Name
+		}
+		return ownerLabel(s, o)
 	}
 	for _, r := range pv.Reactors {
-		owner := ownerLabel(s, r.Owner)
-		if r.Owner.Kind == sim.OwnerCorporation && pv.Charter.Granted {
-			owner = pv.Charter.Name
+		pr := PowerReactor{X: r.Pos.X, Y: r.Pos.Y, L: int(r.Pos.Level), Owner: owner(r.Owner), Price: int64(r.Price),
+			ForSale: r.ForSale, Batteries: r.Batteries, Ore: r.Ore, Pellets: r.Pellets, Ice: r.Ice}
+		if r.Operator != 0 {
+			pr.Operator = ownerLabel(s, sim.ColonistOwner(r.Operator))
 		}
-		d.Reactors = append(d.Reactors, PowerReactor{X: r.Pos.X, Y: r.Pos.Y, Owner: owner, Price: int64(r.Price),
-			ForSale: r.ForSale, Batteries: r.Batteries})
+		switch {
+		case r.Operator != 0:
+			pr.Status = "working"
+		case r.Full:
+			pr.Status = "full"
+		case r.Ore == 0 && r.Pellets == 0:
+			pr.Status = "no-uranium"
+		case r.Ore == 0 && r.Ice == 0:
+			pr.Status = "no-ice"
+		default:
+			pr.Status = "idle"
+		}
+		d.Reactors = append(d.Reactors, pr)
+	}
+	for _, b := range pv.Building {
+		d.Building = append(d.Building, PowerBuild{X: b.Pos.X, Y: b.Pos.Y, L: int(b.Pos.Level), Owner: owner(b.Owner)})
+	}
+	if pv.Prospector != 0 {
+		d.Prospector = &PowerProspector{Name: ownerLabel(s, sim.ColonistOwner(pv.Prospector)), X: pv.ProspectAt.X, Y: pv.ProspectAt.Y, L: int(pv.ProspectAt.Level)}
+	}
+	if pv.Policy == sim.PolicyPublicOption {
+		po := &PowerPublicOption{Latched: pv.PublicReactor, DryHours: -1, Days: pv.PublicOptionDays}
+		if pv.DryTicks >= 0 {
+			po.DryHours = pv.DryTicks * 24 / max(pv.TicksPerDay, 1)
+		}
+		d.PublicOption = po
+	}
+	if pv.ReactorSavings > 0 {
+		d.Commission = &PowerCommission{Savings: int64(pv.ReactorSavings), Able: pv.CanCommission}
 	}
 	if c := pv.Charter; c.Granted {
 		d.Charter = &PowerCharter{Name: c.Name, Wallet: int64(c.Wallet), Sold: c.Sold, Royalties: int64(c.Royalties),

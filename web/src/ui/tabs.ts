@@ -12,6 +12,7 @@ import MarketPanel from './MarketPanel.svelte';
 import NewsPanel from './NewsPanel.svelte';
 import NewGamePanel from './NewGamePanel.svelte';
 import PerfPanel from './PerfPanel.svelte';
+import PowerPanel from './PowerPanel.svelte';
 import RecruitPanel from './RecruitPanel.svelte';
 import RosterPanel from './RosterPanel.svelte';
 import SandboxPanel from './SandboxPanel.svelte';
@@ -37,6 +38,7 @@ export const groups: { id: string; label: string; tabs: Tab[] }[] = [
       { id: 'jobs', label: 'Jobs', component: JobsPanel },
       { id: 'storage', label: 'Storage', component: StoragePanel },
       { id: 'market', label: 'Market', component: MarketPanel },
+      { id: 'power', label: 'Power', component: PowerPanel },
       { id: 'charts', label: 'Charts', component: ChartsPanel },
       { id: 'perf', label: 'Perf', component: PerfPanel },
       { id: 'lore', label: 'Lore', component: LorePanel },

@@ -1,19 +1,19 @@
 <script lang="ts">
-  // The Trade tab: the power policy (PowerDesk, docs/power.md), then the
-  // colony's order desk (ColonyOrders, docs/colony-orders.md),
+  // The Trade tab: the colony's order desk (ColonyOrders, docs/colony-orders.md),
   // buying and selling in the colony's name. It reads the market topic, as the
   // Market tab does, but sits under Act: placing orders changes the colony,
   // while the Market tab only shows prices, books and accounts.
-  import { subscribe, topics } from '../game.svelte';
+  // The power policy and the battery price moved to the Power tab
+  // (PowerPanel, docs/power.md); a line here points there.
+  import { setPanel, subscribe, topics } from '../game.svelte';
   import ColonyOrders from './ColonyOrders.svelte';
-  import PowerDesk, { type Power } from './PowerDesk.svelte';
   import type { ComponentProps } from 'svelte';
 
   interface Market {
     supply: { treasury: number };
     books: ComponentProps<typeof ColonyOrders>['books'];
     prices: ComponentProps<typeof ColonyOrders>['prices'];
-    colony: ComponentProps<typeof ColonyOrders>['desk'] & { power: Power };
+    colony: ComponentProps<typeof ColonyOrders>['desk'];
   }
 
   $effect(() => subscribe('market'));
@@ -26,11 +26,12 @@
 {#if !m}
   <p class="muted">Loading…</p>
 {:else}
-  <PowerDesk power={m.colony.power} />
+  <p class="muted">The power policy and the battery price are on the <button type="button" class="link" onclick={() => setPanel('power')}>Power tab</button>.</p>
   <ColonyOrders desk={m.colony} treasury={m.supply.treasury} prices={m.prices} books={m.books} />
 {/if}
 
 <style>
   p { margin: 0; }
   .muted { color: var(--muted); }
+  .link { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
 </style>

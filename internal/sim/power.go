@@ -305,7 +305,7 @@ func (w *World) refreshReactorFuel() {
 // fuelBid tops the colony's standing bid for k at the silo up to want units,
 // at its reference price, as far as the treasury stretches.
 func (w *World) fuelBid(k ItemKind, want int, silo Point) {
-	price := w.refPrice(k)
+	price := fuelBidPrice(w.refPrice(k))
 	if price <= 0 {
 		return
 	}
@@ -577,7 +577,7 @@ func (w *World) refreshOwnerReactorBids() {
 		me := w.fixtureOwner(p)
 		c := w.storageContainers[p]
 		bid := func(k ItemKind, want int) {
-			price := ownerFuelPrice(w.refPrice(k))
+			price := fuelBidPrice(w.refPrice(k))
 			if price <= 0 {
 				return
 			}
@@ -599,12 +599,14 @@ func (w *World) refreshOwnerReactorBids() {
 	}
 }
 
-// ownerFuelPrice is what a reactor's owner bids at the silo for its fuel:
-// the reference price and a tenth, at least $2 over. The colony's prospecting
-// bids are at the reference price, so a miner holding ore offers it to a bid
-// only above that (planSupply); a baron at the reference price got none of
-// the uranium already lying on miners' lines at the silo.
-func ownerFuelPrice(ref Money) Money {
+// fuelBidPrice is what anyone running a reactor (the colony, a baron, the
+// charter) bids at the silo for its fuel: the reference price and a tenth, at
+// least $2 over. A miner holding ore offers it to a bid only above the
+// reference price (planSupply), since that is what the colony's prospecting
+// bids would pay anyway: a baron at the reference price got none of the
+// uranium already lying on miners' lines at the silo, and the colony's own
+// bid at it lost every unit to the barons'.
+func fuelBidPrice(ref Money) Money {
 	if ref <= 0 {
 		return 0
 	}
@@ -1126,8 +1128,49 @@ func (w *World) powerView() PowerView {
 	sort.Slice(at, func(i, j int) bool { return lessPoint(at[i], at[j]) })
 	for _, p := range at {
 		o := w.fixtureOwner(p)
-		v.Reactors = append(v.Reactors, ReactorView{Pos: p, Owner: o, Price: w.reactorPrice(p), ForSale: forSale[p],
-			Batteries: w.storageContainers[p].held(o, Battery)})
+		c := w.storageContainers[p]
+		r := ReactorView{Pos: p, Owner: o, Price: w.reactorPrice(p), ForSale: forSale[p],
+			Batteries: c.held(o, Battery), Ore: c.held(o, UraniumOre), Pellets: c.held(o, FuelPellet), Ice: c.held(o, WaterIce)}
+		if id := w.workshopClaims[p]; id != 0 {
+			if e := w.entities[id]; e != nil && e.Alive() && e.Job == JobCraft && e.Target == p {
+				r.Operator = id
+			}
+		}
+		switch {
+		case o == Community:
+			r.Full = w.colonyBatteries() >= w.cfg.BatteryReserve
+		case o.Kind == OwnerCorporation:
+			r.Full = w.charterHolds(Battery) >= w.cfg.BatteryReserve
+		default:
+			r.Full = r.Batteries >= w.cfg.BatteryReserve
+		}
+		v.Reactors = append(v.Reactors, r)
+	}
+	for _, p := range w.projects {
+		for _, t := range p.tasks {
+			if t.terrain == Reactor && !w.taskDone(t) {
+				v.Building = append(v.Building, ReactorBuildView{Pos: t.pos, Owner: p.issuer})
+			}
+		}
+	}
+	sort.Slice(v.Building, func(i, j int) bool { return lessPoint(v.Building[i].Pos, v.Building[j].Pos) })
+	v.Charged, v.CookedPowered, v.CookedCold = w.batteriesCharged, w.cookedPowered, w.cookedCold
+	v.BatteryReserve = w.cfg.BatteryReserve
+	v.ColonyUranium, v.ColonyPellets, v.UraniumReserve = w.colonyHolds(UraniumOre), w.colonyHolds(FuelPellet), w.cfg.UraniumReserve
+	if e := w.entities[w.uraniumProspector]; e != nil && e.Alive() && e.Job == JobMine && e.Target == w.uraniumProspectAt {
+		v.Prospector, v.ProspectAt = e.ID, w.uraniumProspectAt
+	}
+	v.PublicReactor, v.DryTicks, v.PublicOptionDays = w.publicReactor, -1, w.cfg.PublicOptionDays
+	if w.powerPolicy == PolicyPublicOption && !w.publicReactor && w.powerDrySince >= 0 {
+		v.DryTicks = int(w.tick) - w.powerDrySince
+	}
+	if w.colonistsBuildReactors() && w.cfg.ReactorSavings > 0 {
+		v.ReactorSavings = Money(w.cfg.ReactorSavings)
+		for id := range w.kindEntities[Colonist] { // a count: map order can't change it
+			if e := w.entities[id]; e.Alive() && !e.reactorCommissioned && e.wallet >= v.ReactorSavings {
+				v.CanCommission++
+			}
+		}
 	}
 	if w.charter.granted {
 		v.Charter = CharterView{Granted: true, Name: w.charterName(), Wallet: w.charter.wallet, Royalties: w.charter.royalties,
@@ -1243,4 +1286,88 @@ func (w *World) noteCooked(r Recipe, outputs []ItemStack) {
 	case w.cfg.Power:
 		w.cookedPowered++
 	}
+}
+
+// ---- Prospecting for uranium ------------------------------------------------------
+//
+// Nothing else sends a miner after uranium: miners dig the frontier, and a
+// vein (the mother lode included) turns up only where the colony happens to
+// dig. On 8 of 72 seeds a colony found none in 40,000 ticks. So while
+// someone bids for uranium and there is none anywhere to sell it, one
+// colonist at a time prospects for it: it mines an exposed uranium face if
+// the colony has seen one, and otherwise tunnels into unseen rock the way a
+// forager prospects for scum (tryProspect), which shows the rock it opens.
+
+// uraniumWanted reports, memoized for the tick, whether someone has a bid
+// for uranium open and no uranium ore lies anywhere outside a reactor, in a
+// depot or a pack, for them to buy.
+func (w *World) uraniumWanted() bool {
+	if w.uraniumWantedTick == int(w.tick) {
+		return w.uraniumWantedCache
+	}
+	wanted := false
+	if w.cfg.Power && w.cfg.ProspectUranium {
+		for _, o := range w.orders {
+			if o.Side == Bid && o.Item == UraniumOre && o.Qty > 0 {
+				wanted = true
+				break
+			}
+		}
+	}
+	if wanted {
+		w.eachContainer(func(c *StorageContainer) {
+			if c.Terrain != Reactor && c.Inventory.Count(UraniumOre) > 0 {
+				wanted = false
+			}
+		})
+	}
+	if wanted {
+		for id := range w.kindEntities[Colonist] { // any one will do: order can't matter
+			if w.entities[id].Inventory.Count(UraniumOre) > 0 {
+				wanted = false
+				break
+			}
+		}
+	}
+	w.uraniumWantedTick, w.uraniumWantedCache = int(w.tick), wanted
+	return wanted
+}
+
+// tryProspectUranium makes e the colony's uranium prospector, if it has
+// none at work: the nearest exposed uranium face the colony has seen, or
+// failing that the dig into unseen rock that shows the most of it per tick
+// (tryProspect). One prospector at a time: the rest of the colony keeps to
+// its work.
+func (w *World) tryProspectUranium(e *Entity) bool {
+	if p := w.entities[w.uraniumProspector]; p != nil && p != e && p.Alive() && p.Job == JobMine && p.Target == w.uraniumProspectAt {
+		return false // someone is already on it
+	}
+	if !e.Inventory.CanAddAll(ItemStack{RawRock, 1}, ItemStack{UraniumOre, 1}) {
+		return false
+	}
+	room := w.roomOf(e.Pos)
+	if room == 0 {
+		return false
+	}
+	var best Point
+	bestCost, found := 0, false
+	w.eachLayer(func(l *Layer) {
+		for p := range l.board.frontier {
+			if w.TileAt(p).Composition != UraniumBearingRock || l.board.isClaimed(p) || !w.frontierReachable(p, room) {
+				continue
+			}
+			cost := w.travelEstimate(e.Pos, p)
+			if !found || cost < bestCost || (cost == bestCost && lessPoint(p, best)) {
+				best, bestCost, found = p, cost, true
+			}
+		}
+	})
+	if found {
+		w.lay(best).board.claimMine(best, e.ID)
+		w.assignMineTarget(e, best)
+	} else if !w.tryProspect(e, false) {
+		return false
+	}
+	w.uraniumProspector, w.uraniumProspectAt = e.ID, e.Target
+	return true
 }
