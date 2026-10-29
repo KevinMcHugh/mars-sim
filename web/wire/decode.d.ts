@@ -82,6 +82,8 @@ export interface Frame {
     x: Int32Array;
     y: Int32Array;
     glyph: Uint16Array;
+    /** Height in centimetres; 0 for a kind with none (docs/body-sprites.md). */
+    height: Uint16Array;
     kind: Uint8Array;
     state: Uint8Array;
     focus: Uint8Array;

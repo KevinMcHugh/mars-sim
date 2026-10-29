@@ -68,7 +68,9 @@ Hello's `landingLevel` and `deepestLevel` (see "Levels" below). Hello's
 `siting-auto` setting, so the Dig tab can offer orders that leave the tile to
 the colony ([siting.md](./siting.md)). Hello's `sandbox` (no version bump
 either) is the `sandbox` setting, so the page shows its Sandbox tab for a
-sandbox game, a loaded one included ([sandbox.md](./sandbox.md)).
+sandbox game, a loaded one included ([sandbox.md](./sandbox.md)). Version 7
+adds the entities' **height** array, which the map scales bodies by
+([body-sprites.md](./body-sprites.md)).
 
 ### A frame
 
@@ -79,7 +81,7 @@ nothing).
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | magic `MSFR` |
-| 4 | 2 | `Version` (6) |
+| 4 | 2 | `Version` (7) |
 | 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame**, 16 **scum frame**, 32 **salt frame**, 64 **flow frame** |
 | 8 | 8 | tick |
 | 16 | 8 | `TileChanges.Frame` |
@@ -102,7 +104,9 @@ Then the sections, in order:
 
 - **stats**: `int32 × S`, named by `Hello.stats`.
 - **entities**, struct-of-arrays: `uint32 id × N`, `int32 x × N`,
-  `int32 y × N`, `uint16 glyph × N` (padded to 4), then `uint8 kind × N`,
+  `int32 y × N`, `uint16 glyph × N` (padded to 4), `uint16 height × N`
+  (padded to 4; centimetres, 0 for a kind with none, which the map scales
+  bodies by; see [body-sprites.md](./body-sprites.md)), then `uint8 kind × N`,
   `uint8 state × N`, `uint8 focus × N`, padded to 4. The glyph is picked in Go
   by `glyphs.ForEntity`, from things the page never sees (a colonist's gender,
   age and traits, an alien's species), so the TUI and the browser always

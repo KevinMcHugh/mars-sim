@@ -58,6 +58,11 @@ type EntityView struct {
 	// Snapshot.Sprites plus one; 0 draws the species' emoji, as every alien
 	// of a rolled species does. See docs/species-pack.md.
 	Sprite int
+	// HeightCM is how tall the body is: a colonist's Profile.HeightCM, or an
+	// alien's species midpoint scaled by its form's SizePct. 0 for every other
+	// kind. The browser map draws a body at a size that follows it; see
+	// docs/body-sprites.md.
+	HeightCM int
 	// Keeper is the colonist a pet (a chicken or a cat) came down with in its
 	// ship, 0 for a stray or anything that is not a pet. See
 	// docs/chickens.md.
@@ -1055,10 +1060,15 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		if e.Species >= 0 && e.Species < len(w.alienSpecies) {
 			ev.SpeciesIndex = e.Species // else alienSpeciesFor's fallback, 0
 		}
+		ev.HeightCM = (ev.AlienSpecies.HeightMinCM + ev.AlienSpecies.HeightMaxCM) / 2
 		if f, ok := w.formOf(e); ok {
 			ev.AlienForm = f.Name
+			ev.HeightCM = scaleRound(ev.HeightCM, f.SizePct, 100)
 		}
 		ev.Sprite = w.spriteFor(e)
+	}
+	if e.Kind == Colonist && e.Profile != nil {
+		ev.HeightCM = e.Profile.HeightCM
 	}
 	if e.Kind == Colonist {
 		ev.Charge = e.affect.Charge

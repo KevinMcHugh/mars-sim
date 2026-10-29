@@ -58,13 +58,14 @@ type decodedScum struct {
 }
 
 type decodedEnt struct {
-	ID    uint32 `json:"id"`
-	X     int32  `json:"x"`
-	Y     int32  `json:"y"`
-	Glyph uint16 `json:"glyph"`
-	Kind  uint8  `json:"kind"`
-	State uint8  `json:"state"`
-	Focus uint8  `json:"focus"`
+	ID     uint32 `json:"id"`
+	X      int32  `json:"x"`
+	Y      int32  `json:"y"`
+	Glyph  uint16 `json:"glyph"`
+	Height uint16 `json:"height"`
+	Kind   uint8  `json:"kind"`
+	State  uint8  `json:"state"`
+	Focus  uint8  `json:"focus"`
 }
 
 type decodedPage struct {
@@ -120,16 +121,17 @@ func decode(t *testing.T, b []byte) decoded {
 	d.Entities = make([]decodedEnt, n)
 	for i := range d.Entities {
 		d.Entities[i] = decodedEnt{
-			ID:    le.Uint32(b[at+4*i:]),
-			X:     int32(le.Uint32(b[at+4*(n+i):])),
-			Y:     int32(le.Uint32(b[at+4*(2*n+i):])),
-			Glyph: le.Uint16(b[at+12*n+2*i:]),
-			Kind:  b[at+12*n+align4(2*n)+i],
-			State: b[at+12*n+align4(2*n)+n+i],
-			Focus: b[at+12*n+align4(2*n)+2*n+i],
+			ID:     le.Uint32(b[at+4*i:]),
+			X:      int32(le.Uint32(b[at+4*(n+i):])),
+			Y:      int32(le.Uint32(b[at+4*(2*n+i):])),
+			Glyph:  le.Uint16(b[at+12*n+2*i:]),
+			Height: le.Uint16(b[at+12*n+align4(2*n)+2*i:]),
+			Kind:   b[at+12*n+2*align4(2*n)+i],
+			State:  b[at+12*n+2*align4(2*n)+n+i],
+			Focus:  b[at+12*n+2*align4(2*n)+2*n+i],
 		}
 	}
-	at += 12*n + align4(2*n) + align4(3*n)
+	at += 12*n + 2*align4(2*n) + align4(3*n)
 	d.Pages = make([]decodedPage, nPages)
 	for i := range d.Pages {
 		d.Pages[i].PX = int32(le.Uint32(b[at+4*i:]))
@@ -217,9 +219,9 @@ func fixture(fog bool) *sim.Snapshot {
 		Tiles:       sim.NewTileGrid(w, h, tiles),
 		TileChanges: sim.TileChanges{Frame: 1, All: true, Refuse: true},
 		Entities: []sim.EntityView{
-			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 10, Y: 3, Level: sim.LandingLevel}, State: sim.Mining, Focus: sim.FocusWork},
+			{ID: 1, Kind: sim.Colonist, Pos: sim.Point{X: 10, Y: 3, Level: sim.LandingLevel}, State: sim.Mining, Focus: sim.FocusWork, HeightCM: 178},
 			{ID: 2, Kind: sim.Cat, Pos: sim.Point{X: 70, Y: 20, Level: sim.LandingLevel}, State: sim.Hunting},
-			{ID: 9, Kind: sim.Alien, Pos: sim.Point{X: 149, Y: 69, Level: sim.LandingLevel}, State: sim.Sleeping,
+			{ID: 9, Kind: sim.Alien, Pos: sim.Point{X: 149, Y: 69, Level: sim.LandingLevel}, State: sim.Sleeping, HeightCM: 40,
 				AlienSpecies: sim.AlienSpecies{Emoji: glyphs.Beetle}},
 		},
 		Stats:          sim.Stats{Colonists: 1, Cats: 1, Aliens: 1, FloorDug: 1500},
@@ -249,9 +251,9 @@ func TestEncodeFirstFrame(t *testing.T) {
 		t.Errorf("FloorDug stat = %d", got)
 	}
 	wantEnts := []decodedEnt{
-		{ID: 1, X: 10, Y: 3, Glyph: glyphIndex[glyphs.Colonist], Kind: uint8(sim.Colonist), State: uint8(sim.Mining), Focus: uint8(sim.FocusWork)},
+		{ID: 1, X: 10, Y: 3, Glyph: glyphIndex[glyphs.Colonist], Height: 178, Kind: uint8(sim.Colonist), State: uint8(sim.Mining), Focus: uint8(sim.FocusWork)},
 		{ID: 2, X: 70, Y: 20, Glyph: glyphIndex[glyphs.Cat], Kind: uint8(sim.Cat), State: uint8(sim.Hunting)},
-		{ID: 9, X: 149, Y: 69, Glyph: glyphIndex[glyphs.Beetle], Kind: uint8(sim.Alien), State: uint8(sim.Sleeping)},
+		{ID: 9, X: 149, Y: 69, Glyph: glyphIndex[glyphs.Beetle], Height: 40, Kind: uint8(sim.Alien), State: uint8(sim.Sleeping)},
 	}
 	if !slices.Equal(d.Entities, wantEnts) {
 		t.Errorf("entities = %+v", d.Entities)

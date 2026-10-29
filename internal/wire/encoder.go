@@ -194,7 +194,7 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	n := len(ents)
 	size := headerLen +
 		4*len(statFields) +
-		n*(4+4+4) + align4(n*2) + align4(n*3) +
+		n*(4+4+4) + align4(n*2) + align4(n*2) + align4(n*3) +
 		len(pages)*(4+4) + len(pages)*pageTiles*tileBytes +
 		len(refuse)*(4+4) + align4(len(refuse)*2) + align4(len(refuse)) +
 		len(scum)*(4+4) + align4(len(scum)) +
@@ -232,7 +232,9 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	}
 
 	// Entities, as struct-of-arrays: ids, xs, ys, glyphs (uint16, an index
-	// into Hello.Glyphs.Symbols, or past its end into Looks), then a byte each of kind, state and focus.
+	// into Hello.Glyphs.Symbols, or past its end into Looks), heights (uint16
+	// centimetres, 0 for a kind with none), then a byte each of kind, state
+	// and focus.
 	for i := range ents {
 		le.PutUint32(b[at+4*i:], uint32(ents[i].ID))
 	}
@@ -247,6 +249,10 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	at += 4 * n
 	for i := range ents {
 		le.PutUint16(b[at+2*i:], entityGlyph(ents[i]))
+	}
+	at += align4(2 * n)
+	for i := range ents {
+		le.PutUint16(b[at+2*i:], entityHeight(ents[i]))
 	}
 	at += align4(2 * n)
 	for i := range ents {
