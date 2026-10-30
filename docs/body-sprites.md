@@ -2,7 +2,8 @@
 
 > Part of the [mars-sim documentation](./README.md).
 
-**S1 (scale) and S2 (mutant paper dolls) are built. S3 is a proposal.** When a phase
+**S1 (scale), S2 (mutant paper dolls) and S3a (dolls for everyone) are
+built. S3b (state badges) is a proposal.** When a phase
 ships, move its text into the present tense and note anywhere the build
 departed from the plan, as [z-levels.md](./z-levels.md) does.
 
@@ -234,23 +235,41 @@ doing (`RosterRow.Doll`, from `RestingDollKey`), as the roster's glyph has
 always ignored passing states. Both are `<img>`s from `dollURL`, beside
 `spriteURL` in `web/src/ui/sprite.ts`. The hover line shows the fallback.
 
-**Testing it by eye.** Mutants are rare, and the mutation settings are not on
-the New game form. To look at dolls in a running game, temporarily drop the
-mutant test in `DollKey` (that is exactly S3) and `npm run wasm`; set a part
-bit by hand in the same place to see the parts.
+**Testing it by eye.** Since S3a every colonist is a doll, so any game shows
+them. Mutants are rare, and the mutation settings are not on the New game
+form: to see the parts, temporarily set a part bit by hand in `DollKey`'s
+`MaxParts` and `npm run wasm`.
 
-### S3: every colonist, and state badges
+### S3a: every colonist (built)
 
-- `DollIndex` covers every colonist with a profile, not just mutants.
-  Seniors get hair, which Unicode never allowed them. Looks remain for text
-  surfaces and as the fallback before a doll paints.
-- The pool needs to hold the colony's distinct (figure, tone, hair) set, which
-  in practice is a few dozen. Size it from `Hello` (for example, the number of
-  colonists at landing × 1.5, capped at 512).
+- `DollKey` covers every colonist with a profile drawn at rest (`ForEntity`
+  is `ForColonist`'s figure, 🧟 included), not just mutants. Seniors get
+  hair, which Unicode never allowed them. `RestingDollKey` covers every
+  colonist with a profile, for the roster.
+- **Fallbacks are the looks.** Until a doll is painted, and wherever a glyph
+  is shown as text (the hover line), a doll stands in as what the map drew
+  before dolls: `HelloDolls.Fallbacks`, the look for each figure, tone and
+  hair (`glyphs.DollFallbacks`, indexed by `key >> len(parts)`), or the mutant
+  (`Fallback`) for a body with any part grown. `dollFallback` and `textGlyph`
+  in `dolls.ts` apply it. A mutant who only changed size, with no part grown,
+  falls back to their look rather than 🧟: the key has no mutant digit, and
+  their doll looks like anyone else's at their height anyway. Looks remain
+  for every text surface and for the firefighter, which is a state.
+- **Pool size.** `DOLL_CELLS` is 128 (8 MB of texture), not sized from the
+  Hello as first planned: the colony grows past its landing count, and the
+  pool only has to hold the distinct dolls in view at once, a few dozen in
+  practice. Overflow draws the look, which is what the map drew before.
+- **Roster portraits.** A whole figure at text size is unreadable, so roster
+  rows show a portrait: the same drawing with its viewBox cropped to head and
+  shoulders (`composeDoll(key, layout, true)`, `dollURL(key, true)`). The
+  Inspect heading keeps the whole figure, parts and all.
+
+### S3b: state badges
+
 - **State badges** replace the state-figure swap: the doll stays, and a small
   badge (the same emoji, at about 40% size) is drawn at the top corner in a
   second instance pass. Only then do state icons stop hiding the body. This
-  is the one real UX decision in S3. Play it before committing to it.
+  is the one real UX decision left. Play it before committing to it.
 
 ## Why it is this way
 

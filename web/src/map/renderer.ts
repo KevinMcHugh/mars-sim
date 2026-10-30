@@ -50,11 +50,12 @@ import * as palette from './palette';
 import { TILE_ART } from './tileart';
 import { bodyScale } from './bodyscale';
 import { DollPool } from './dollpool';
-import { composeDoll } from './dolls';
+import { composeDoll, dollFallback } from './dolls';
 
 // Atlas cells kept for paper dolls (docs/body-sprites.md): the most distinct
-// dolls one frame can show; past that the rest draw their fallback.
-const DOLL_CELLS = 64;
+// dolls the view holds at once; past that the rest draw their fallback, the
+// colonist's emoji. 128 cells are 8 MB of texture.
+const DOLL_CELLS = 128;
 
 const CHUNK_PAGES = 32;
 const CHUNK_TILES = CHUNK_PAGES * PAGE_SIDE; // 2048: under every WebGL2 max texture size
@@ -675,7 +676,7 @@ export class MapRenderer {
     const d = this.hello?.glyphs.dolls;
     if (!d || g < d.base || g >= d.base + d.count || !this.dolls) return g;
     const cell = this.dolls.cell(g - d.base, frameNo);
-    return cell >= 0 ? cell : d.fallback;
+    return cell >= 0 ? cell : dollFallback(g - d.base, d);
   }
 
   /**

@@ -61,7 +61,7 @@
       {#each visible as r, i (r.id)}
         <button type="button" class="row" class:on={r.id === selectedId} class:dead={r.dead}
           style="top: {(first + i) * ROW}px" onclick={() => inspect({ entity: r.id }, 'roster')}>
-          <span class="name">{#if r.doll >= 0}<img class="doll" src={dollURL(r.doll)} alt="" />{:else}<span class="glyph">{pickGlyph(r.look, r.glyph)}</span>{/if} {r.name}</span>
+          <span class="name">{#if r.doll >= 0}<img class="doll" src={dollURL(r.doll, true)} alt="" />{:else}<span class="glyph">{pickGlyph(r.look, r.glyph)}</span>{/if} {r.name}</span>
           {#if !r.dead && r.maxHp > 0 && r.hp < r.maxHp}
             <span class="hp" title="health">{r.hp}/{r.maxHp}</span>
           {/if}
@@ -74,7 +74,7 @@
 </div>
 
 <style>
-  .doll { width: 1.25em; height: 1.25em; vertical-align: -0.25em; }
+  .doll { width: 1.4em; height: 1.4em; vertical-align: -0.35em; }
   .roster { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
   .controls label { display: flex; align-items: center; gap: 4px; cursor: pointer; }

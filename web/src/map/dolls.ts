@@ -37,6 +37,22 @@ export function dollDigits(key: number, layout: HelloDolls): DollDigits {
   return { figure, tone, hair, parts: layout.parts.filter((_, i) => partBits & (1 << i)) };
 }
 
+/**
+ * The symbol to draw doll key as until its art is painted, and wherever a
+ * glyph is shown as text: the mutant for a body with grown parts, else the
+ * colonist's look, as the map drew them before dolls.
+ */
+export function dollFallback(key: number, layout: HelloDolls): number {
+  const bits = layout.parts.length;
+  if (key % (1 << bits) !== 0) return layout.fallback;
+  return layout.fallbacks?.[Math.floor(key / (1 << bits))] ?? layout.fallback;
+}
+
+/** The symbol index to show glyph g as text: a doll's fallback, or g itself. */
+export function textGlyph(g: number, layout: HelloDolls | undefined): number {
+  return layout && g >= layout.base && g < layout.base + layout.count ? dollFallback(g - layout.base, layout) : g;
+}
+
 // Fills and outlines. Skin follows the five-point emoji scale, lightest first.
 const SKIN = ['#f6d3b8', '#e2ae87', '#c48a62', '#8e5b3c', '#5e3b27'];
 const SKIN_SHADE = ['#d9ab8c', '#c08a63', '#9e6a46', '#6e432a', '#432818'];
@@ -133,8 +149,12 @@ function extraEye(): string {
     `<circle cx="64" cy="29" r="2.4" fill="#5a8f3a"/><circle cx="64" cy="29" r="1.1" fill="${LINE}"/>`;
 }
 
-/** The SVG for doll key: a self-contained image, sized to the atlas cell. */
-export function composeDoll(key: number, layout: HelloDolls): string {
+/**
+ * The SVG for doll key: a self-contained image, sized to the atlas cell. A
+ * portrait is the same drawing cropped to head and shoulders, for a line of
+ * text, where a whole figure is too small to read.
+ */
+export function composeDoll(key: number, layout: HelloDolls, portrait = false): string {
   const d = dollDigits(key, layout);
   const g = gender(d.figure);
   const senior = d.figure.startsWith('old') || d.figure.startsWith('older');
@@ -154,5 +174,6 @@ export function composeDoll(key: number, layout: HelloDolls): string {
     senior ? glasses() : '',
     has('extra eye') ? extraEye() : '',
   ];
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">${layers.join('')}</svg>`;
+  const view = portrait ? '24 12 80 80' : '0 0 128 128';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${view}" width="128" height="128">${layers.join('')}</svg>`;
 }

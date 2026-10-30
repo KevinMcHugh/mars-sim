@@ -50,7 +50,7 @@ export interface Hello {
     /**
      * Paper dolls (docs/body-sprites.md): a frame's glyph base + k is doll k,
      * for k below count. Never in symbols: the page composes a doll's art
-     * from its key (src/map/dolls.ts) and draws symbols[fallback] until then.
+     * from its key (src/map/dolls.ts) and draws dollFallback's symbol until then.
      */
     dolls: HelloDolls;
   };
@@ -145,5 +145,8 @@ export interface HelloDolls {
   tones: number;
   hairs: string[];
   parts: string[];
+  /** The symbol a doll with any part grown draws as until it is painted: the mutant. */
   fallback: number;
+  /** Any other doll's stand-in, by key >> parts.length: its look's glyph index. */
+  fallbacks: number[];
 }

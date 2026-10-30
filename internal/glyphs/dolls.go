@@ -65,11 +65,12 @@ func profileDoll(p *sim.Profile, maxParts []int) (int, bool) {
 	return dollKey(dollFigure[figureFor(p)], p.SkinTone, p.HairColor, grownParts(maxParts)), true
 }
 
-// DollKey is the doll e draws as, if it draws as one: a mutant colonist at
-// rest, whom ForEntity would otherwise draw as Mutant. A colonist drawn by
-// their state (fleeing, talking, aiding…) keeps the state's glyph.
+// DollKey is the doll e draws as, if it draws as one: any colonist with a
+// profile, at rest, whom ForEntity would otherwise draw as their figure (or
+// 🧟). A colonist drawn by their state (fleeing, talking, aiding…) keeps the
+// state's glyph.
 func DollKey(e sim.EntityView) (int, bool) {
-	if e.Kind != sim.Colonist || ForEntity(e) != Mutant {
+	if e.Kind != sim.Colonist || e.Profile == nil || ForEntity(e) != ForColonist(e.Profile) {
 		return 0, false
 	}
 	return profileDoll(e.Profile, e.MaxParts[:])
@@ -78,8 +79,26 @@ func DollKey(e sim.EntityView) (int, bool) {
 // RestingDollKey is the doll a colonist draws as at rest, whatever they are
 // doing now: the roster's figure, as ForColonist is the roster's glyph.
 func RestingDollKey(e sim.EntityView) (int, bool) {
-	if e.Kind != sim.Colonist || ForColonist(e.Profile) != Mutant {
+	if e.Kind != sim.Colonist {
 		return 0, false
 	}
 	return profileDoll(e.Profile, e.MaxParts[:])
+}
+
+// DollFallbacks is, for each body (a key with its parts digit dropped: key >>
+// len(DollParts)), the glyph index the map drew it as before dolls: the look
+// for its figure, tone and hair, past the end of All. A doll with grown parts
+// falls back to Mutant instead (wire's HelloDolls.Fallback). A function, not a
+// table built at init, because Looks is built by looks.go's init, which runs
+// after this file's.
+func DollFallbacks() []int {
+	out := make([]int, 0, NumDolls>>len(DollParts))
+	for _, f := range DollFigures {
+		for tone := sim.SkinTone(0); int(tone) < DollTones; tone++ {
+			for hair := sim.HairColor(0); int(hair) < DollHairs; hair++ {
+				out = append(out, len(All)+lookIndex[lookKey{figure: f, tone: tone, hair: foldHair(f, hair)}])
+			}
+		}
+	}
+	return out
 }

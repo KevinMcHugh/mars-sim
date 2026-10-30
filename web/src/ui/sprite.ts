@@ -14,9 +14,12 @@ export function spriteURL(i: number | undefined): string {
   return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sized(svg))}` : '';
 }
 
-/** Paper doll key as a data: URL, or '' for none (-1, or no layout yet). */
-export function dollURL(key: number | undefined): string {
+/**
+ * Paper doll key as a data: URL, or '' for none (-1, or no layout yet); a
+ * portrait is cropped to head and shoulders.
+ */
+export function dollURL(key: number | undefined, portrait = false): string {
   const layout = ui.hello?.glyphs.dolls;
   if (key === undefined || key < 0 || !layout || key >= layout.count) return '';
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(composeDoll(key, layout))}`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(composeDoll(key, layout, portrait))}`;
 }
