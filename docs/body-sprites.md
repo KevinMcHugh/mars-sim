@@ -178,8 +178,11 @@ encoder passes `len(snap.Sprites)`.
    keeps it), and uploaded with `texSubImage2D`. Mipmaps are then
    regenerated, and the map is marked dirty.
 4. If the pool is full, the least recently drawn doll's cell is evicted, but
-   never one drawn on the current frame and never one still painting (its
-   paint would land on the next owner). A colony with more than 64 distinct
+   only once it has gone undrawn for `STALE_FRAMES` (30) frames, and never
+   while it is still painting (its paint would land on the next owner). An
+   earlier draft evicted anything not drawn on the current frame; with more
+   dolls in view than cells, that repainted cells every frame. Now the dolls
+   that have cells keep them. A colony with more than 64 distinct
    dolls in view at once falls back to 🧟 for the overflow. A doll that fails
    to paint stays on its fallback and is not retried.
 

@@ -1,7 +1,7 @@
 // The paper dolls' atlas cell pool (docs/body-sprites.md).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DollPool } from './dollpool.ts';
+import { DollPool, STALE_FRAMES } from './dollpool.ts';
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
@@ -25,22 +25,26 @@ test('a doll draws its fallback until painted, then its own cell', async () => {
   assert.equal(p.cell(7, 2), 100);
 });
 
-test('a full pool hands back the least recently drawn doll, never one drawn this frame', async () => {
+test('a full pool hands back the least recently drawn doll, once it has gone stale', async () => {
   const { p, painted } = pool(2);
   p.cell(1, 1); p.cell(2, 2);
   await settle();
-  p.cell(1, 3); // 2 is now the oldest
-  assert.equal(p.cell(3, 3), -1);
+  const later = 2 + STALE_FRAMES;
+  p.cell(1, later); // 2 is now the oldest, and stale
+  assert.equal(p.cell(3, later), -1);
   await settle();
   assert.deepEqual(painted.at(-1), [3, 101]);
-  assert.equal(p.cell(2, 4), -1, 'evicted doll repaints');
-  await settle();
-  assert.equal(painted.at(-1)[0], 2);
-  // Everything drawn on frame 5: nothing to evict, the newcomer falls back.
-  p.cell(2, 5); p.cell(3, 5);
-  assert.equal(p.cell(9, 5), -1);
-  await settle();
-  assert.ok(!painted.some(([k]) => k === 9));
+  assert.equal(p.cell(2, later + 1), -1, 'evicted doll repaints, when a cell is free');
+});
+
+test('more dolls in view than cells: the ones with cells keep them', async () => {
+  const { p, painted } = pool(2);
+  for (let frame = 1; frame <= 3 * STALE_FRAMES; frame++) {
+    for (const k of [1, 2, 3]) p.cell(k, frame);
+    await settle();
+  }
+  assert.deepEqual(painted, [[1, 100], [2, 101]], 'no repainting');
+  assert.equal(p.cell(3, 3 * STALE_FRAMES + 1), -1);
 });
 
 test('a doll that fails to paint stays on its fallback and frees its cell', async () => {

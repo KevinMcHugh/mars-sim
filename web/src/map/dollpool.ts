@@ -3,6 +3,14 @@
 // small fixed pool of cells, filled the first time a frame names a doll and
 // handed back, least recently drawn first, when the pool runs out.
 
+/**
+ * Frames a doll must go undrawn before its cell can be handed to another.
+ * With more dolls in view than cells, handing back a cell drawn a frame ago
+ * would repaint cells every frame; this way the dolls that got cells keep
+ * them, and the rest draw their fallback until some leave the view.
+ */
+export const STALE_FRAMES = 30;
+
 interface Slot {
   cell: number;
   state: 'painting' | 'ready' | 'failed';
@@ -37,7 +45,7 @@ export class DollPool {
   /**
    * The atlas cell to draw doll key in on frame, or -1 to draw its fallback
    * for now: while it is being painted, if it failed to paint, or if every
-   * cell is in use by a doll drawn on this same frame.
+   * cell is held by a doll drawn in the last STALE_FRAMES frames.
    */
   cell(key: number, frame: number): number {
     let slot = this.slots.get(key);
@@ -69,13 +77,13 @@ export class DollPool {
   }
 
   /**
-   * Take back the cell of the least recently drawn doll not drawn on frame,
-   * or -1 if there is none. A doll still being painted is never taken: its
-   * paint would land on the cell's next owner.
+   * Take back the cell of the least recently drawn doll not drawn in the last
+   * STALE_FRAMES frames, or -1 if there is none. A doll still being painted is
+   * never taken: its paint would land on the cell's next owner.
    */
   private evict(frame: number): number {
     let oldest: number | undefined;
-    let oldestUsed = frame;
+    let oldestUsed = frame - STALE_FRAMES + 1;
     for (const [key, s] of this.slots) {
       if (s.state === 'ready' && s.used < oldestUsed) {
         oldest = key;
