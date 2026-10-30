@@ -111,7 +111,7 @@ way it is without re-deriving it from the source each time.
 | [floating-panels.md](./floating-panels.md) | The browser's pop-out tabs: any side-panel tab as a draggable, resizable window over the map (the Market beside a chart), remembered per browser; why a tab is docked or floating but never both, and how the inspector's selection follows it. |
 | [frontend-tui.md](./frontend-tui.md) | The Bubble Tea terminal frontend: map, roster, controls, and glyphs. |
 | [colonist-looks.md](./colonist-looks.md) | The browser draws each colonist in their own skin tone and hair: Go sends a candidate list per look (👨🏿‍🦰, 👨🏿, 👨‍🦰, 👨) and the page measures and draws the first its emoji font fuses into one glyph. |
-| [body-sprites.md](./body-sprites.md) | **S1–S3a built; S3b proposed.** Scaling every colonist and alien on the browser map by height (`heightCM` per entity on the wire, a compressed curve in the page, anchored at the feet, biggest drawn first), then paper-doll colonist sprites composed from layered SVG parts on a shared skeleton: mutants first (their grown parts replace 🧟), then everyone. |
+| [body-sprites.md](./body-sprites.md) | **Built (S1–S3b).** Scaling every colonist and alien on the browser map by height (`heightCM` per entity on the wire, a compressed curve in the page, anchored at the feet, biggest drawn first), then paper-doll colonist sprites composed from layered SVG parts on a shared skeleton: mutants first (their grown parts replace 🧟), then everyone, with a colonist's state drawn as a badge over their doll. |
 | [terminal-cell-widths.md](./terminal-cell-widths.md) | Why the grid used to shear: cell-accurate measurement, the vetted glyph registry, the startup width probe, and the ASCII fallback. |
 
 ## How the docs are organized

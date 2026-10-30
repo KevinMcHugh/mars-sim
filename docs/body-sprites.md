@@ -2,8 +2,8 @@
 
 > Part of the [mars-sim documentation](./README.md).
 
-**S1 (scale), S2 (mutant paper dolls) and S3a (dolls for everyone) are
-built. S3b (state badges) is a proposal.** When a phase
+**Every phase is built: S1 (scale), S2 (mutant paper dolls), S3a (dolls
+for everyone) and S3b (state badges).** When a phase
 ships, move its text into the present tense and note anywhere the build
 departed from the plan, as [z-levels.md](./z-levels.md) does.
 
@@ -226,11 +226,11 @@ Firefox/Safari reason [species-pack.md](./species-pack.md) records.
 **State icons still win.** A colonist drawn by their state (😱 💬 🔫 📦 🚒) has
 no look today, and in S2 has no doll either. While a mutant is panicking or
 fighting, it draws as the state icon, at its scale. That keeps all
-information currently on the map.
+information currently on the map. (S3b replaced this with badges; see
+below.)
 
 **Panels.** The Inspect heading shows the doll the map draws (the entity
-topic's `doll`, from `DollKey`, so a fleeing mutant's heading is 😱, as the
-map is). Roster rows show the colonist's resting doll whatever they are
+topic's `doll`, from `DollKey`; since S3b that is the doll in every state). Roster rows show the colonist's resting doll whatever they are
 doing (`RosterRow.Doll`, from `RestingDollKey`), as the roster's glyph has
 always ignored passing states. Both are `<img>`s from `dollURL`, beside
 `spriteURL` in `web/src/ui/sprite.ts`. The hover line shows the fallback.
@@ -264,12 +264,33 @@ form: to see the parts, temporarily set a part bit by hand in `DollKey`'s
   shoulders (`composeDoll(key, layout, true)`, `dollURL(key, true)`). The
   Inspect heading keeps the whole figure, parts and all.
 
-### S3b: state badges
+### S3b: state badges (built)
 
-- **State badges** replace the state-figure swap: the doll stays, and a small
-  badge (the same emoji, at about 40% size) is drawn at the top corner in a
-  second instance pass. Only then do state icons stop hiding the body. This
-  is the one real UX decision left. Play it before committing to it.
+A doll keeps its body whatever the colonist is doing. A state the emoji map
+drew *in place of* the figure (😱 fleeing, 💬 talking, 🔫 fighting, 📦
+hauling, 😵 down, 🩹 aiding…) is drawn as a badge over the doll's right
+shoulder instead, on a pale disc with a dark rim, so the body, its parts and
+its height stay visible through a fight.
+
+- **Go decides which states badge.** `glyphs.StateBadge(s)` is whatever
+  `ForEntity` draws a colonist in state `s` as, when that is not the figure,
+  so the terminal's state glyphs and the browser's badges cannot drift.
+  `HelloDolls.Badges` sends it by `State` value (a symbol index, or -1), and
+  the frame's existing state byte indexes it: no new frame field.
+- **`DollKey` covers every state.** It no longer checks that the colonist is
+  at rest, so the entity topic's `doll` (the Inspect heading) is the doll
+  even mid-fight. The firefighter look (👨🏿‍🚒) no longer appears on the map:
+  an aiding colonist is their doll with a 🩹 badge. It stays as text in the
+  inspector's lists.
+- **A second instance pass.** The renderer builds the badge instances
+  beside the entity instances (a doll whose state has a badge), and draws
+  them after every body, with `uBadge` set: the vertex shader puts a quad of
+  `max(0.42 × body, 0.4)` tiles at the body's top right, scaled with the
+  body but never so small a badge on a two-foot colonist stops reading, and
+  the fragment shader composites the emoji over its disc. Badges are drawn
+  zoomed in only; a dot has no shoulder.
+- **Text is unchanged.** The hover line shows the doll's fallback (the look)
+  and the state's name, as before.
 
 ## Why it is this way
 

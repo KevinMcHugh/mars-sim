@@ -11,9 +11,10 @@ candidate emoji, best first; the page draws the first one its emoji font
 renders as a single glyph. The TUI is unchanged.
 
 Since [body-sprites.md](./body-sprites.md)'s S3a, the map and the roster draw
-a colonist at rest as a paper doll instead. Looks are still the text form of
-a colonist (the hover line, lists in the inspector), the firefighter, and
-the map's stand-in until a doll is painted (`HelloDolls.Fallbacks`).
+every colonist as a paper doll instead, and S3b draws their state as a badge
+over it, so the firefighter look no longer reaches the map. Looks are still
+the text form of a colonist (the hover line, lists in the inspector) and the
+map's stand-in until a doll is painted (`HelloDolls.Fallbacks`).
 
 ## Source
 

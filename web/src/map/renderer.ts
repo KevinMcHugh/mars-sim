@@ -220,6 +220,7 @@ uniform float uScale;
 uniform vec2 uView;
 uniform float uSize;    // sprite size in tiles
 uniform bool uFeet;     // scale by aBody, standing on the tile's bottom edge
+uniform bool uBadge;    // a state badge at the body's top right (docs/body-sprites.md)
 out vec2 vCorner;
 flat out uint vKind;
 flat out uint vGlyph;
@@ -232,6 +233,12 @@ void main() {
   vec2 anchor = uFeet ? vec2(0.5, 1.0) : vec2(0.5);
   float size = uFeet ? uSize * aBody : uSize;
   vec2 tile = vec2(aPos) + anchor + (aCorner - anchor) * size;
+  if (uBadge) {
+    // Over the body's right shoulder, scaled with it but never below 0.4 of
+    // a tile, so a small body's badge still reads.
+    vec2 centre = vec2(aPos) + vec2(0.5 + 0.3 * size, 1.0 - 0.8 * size);
+    tile = centre + (aCorner - 0.5) * max(0.42 * size, 0.4);
+  }
   vec2 px = (tile - uCam) * uScale;
   gl_Position = vec4(px.x / (uView.x * 0.5), -px.y / (uView.y * 0.5), 0.0, 1.0);
 }`;
@@ -244,6 +251,7 @@ flat in uint vGlyph;
 uniform vec3 uColors[${MAX_KINDS}];
 uniform bool uRound;
 uniform bool uGlyphs;
+uniform bool uBadge;
 uniform sampler2D uAtlas;
 uniform vec2 uAtlasGrid;
 out vec4 outColor;
@@ -253,6 +261,14 @@ void main() {
     int g = int(vGlyph);
     vec2 uv = (vec2(float(g % cols), float(g / cols)) + vCorner) / uAtlasGrid;
     vec4 s = texture(uAtlas, uv); // premultiplied; blended ONE, ONE_MINUS_SRC_ALPHA
+    if (uBadge) {
+      // On a pale disc, so it reads over the doll and any floor.
+      float d = length(vCorner - 0.5);
+      if (d > 0.5) discard;
+      vec4 disc = d > 0.45 ? vec4(0.17, 0.13, 0.11, 0.9) : vec4(0.97, 0.95, 0.91, 0.92) * 0.92;
+      outColor = s + disc * (1.0 - s.a);
+      return;
+    }
     if (s.a < 0.02) discard;
     outColor = s;
     return;
@@ -353,6 +369,13 @@ export class MapRenderer {
   private quad: WebGLBuffer;
   private terrainVAO: WebGLVertexArrayObject;
   private entityVAO: WebGLVertexArrayObject;
+  // State badges over paper dolls: one per doll whose state has a glyph.
+  private badgePos: WebGLBuffer;
+  private badgeKind: WebGLBuffer;
+  private badgeGlyph: WebGLBuffer;
+  private badgeBody: WebGLBuffer;
+  private badgeVAO: WebGLVertexArrayObject;
+  private badgeCount = 0;
   private refuseVAO: WebGLVertexArrayObject;
   private entityPos: WebGLBuffer;
   private entityKind: WebGLBuffer;
@@ -442,7 +465,7 @@ export class MapRenderer {
     for (const [prog, names] of [
       [this.terrainProg, ['uOrigin', 'uSize', 'uCam', 'uScale', 'uView', 'uTerrain', 'uTerrainColors', 'uRockColors', 'uFog',
         'uGlyphs', 'uAtlas', 'uAtlasGrid', 'uTerrainGlyph', 'uGlyphBackdrop']],
-      [this.spriteProg, ['uCam', 'uScale', 'uView', 'uSize', 'uFeet', 'uColors', 'uRound', 'uGlyphs', 'uAtlas', 'uAtlasGrid']],
+      [this.spriteProg, ['uCam', 'uScale', 'uView', 'uSize', 'uFeet', 'uBadge', 'uColors', 'uRound', 'uGlyphs', 'uAtlas', 'uAtlasGrid']],
     ] as const) {
       for (const n of names) this.u[(prog === this.terrainProg ? 't.' : 's.') + n] = gl.getUniformLocation(prog, n);
     }
@@ -457,6 +480,11 @@ export class MapRenderer {
     this.entityGlyph = gl.createBuffer()!;
     this.entityBody = gl.createBuffer()!;
     this.entityVAO = this.spriteVAO(this.entityPos, this.entityKind, this.entityGlyph, this.entityBody);
+    this.badgePos = gl.createBuffer()!;
+    this.badgeKind = gl.createBuffer()!;
+    this.badgeGlyph = gl.createBuffer()!;
+    this.badgeBody = gl.createBuffer()!;
+    this.badgeVAO = this.spriteVAO(this.badgePos, this.badgeKind, this.badgeGlyph, this.badgeBody);
     this.refusePos = gl.createBuffer()!;
     this.refuseKind = gl.createBuffer()!;
     this.refuseGlyph = gl.createBuffer()!;
@@ -535,7 +563,7 @@ export class MapRenderer {
     for (const c of this.chunks.values()) this.gl.deleteTexture(c.tex);
     this.chunks.clear();
     this.pages.clear();
-    this.entityCount = this.refuseCount = this.tintCount = this.hiCount = this.flowCount = this.zoneCount = this.marksCount = 0;
+    this.entityCount = this.badgeCount = this.refuseCount = this.tintCount = this.hiCount = this.flowCount = this.zoneCount = this.marksCount = 0;
     this.refuse = null;
     this.scum = null;
     this.salt = null;
@@ -638,12 +666,34 @@ export class MapRenderer {
     const byBody = order.map((_, j) => j).sort((a, b) => scales[b] - scales[a]);
     const n = order.length;
     const frameNo = ++this.frameNo;
+    // A doll keeps its body whatever it is doing; its state, when it has a
+    // glyph, is a badge drawn over it.
+    const dolls = this.hello?.glyphs.dolls;
+    const badgePos = new Int32Array(n * 2);
+    const badgeGlyph = new Uint16Array(n);
+    const badgeBody = new Float32Array(n);
+    let nb = 0;
     for (let k = 0; k < n; k++) {
       const i = order[byBody[k]];
       pos[2 * k] = e.x[i]; pos[2 * k + 1] = e.y[i]; kind[k] = e.kind[i]; glyph[k] = this.atlasGlyph(e.glyph[i], frameNo);
       body[k] = scales[byBody[k]];
+      const badge = dolls && e.glyph[i] >= dolls.base && e.glyph[i] < dolls.base + dolls.count
+        ? dolls.badges?.[e.state[i]] ?? -1 : -1;
+      if (badge >= 0) {
+        badgePos[2 * nb] = e.x[i]; badgePos[2 * nb + 1] = e.y[i]; badgeGlyph[nb] = badge; badgeBody[nb] = body[k];
+        nb++;
+      }
     }
     this.entityCount = n;
+    this.badgeCount = nb;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.badgePos);
+    gl.bufferData(gl.ARRAY_BUFFER, badgePos.subarray(0, 2 * nb), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.badgeKind);
+    gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(nb), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.badgeGlyph);
+    gl.bufferData(gl.ARRAY_BUFFER, badgeGlyph.subarray(0, nb), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.badgeBody);
+    gl.bufferData(gl.ARRAY_BUFFER, badgeBody.subarray(0, nb), gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.entityPos);
     gl.bufferData(gl.ARRAY_BUFFER, pos.subarray(0, 2 * n), gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.entityKind);
@@ -1124,6 +1174,13 @@ export class MapRenderer {
       gl.uniform1i(this.u['s.uFeet'], glyphs ? 1 : 0);
       gl.uniform1i(this.u['s.uRound'], 1);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.entityCount);
+    }
+    // Badges over every body, zoomed in only: a dot has no shoulder.
+    if (this.badgeCount > 0 && glyphs) {
+      gl.bindVertexArray(this.badgeVAO);
+      gl.uniform1i(this.u['s.uBadge'], 1);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.badgeCount);
+      gl.uniform1i(this.u['s.uBadge'], 0);
     }
 
     if (this.mark) {
