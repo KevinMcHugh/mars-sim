@@ -88,7 +88,54 @@ type HelloGlyphs struct {
 	// shows SpriteFallback in its place. See docs/species-pack.md.
 	Sprites        []string `json:"sprites"`
 	SpriteFallback int      `json:"spriteFallback"`
+	// Dolls says how to read a glyph index past the sprites as a paper doll
+	// (glyphs.DollKey). See docs/body-sprites.md.
+	Dolls HelloDolls `json:"dolls"`
 }
+
+// HelloDolls is the doll key's layout. A frame's glyph Base+k is doll k, for
+// k below Count. k is mixed-radix, least significant first: a bit per part in
+// Parts, then the hair (an index into Hairs), the skin tone (0 to Tones-1),
+// and the figure (an index into Figures). The page composes the doll's art
+// from those digits and draws the symbol Fallback until it has.
+type HelloDolls struct {
+	Base     int      `json:"base"`
+	Count    int      `json:"count"`
+	Figures  []string `json:"figures"`
+	Tones    int      `json:"tones"`
+	Hairs    []string `json:"hairs"`
+	Parts    []string `json:"parts"`
+	Fallback int      `json:"fallback"`
+}
+
+// dollFigureNames name glyphs.DollFigures for the page's part library.
+var dollFigureNames = map[string]string{
+	glyphs.ManAdult: "man", glyphs.WomanAdult: "woman", glyphs.PersonAdult: "person",
+	glyphs.ManSenior: "old man", glyphs.WomanSenior: "old woman", glyphs.PersonSenior: "older person",
+}
+
+func helloDolls(sprites int) HelloDolls {
+	d := HelloDolls{
+		Base:     dollBase(sprites),
+		Count:    glyphs.NumDolls,
+		Tones:    glyphs.DollTones,
+		Fallback: int(glyphIndex[glyphs.Mutant]),
+	}
+	for _, f := range glyphs.DollFigures {
+		d.Figures = append(d.Figures, dollFigureNames[f])
+	}
+	for h := range glyphs.DollHairs {
+		d.Hairs = append(d.Hairs, sim.HairColor(h).String())
+	}
+	for _, p := range glyphs.DollParts {
+		d.Parts = append(d.Parts, p.String())
+	}
+	return d
+}
+
+// dollBase is the glyph index of doll 0: past the symbols, the looks and a
+// game's sprites.
+func dollBase(sprites int) int { return len(glyphs.All) + len(glyphs.Looks) + sprites }
 
 // glyphIndex is each glyph's position in glyphs.All, the index frames carry
 // (beside looks: see entityGlyph).
@@ -106,12 +153,16 @@ func entityHeight(e sim.EntityView) uint16 {
 	return uint16(min(max(e.HeightCM, 0), 0xFFFF))
 }
 
-// entityGlyph is the glyph index a frame carries for e: its sprite past the
-// looks when it has one, its look past the end of glyphs.All when it has one,
-// else its glyph in it.
-func entityGlyph(e sim.EntityView) uint16 {
+// entityGlyph is the glyph index a frame carries for e in a game with that many
+// species-pack sprites: its sprite past the looks when it has one, its doll past the
+// sprites when it has one, its look past the end of glyphs.All when it has
+// one, else its glyph in it.
+func entityGlyph(e sim.EntityView, sprites int) uint16 {
 	if e.Sprite > 0 {
 		return uint16(len(glyphs.All) + len(glyphs.Looks) + e.Sprite - 1)
+	}
+	if k, ok := glyphs.DollKey(e); ok {
+		return uint16(dollBase(sprites) + k)
 	}
 	if i, ok := glyphs.LookIndex(e); ok {
 		return uint16(i)
@@ -132,6 +183,7 @@ func helloGlyphs(sprites []string) HelloGlyphs {
 		Sprites: append([]string{}, sprites...),
 		// The plain alien: what a hover line says until the image is drawn.
 		SpriteFallback: int(glyphIndex[glyphs.ForKind(sim.Alien)]),
+		Dolls:          helloDolls(len(sprites)),
 	}
 	for k := range enums.Kinds {
 		h.Kinds[k] = int(glyphIndex[glyphs.ForKind(sim.Kind(k))])

@@ -830,7 +830,10 @@ function showHover(sx: number, sy: number): void {
       const e = last.entities;
       for (let i = 0; i < e.count; i++) {
         if (e.x[i] !== x || e.y[i] !== y) continue;
-        const g = hello.glyphs.symbols[e.glyph[i]] ?? '';
+        // A paper doll is past the symbols: the text shows its fallback.
+        const d = hello.glyphs.dolls;
+        const gi = d && e.glyph[i] >= d.base && e.glyph[i] < d.base + d.count ? d.fallback : e.glyph[i];
+        const g = hello.glyphs.symbols[gi] ?? '';
         const name = names?.[e.id[i]] ?? `${hello.enums.kinds[e.kind[i]]} #${e.id[i]}`;
         parts.push(`${g} ${name}, ${hello.enums.states[e.state[i]]}`);
       }

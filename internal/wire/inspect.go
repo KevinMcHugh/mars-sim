@@ -91,6 +91,9 @@ type EntityTopic struct {
 	// Sprite is the alien's species-pack sprite, an index into
 	// Hello.glyphs.sprites, or -1 for none (docs/species-pack.md).
 	Sprite int `json:"sprite"`
+	// Doll is the paper doll the map draws the creature as, a key into
+	// Hello.glyphs.dolls, or -1 for none (docs/body-sprites.md).
+	Doll int `json:"doll"`
 	// Colonist is everything a colonist has that other creatures do not.
 	Colonist *ColonistDetail `json:"colonist,omitempty"`
 }
@@ -252,6 +255,10 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 
 		SpeciesIndex: -1,
 		Sprite:       e.Sprite - 1,
+		Doll:         -1,
+	}
+	if k, ok := glyphs.DollKey(e); ok {
+		t.Doll = k
 	}
 	if e.Dead {
 		t.DiedTick, t.DiedAt, t.Cause = e.DiedTick, sim.Clock(e.DiedTick, s.TicksPerDay), e.Cause

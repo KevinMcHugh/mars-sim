@@ -43,12 +43,18 @@
 
 import type { Frame, Hello } from '../../wire/decode.js';
 import { PAGE_SIDE, PAGE_TILES, TILE_BYTES, TILE_VISIBLE } from '../../wire/decode.js';
-import { buildAtlas } from './atlas';
+import { buildAtlas, paintCell } from './atlas';
 import type { Atlas } from './atlas';
 import { Camera } from './camera';
 import * as palette from './palette';
 import { TILE_ART } from './tileart';
 import { bodyScale } from './bodyscale';
+import { DollPool } from './dollpool';
+import { composeDoll } from './dolls';
+
+// Atlas cells kept for paper dolls (docs/body-sprites.md): the most distinct
+// dolls one frame can show; past that the rest draw their fallback.
+const DOLL_CELLS = 64;
 
 const CHUNK_PAGES = 32;
 const CHUNK_TILES = CHUNK_PAGES * PAGE_SIDE; // 2048: under every WebGL2 max texture size
@@ -355,6 +361,9 @@ export class MapRenderer {
   private refuseKind: WebGLBuffer;
   private refuseGlyph: WebGLBuffer;
   private atlas: Atlas | null = null;
+  private dolls: DollPool | null = null;
+  /** Counts frames, so the doll pool knows which dolls were drawn lately. */
+  private frameNo = 0;
   private u: Record<string, WebGLUniformLocation | null> = {};
 
   private chunks = new Map<number, Chunk>();
@@ -549,8 +558,13 @@ export class MapRenderer {
     const firstSprite = hello.glyphs.symbols.length - sprites.length;
     // Terrain with hand-drawn art in place of its emoji (docs/tile-art.md).
     const art = hello.glyphs.symbols.flatMap((s, index) => (TILE_ART[s] ? [{ index, svg: TILE_ART[s] }] : []));
-    this.atlas = buildAtlas(gl, hello.glyphs.symbols,
+    const atlas = buildAtlas(gl, hello.glyphs.symbols,
       [...art, ...sprites.map((svg, i) => ({ index: firstSprite + i, svg }))],
+      () => { this.dirty = true; }, DOLL_CELLS);
+    this.atlas = atlas;
+    const layout = hello.glyphs.dolls;
+    this.dolls = new DollPool(atlas.reserved, DOLL_CELLS,
+      (key, cell) => paintCell(gl, atlas, cell, composeDoll(key, layout)),
       () => { this.dirty = true; });
     gl.useProgram(this.spriteProg);
     const kinds = pad(palette.kindColors(hello.enums.kinds), MAX_KINDS);
@@ -622,9 +636,10 @@ export class MapRenderer {
     const scales = order.map((i) => bodyScale(e.height[i]));
     const byBody = order.map((_, j) => j).sort((a, b) => scales[b] - scales[a]);
     const n = order.length;
+    const frameNo = ++this.frameNo;
     for (let k = 0; k < n; k++) {
       const i = order[byBody[k]];
-      pos[2 * k] = e.x[i]; pos[2 * k + 1] = e.y[i]; kind[k] = e.kind[i]; glyph[k] = e.glyph[i];
+      pos[2 * k] = e.x[i]; pos[2 * k + 1] = e.y[i]; kind[k] = e.kind[i]; glyph[k] = this.atlasGlyph(e.glyph[i], frameNo);
       body[k] = scales[byBody[k]];
     }
     this.entityCount = n;
@@ -649,6 +664,18 @@ export class MapRenderer {
     if (f.flow || f.pages.count > 0 || f.tilesReset) this.rebuildFlow();
     this.lastFrame = f;
     this.dirty = true;
+  }
+
+  /**
+   * The atlas cell for a frame's glyph index: the index itself, except for a
+   * paper doll, which is drawn from its cell in the doll pool, or as its
+   * fallback symbol until that cell is painted (docs/body-sprites.md).
+   */
+  private atlasGlyph(g: number, frameNo: number): number {
+    const d = this.hello?.glyphs.dolls;
+    if (!d || g < d.base || g >= d.base + d.count || !this.dolls) return g;
+    const cell = this.dolls.cell(g - d.base, frameNo);
+    return cell >= 0 ? cell : d.fallback;
   }
 
   /**

@@ -190,8 +190,11 @@ cost of being a mutant is social, not physical.
   step and is *not* subject to its half-of-`AffinityMax` saturation, so a
   mutant-lover's regard for a mutant can climb into the outer range plain
   conversation can never reach.
-- **Display.** A mutant draws as 🧟 on the map instead of their age/gender
-  figure, and the roster's BODY line lists the parts they actually have.
+- **Display.** A mutant draws as 🧟 in the terminal instead of their
+  age/gender figure. The browser map draws them as a paper doll instead: their
+  own figure, skin and hair with the parts they actually grew, at their
+  height ([body-sprites.md](./body-sprites.md)). The roster's BODY line lists
+  the parts they actually have.
 
 ## Why it is this way
 

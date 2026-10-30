@@ -2,7 +2,7 @@
 
 > Part of the [mars-sim documentation](./README.md).
 
-**S1 (scale) is built. S2 and S3 (paper dolls) are proposals.** When a phase
+**S1 (scale) and S2 (mutant paper dolls) are built. S3 is a proposal.** When a phase
 ships, move its text into the present tense and note anywhere the build
 departed from the plan, as [z-levels.md](./z-levels.md) does.
 
@@ -42,14 +42,26 @@ S1, built:
   `aBody` attribute and the `uFeet` uniform in `SPRITE_VS`, and the
   biggest-first sort in `update`.
 
-S2, planned and not yet written:
+S2, built:
 
-- `internal/glyphs/dolls.go` (S2): `DollKey`, `DollIndex(e)`, the key's
-  mixed-radix layout. `HelloGlyphs.Dolls` gives the base index and the radixes.
-- `web/src/map/dolls.ts` (S2): the part library (SVG fragments) and
-  `composeDoll(key) → svg`.
-- `web/src/map/atlas.ts` (S2): a pool of doll cells filled on demand, and the
-  remap from a frame's doll index to a cell.
+- [`internal/glyphs/dolls.go`](../internal/glyphs/dolls.go): the key's
+  digits (`DollFigures`, `DollTones`, `DollHairs`, `DollParts`), `NumDolls`,
+  `DollKey` (the map's) and `RestingDollKey` (the roster's). Tested in
+  [`dolls_test.go`](../internal/glyphs/dolls_test.go).
+- [`internal/wire/wire.go`](../internal/wire/wire.go): `HelloDolls`, and the
+  doll range in `entityGlyph`, which now takes the game's sprite count.
+  `EntityTopic.Doll` ([`inspect.go`](../internal/wire/inspect.go)) and
+  `RosterRow.Doll` ([`roster.go`](../internal/wire/roster.go)). Tested in
+  [`dolls_test.go`](../internal/wire/dolls_test.go).
+- [`web/src/map/dolls.ts`](../web/src/map/dolls.ts): `dollDigits` and
+  `composeDoll`, the part library. Tested by `dolls.test.mjs`.
+- [`web/src/map/dollpool.ts`](../web/src/map/dollpool.ts): `DollPool`, the
+  atlas cells dolls are painted into. Tested by `dollpool.test.mjs`.
+- [`web/src/map/atlas.ts`](../web/src/map/atlas.ts): `buildAtlas`'s
+  `reserve` cells and `paintCell`. The renderer's `atlasGlyph` maps a frame's
+  doll index to its cell, or to the fallback.
+- [`web/src/ui/sprite.ts`](../web/src/ui/sprite.ts): `dollURL`, for the
+  Inspect heading and the roster rows.
 
 ## How it works
 
@@ -140,10 +152,16 @@ That gives 6 × 5 × 6 × 16 = 2,880 keys. A frame's glyph index
 easily in the `uint16`. No new frame field is needed, and no table has to
 grow mid-game. A colonist who mutates just starts sending a different index.
 
-In S2, `glyphs.ForColonist` still returns 🧟 for a mutant, and `DollIndex`
-returns a doll in place of the look. Hello sends `glyphs.dolls`: the base
-index, the radixes in order, and `dollFallback`, the symbol to draw until a
-doll is painted (🧟 in S2).
+`glyphs.ForColonist` still returns 🧟 for a mutant (the terminal and every
+text surface keep it), and `DollKey` gives the map a doll in its place. Hello
+sends `glyphs.dolls` (`HelloDolls`): `base`, `count`, the digit values in
+order (`figures`, `tones`, `hairs`, `parts`) and `fallback`, the symbol to
+draw until a doll is painted (🧟). The page unpacks a key with those radixes
+(`dollDigits`), so the digit order is the one thing Go and the page must agree
+on, and both tests pin it.
+
+`base` depends on the game's sprite count, so `entityGlyph` takes it: the
+encoder passes `len(snap.Sprites)`.
 
 **Not in `symbols`.** Every symbol gets an atlas cell, and 2,880 cells × 128²
 × 4 bytes is about 190 MB of texture. So dolls are **never** appended to
@@ -155,12 +173,15 @@ doll is painted (🧟 in S2).
    becomes `dollFallback` for this frame, and `composeDoll(key)` is queued.
 3. A composed doll is decoded through an `Image` (the same `loadSVG` path the
    pack sprites use, so no markup ever enters the DOM), drawn into a free cell
-   from a fixed pool reserved at the end of the atlas (start with 64 cells),
-   and uploaded with `texSubImage2D`. Mipmaps are then regenerated, and the
-   map is marked dirty.
-4. If the pool is full, the least recently drawn doll's cell is evicted. A
-   colony with more than 64 distinct mutants in view at once falls back to
-   🧟 for the overflow. That is acceptable, and it is a pool size to raise.
+   from a fixed pool reserved at the end of the atlas (`DOLL_CELLS`, 64), in
+   the atlas's canvas too (so the full re-upload when pack sprites settle
+   keeps it), and uploaded with `texSubImage2D`. Mipmaps are then
+   regenerated, and the map is marked dirty.
+4. If the pool is full, the least recently drawn doll's cell is evicted, but
+   never one drawn on the current frame and never one still painting (its
+   paint would land on the next owner). A colony with more than 64 distinct
+   dolls in view at once falls back to 🧟 for the overflow. A doll that fails
+   to paint stays on its fallback and is not retried.
 
 Hover text and legends map a doll index to `dollFallback`'s text, so text
 surfaces never learn that dolls exist. This mirrors how looks resolve into
@@ -174,29 +195,46 @@ figures. That shared skeleton is the rule that makes the parts library small.
 A tail drawn once at the hip anchor fits every body, so parts don't
 multiply by figure.
 
+The figure is a small full-length person in a colony jumpsuit, standing on
+the cell's bottom edge, rather than the emoji's head-and-shoulders: a tail and
+a third arm need a body to hang off. The jumpsuit's colour follows the figure
+(blue, purple, green for man, woman, person) so gender still reads at a
+glance, as it did with the emoji. Seniors get glasses and a couple of lines,
+and keep their hair.
+
 Layers, back to front:
 
-1. back: tail, vestigial twin (at the shoulder, behind)
-2. base body for the figure (`{{skin}}` fill)
-3. third arm (at the off-side shoulder)
-4. head and face (`{{skin}}`), then the extra eye
-5. hair for the hair digit (none when bald)
+1. tail (from the hip), vestigial twin (a small sleeping head behind the left
+   shoulder)
+2. back hair (long or bobbed figures)
+3. body: arms, legs, boots, torso
+4. third arm (waving from the right side)
+5. head and face
+6. front hair (none when bald), then a senior's glasses
+7. extra eye, last, on the forehead over any fringe: it is the part people
+   notice first, so nothing may hide it
 
-Colour comes from token substitution (`{{skin}}`, `{{hair}}`, a small fixed
-palette per tone and hair), not CSS variables, so the composed SVG is plain,
-self-contained and decodes the same everywhere. Each composed SVG gets
-explicit `width` and `height` (`sized` in `atlas.ts`) for the Firefox/Safari
-reason [species-pack.md](./species-pack.md) records.
+Colours are plain fills chosen in TypeScript (a small palette per tone and
+hair), not CSS variables, so the composed SVG is self-contained and decodes
+the same everywhere. It carries its own `width` and `height` for the
+Firefox/Safari reason [species-pack.md](./species-pack.md) records.
 
 **State icons still win.** A colonist drawn by their state (😱 💬 🔫 📦 🚒) has
 no look today, and in S2 has no doll either. While a mutant is panicking or
 fighting, it draws as the state icon, at its scale. That keeps all
 information currently on the map.
 
-**Panels.** The Inspect heading and roster rows show the doll as an `<img>`
-from `composeDoll(key)`, through the same data-URL helper the pack portraits
-use (`spriteURL` in `web/src/ui/sprite.ts`). The entity topic carries
-`doll` (the key, or -1).
+**Panels.** The Inspect heading shows the doll the map draws (the entity
+topic's `doll`, from `DollKey`, so a fleeing mutant's heading is 😱, as the
+map is). Roster rows show the colonist's resting doll whatever they are
+doing (`RosterRow.Doll`, from `RestingDollKey`), as the roster's glyph has
+always ignored passing states. Both are `<img>`s from `dollURL`, beside
+`spriteURL` in `web/src/ui/sprite.ts`. The hover line shows the fallback.
+
+**Testing it by eye.** Mutants are rare, and the mutation settings are not on
+the New game form. To look at dolls in a running game, temporarily drop the
+mutant test in `DollKey` (that is exactly S3) and `npm run wasm`; set a part
+bit by hand in the same place to see the parts.
 
 ### S3: every colonist, and state badges
 

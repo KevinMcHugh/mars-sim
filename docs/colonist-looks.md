@@ -41,7 +41,9 @@ gets just tone, then plain.
 | blonde | 👱🏿‍♂️ · 👱🏿‍♀️ · 👱🏿 (blond is its own base, not a component) | 👴🏿 |
 
 Seniors (👴 👵 🧓) only take a tone: Unicode has no hair components for them.
-A mutant (🧟) and a colonist drawn by their state (😱 💬 🔫 📦 …) have no look,
+A mutant (🧟; the browser map draws them as a paper doll instead, see
+[body-sprites.md](./body-sprites.md)) and a colonist drawn by their state
+(😱 💬 🔫 📦 …) have no look,
 with one exception: a colonist helping a casualty (`Aiding`) is a
 firefighter of its own gender in its own tone, 👨🏿‍🚒 · 👩🏻‍🚒 · 🧑🏽‍🚒, then the
 untoned one, then the TUI's 🩹 (see
