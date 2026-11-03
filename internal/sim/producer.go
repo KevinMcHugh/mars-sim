@@ -2,6 +2,7 @@ package sim
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 )
 
@@ -306,18 +307,24 @@ func (w *World) chainDepth() int {
 	return d
 }
 
-// planWaitingAt reports whether someone other than id has a craft plan at the
-// workshop at p still waiting on its inputs. One producer plans at a workshop
+// craftPlansWaiting lists the workshops where someone other than id has a
+// craft plan still waiting on its inputs. One producer plans at a workshop
 // at a time, as one works it at a time: when four colonists each took a plan
 // to machine a rifle at the one gun bench, each waiting on steel, nobody was
 // left free to smelt any, and the chain stalled a link from the top.
-func (w *World) planWaitingAt(p Point, id EntityID) bool {
+//
+// It is a list taken once per planCraft, not a question asked per workshop:
+// asked per workshop, it walked the plans map for every candidate of every
+// recipe, and was 7% of a 50-colonist game. The list is in map order, so
+// callers only ask whether it holds a point.
+func (w *World) craftPlansWaiting(id EntityID) []Point {
+	var at []Point
 	for _, pl := range w.plans {
-		if pl.kind == planCraft && pl.workshop == p && pl.actor != id && !pl.crafted {
-			return true
+		if pl.kind == planCraft && pl.actor != id && !pl.crafted {
+			at = append(at, pl.workshop)
 		}
 	}
-	return false
+	return at
 }
 
 // ---- Gathering -----------------------------------------------------------------------
@@ -382,6 +389,21 @@ func (w *World) sellGathered(e *Entity, p *plan) {
 // the plan, into probe, and reports planned.
 func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, planned bool) {
 	me := ColonistOwner(e.ID)
+	waiting := w.craftPlansWaiting(e.ID)
+	var facility Terrain // the facility usable is asked about
+	usable := func(c *StorageContainer) bool {
+		id := w.workshopClaims[c.Pos]
+		return c.Terrain == facility && (id == 0 || id == e.ID) && !slices.Contains(waiting, c.Pos) && w.mayCookAt(e, c.Pos)
+	}
+	// Which workshop e would use depends on the facility, not the recipe, and
+	// nothing below changes the world until a plan is taken on and returns:
+	// so each facility is searched once per call, not once per recipe that
+	// makes b.Item (the per-recipe search was a fifth of a 50-colonist game).
+	type pick struct {
+		house      Point
+		ok, looked bool
+	}
+	var picks [numTerrains]pick
 	for ri, r := range recipes {
 		out := 0
 		for _, o := range r.Outputs {
@@ -392,14 +414,16 @@ func (w *World) planCraft(e *Entity, b *Order, probe *planOffer) (started, plann
 		if out == 0 || !w.recipeEnabled(r) {
 			continue
 		}
-		usable := func(c *StorageContainer) bool {
-			id := w.workshopClaims[c.Pos]
-			return c.Terrain == r.Facility && (id == 0 || id == e.ID) && !w.planWaitingAt(c.Pos, e.ID) && w.mayCookAt(e, c.Pos)
+		pk := &picks[r.Facility]
+		if !pk.looked {
+			facility = r.Facility
+			pk.house, pk.ok = w.nearestWorkshop(e, r.Facility, usable)
+			if own, mine := w.ownKitchen(e); mine && r.Facility == Scumhouse && usable(w.storageContainers[own]) {
+				pk.house, pk.ok = own, true // a chef cooks at its own kitchen
+			}
+			pk.looked = true
 		}
-		house, ok := w.nearestWorkshop(e, r.Facility, usable)
-		if own, mine := w.ownKitchen(e); mine && r.Facility == Scumhouse && usable(w.storageContainers[own]) {
-			house, ok = own, true // a chef cooks at its own kitchen
-		}
+		house, ok := pk.house, pk.ok
 		if !ok {
 			continue
 		}

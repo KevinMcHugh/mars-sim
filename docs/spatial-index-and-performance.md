@@ -174,6 +174,29 @@ whole grid every time.
 | 5000x5000 | 41 ms, 25 MB | 33 µs, 19 KB |
 | 7000x7000 | 79 ms, 49 MB | 34 µs, 28 KB |
 
+The producer planner's workshop search. In a 50-colonist game (seed 42,
+`-tps` uncapped) a fifth of the CPU was `planCraft` finding a workshop: it
+searched every scumhouse once per recipe that made the bid's item, though the
+answer depends only on the facility, and each candidate walked the whole plans
+map to ask whether someone else's plan was waiting there (`planWaitingAt`).
+`planCraft` now searches each facility once per call and takes the list of
+waiting workshops once (`craftPlansWaiting`). Nothing in the recipe loop
+changes the world before a plan is taken on, so the picks are the ones the old
+loop made; the world fingerprints of three seeds over 20,000 ticks match.
+
+| 50 colonists, 20,000 ticks | ms/tick before | after |
+| --- | --- | --- |
+| Seed 42 | 0.64 | 0.57 |
+| Seed 7 | 0.72 | 0.63 |
+| Seed 1234 | 0.68 | 0.64 |
+
+What is left at that size is spread out: colonists picking a focus (~15%),
+`nearestMatch` threat and company searches (~15%), A\* (~13%, mostly walks to
+the hall), the other `nearestWorkshop` callers and `mealDepots` (~12%), and
+publishing (~5%). Ranging over Go maps (`facilityTiles`, `storageContainers`,
+`plans`) is about 8% on its own. At the default 8 ticks a second a tick uses
+under 1% of its frame.
+
 Room siting is the planner's scan rather than a colonist's. A colony that wants
 a room that fits nowhere repeats a failed search of the whole carved box every
 16 ticks. Rejecting rock anchors along their approach row first took a failed
