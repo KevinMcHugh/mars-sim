@@ -15,6 +15,10 @@ export interface Atlas {
   rows: number;
   /** Set when the renderer drops this atlas, so a late sprite load leaves it alone. */
   disposed?: boolean;
+  /** The first of the cells reserved past the symbols (paintCell's to fill). */
+  reserved: number;
+  /** What the texture holds, kept so a cell can be painted later. */
+  canvas: HTMLCanvasElement;
 }
 
 /**
@@ -35,16 +39,18 @@ const FONT = EMOJI_FONT;
  * Draw symbols into a new atlas texture. images, if any, are painted over
  * their cells once they decode, and the texture is uploaded again; onPainted
  * runs then, so the map redraws. Until then (or if an image fails) the cell
- * shows its symbol.
+ * shows its symbol. reserve more cells are left blank past the symbols, for
+ * paintCell (the paper dolls' pool, docs/body-sprites.md).
  */
 export function buildAtlas(
   gl: WebGL2RenderingContext,
   symbols: string[],
   images: AtlasImage[] = [],
   onPainted: () => void = () => {},
+  reserve = 0,
 ): Atlas {
   const cols = COLS;
-  const rows = Math.max(1, Math.ceil(symbols.length / cols));
+  const rows = Math.max(1, Math.ceil((symbols.length + reserve) / cols));
   const canvas = document.createElement('canvas');
   canvas.width = cols * CELL;
   canvas.height = rows * CELL;
@@ -69,7 +75,7 @@ export function buildAtlas(
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const atlas: Atlas = { texture, cols, rows };
+  const atlas: Atlas = { texture, cols, rows, reserved: symbols.length, canvas };
 
   if (images.length > 0) {
     // One upload once every image has settled, not one per image.
@@ -99,6 +105,32 @@ export function buildAtlas(
     });
   }
   return atlas;
+}
+
+/**
+ * Paint an SVG into one cell, replacing whatever it held, and upload just that
+ * cell. It goes into the atlas's canvas too, so a later full upload (the
+ * images above settling) keeps it. Rejects if the SVG does not decode or the
+ * atlas was dropped meanwhile.
+ */
+export async function paintCell(gl: WebGL2RenderingContext, atlas: Atlas, index: number, svg: string): Promise<void> {
+  const img = await loadSVG(svg);
+  if (atlas.disposed) throw new Error('atlas dropped');
+  if (!img.naturalWidth || !img.naturalHeight) throw new Error('image has no size');
+  const x = (index % atlas.cols) * CELL;
+  const y = Math.floor(index / atlas.cols) * CELL;
+  const ctx = atlas.canvas.getContext('2d')!;
+  ctx.clearRect(x, y, CELL, CELL);
+  ctx.drawImage(img, x, y, CELL, CELL);
+  // Upload from a cell-sized canvas, not a readback of the big one.
+  const cell = document.createElement('canvas');
+  cell.width = cell.height = CELL;
+  cell.getContext('2d')!.drawImage(img, 0, 0, CELL, CELL);
+  gl.bindTexture(gl.TEXTURE_2D, atlas.texture);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, gl.RGBA, gl.UNSIGNED_BYTE, cell);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.generateMipmap(gl.TEXTURE_2D);
 }
 
 function upload(gl: WebGL2RenderingContext, texture: WebGLTexture, canvas: HTMLCanvasElement): void {

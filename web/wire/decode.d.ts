@@ -47,6 +47,12 @@ export interface Hello {
      */
     sprites: string[];
     spriteFallback: number;
+    /**
+     * Paper dolls (docs/body-sprites.md): a frame's glyph base + k is doll k,
+     * for k below count. Never in symbols: the page composes a doll's art
+     * from its key (src/map/dolls.ts) and draws symbols[fallback] until then.
+     */
+    dolls: HelloDolls;
   };
   /** The most gore / scum one tile holds, for shading by amount. */
   goreMax: number;
@@ -126,3 +132,18 @@ export interface Frame {
 
 export function decodeFrame(buffer: ArrayBuffer): Frame;
 export function namedStats(frame: Frame, hello: Hello): Record<string, number>;
+
+/**
+ * The doll key's layout: mixed-radix, least significant first, a bit per
+ * part, then hair (an index into hairs), skin tone (0 to tones-1), and
+ * figure (an index into figures).
+ */
+export interface HelloDolls {
+  base: number;
+  count: number;
+  figures: string[];
+  tones: number;
+  hairs: string[];
+  parts: string[];
+  fallback: number;
+}

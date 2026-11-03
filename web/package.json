@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "sh build-wasm.sh && svelte-check --fail-on-warnings && vite build",
     "check": "svelte-check --fail-on-warnings",
-    "test": "node --test wire/decode.test.mjs src/ui/charts/population.test.mjs src/ui/charts/builder.test.mjs src/settings.test.mjs src/reuse.test.mjs src/ui/storage.test.mjs src/ui/sandbox.test.mjs src/ui/format.test.mjs src/ui/power.test.mjs src/map/palette.test.mjs src/map/tileart.test.mjs src/map/bodyscale.test.mjs",
+    "test": "node --test wire/decode.test.mjs src/ui/charts/population.test.mjs src/ui/charts/builder.test.mjs src/settings.test.mjs src/reuse.test.mjs src/ui/storage.test.mjs src/ui/sandbox.test.mjs src/ui/format.test.mjs src/ui/power.test.mjs src/map/palette.test.mjs src/map/tileart.test.mjs src/map/bodyscale.test.mjs src/map/dollpool.test.mjs src/map/dolls.test.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {

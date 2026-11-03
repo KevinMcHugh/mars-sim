@@ -457,7 +457,7 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	}
 	// A colonist at rest indexes past the symbols into its look.
 	p := &sim.Profile{Gender: sim.GenderWoman, Age: 40, SkinTone: sim.SkinDark, HairColor: sim.HairRed}
-	i := int(entityGlyph(sim.EntityView{Kind: sim.Colonist, Profile: p})) - len(g.Symbols)
+	i := int(entityGlyph(sim.EntityView{Kind: sim.Colonist, Profile: p}, 0)) - len(g.Symbols)
 	if i < 0 || i >= len(g.Looks) || g.Looks[i][0] != "\U0001F469\U0001F3FF\u200D\U0001F9B0" {
 		t.Errorf("a dark-skinned red-haired woman draws as look %d", i)
 	}

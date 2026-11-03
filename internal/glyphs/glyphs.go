@@ -334,6 +334,13 @@ func ForColonist(p *sim.Profile) string {
 	if p.HasTrait(sim.TraitMutant) {
 		return Mutant
 	}
+	return figureFor(p)
+}
+
+// figureFor is the gender/age figure for a colonist with a profile, mutant or
+// not: ForColonist's answer before the mutant override. A paper doll
+// (dolls.go) is built on it, because a mutant's doll is still their own body.
+func figureFor(p *sim.Profile) string {
 	senior := p.Age >= seniorAge
 	switch p.Gender {
 	case sim.GenderMan:

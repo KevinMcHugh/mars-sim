@@ -30,7 +30,10 @@ type RosterRow struct {
 	// Look is Glyph in the colonist's own skin and hair, when it has one
 	// (see HelloGlyphs.Looks).
 	Look glyphs.Look `json:"look,omitempty"`
-	Name string      `json:"name"`
+	// Doll is the colonist's resting paper doll, a key into
+	// Hello.glyphs.dolls, or -1 for none (docs/body-sprites.md).
+	Doll int    `json:"doll"`
+	Name string `json:"name"`
 	// Info is the second line: "she/her · age 34" for a colonist, an alien's
 	// species label, or the kind.
 	Info string `json:"info"`
@@ -102,6 +105,10 @@ func rosterRow(e sim.EntityView) RosterRow {
 		Dead:  e.Dead,
 		HP:    e.HP,
 		MaxHP: e.MaxHP,
+		Doll:  -1,
+	}
+	if k, ok := glyphs.RestingDollKey(e); ok {
+		r.Doll = k
 	}
 	// A colonist's roster glyph ignores its passing state (the state line
 	// says that); other creatures have no resting glyph, so they use the

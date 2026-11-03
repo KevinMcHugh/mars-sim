@@ -44,6 +44,8 @@ export interface EntityInfo {
   speciesIndex: number;
   /** A species-pack sprite, an index into Hello.glyphs.sprites; -1 for none. */
   sprite: number;
+  /** The paper doll the map draws it as, a key into hello.glyphs.dolls, or -1 (docs/body-sprites.md). */
+  doll: number;
   colonist?: Colonist;
 }
 

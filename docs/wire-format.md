@@ -70,7 +70,9 @@ the colony ([siting.md](./siting.md)). Hello's `sandbox` (no version bump
 either) is the `sandbox` setting, so the page shows its Sandbox tab for a
 sandbox game, a loaded one included ([sandbox.md](./sandbox.md)). Version 7
 adds the entities' **height** array, which the map scales bodies by
-([body-sprites.md](./body-sprites.md)).
+([body-sprites.md](./body-sprites.md)). Hello's `glyphs.dolls` (no version
+bump) says how to read a glyph index past the sprites as a paper doll, the
+same document's S2.
 
 ### A frame
 

@@ -248,7 +248,7 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	}
 	at += 4 * n
 	for i := range ents {
-		le.PutUint16(b[at+2*i:], entityGlyph(ents[i]))
+		le.PutUint16(b[at+2*i:], entityGlyph(ents[i], len(snap.Sprites)))
 	}
 	at += align4(2 * n)
 	for i := range ents {

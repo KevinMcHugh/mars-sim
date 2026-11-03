@@ -9,7 +9,7 @@
   import Bar from './Bar.svelte';
   import Section from './Section.svelte';
   import type { EntityInfo, TileInfo } from './inspect';
-  import { spriteURL } from './sprite';
+  import { dollURL, spriteURL } from './sprite';
 
   // The tabs that open the inspector, for its way back.
   const backLabels: Record<string, string> = { roster: 'Roster', jobs: 'Jobs', storage: 'Storage', market: 'Market', power: 'Power' };
@@ -23,7 +23,8 @@
   const tile = $derived(ui.selected && 'tile' in ui.selected ? (data as TileInfo | undefined) : undefined);
   const c = $derived(entity?.colonist);
   // A packed alien's own form's sprite, as the map draws it, in place of the emoji.
-  const sprite = $derived(entity ? spriteURL(entity.sprite) : '');
+  // A colonist the map draws as a paper doll shows the same doll.
+  const sprite = $derived(entity ? spriteURL(entity.sprite) || dollURL(entity.doll) : '');
 
 </script>
 
