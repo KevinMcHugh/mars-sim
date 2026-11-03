@@ -1,7 +1,7 @@
 // Paper doll keys and art (docs/body-sprites.md).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { composeDoll, dollDigits, dollFallback, textGlyph } from './dolls.ts';
+import { composeDoll, dollDigits, dollFallback, expressionOf, textGlyph } from './dolls.ts';
 
 const layout = {
   base: 0, count: 6 * 5 * 6 * 16, fallback: 0, tones: 5,
@@ -36,4 +36,13 @@ test('a doll stands in as the mutant if it grew parts, else as its look', () => 
   assert.equal(textGlyph(1000 + key(1, 2, 3, 0), l), 500 + key(1, 2, 3, 0) / 16);
   assert.equal(textGlyph(42, l), 42);
   assert.equal(textGlyph(1000 + l.count, l), 1000 + l.count, 'past the dolls is not a doll');
+});
+
+test('a body keeps one expression as it mutates, and the colony gets every one', () => {
+  const seen = new Set();
+  for (let body = 0; body < layout.count / 16; body++) seen.add(expressionOf(body));
+  assert.equal(seen.size, 6);
+  // Growing parts does not change the face: same body, same mouth.
+  const mouth = (svg) => svg.match(/<path d="M5[78][^"]*" fill="(?:none|#f4ece4)"/)?.[0];
+  assert.equal(mouth(composeDoll(key(1, 2, 3, 0), layout)), mouth(composeDoll(key(1, 2, 3, 15), layout)));
 });
