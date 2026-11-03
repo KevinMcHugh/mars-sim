@@ -149,4 +149,6 @@ export interface HelloDolls {
   fallback: number;
   /** Any other doll's stand-in, by key >> parts.length: its look's glyph index. */
   fallbacks: number[];
+  /** By state value: the symbol a doll in that state wears as a badge, or -1. */
+  badges: number[];
 }

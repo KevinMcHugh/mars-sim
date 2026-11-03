@@ -32,9 +32,9 @@ func TestDollKeysAreDenseAndUnique(t *testing.T) {
 	}
 }
 
-// Every colonist at rest draws as their own doll, with the parts they grew;
-// a colonist drawn by their state, and anything else, has none.
-func TestDollKeyIsAColonistAtRest(t *testing.T) {
+// Every colonist draws as their own doll, with the parts they grew, whatever
+// they are doing; anything else has none.
+func TestDollKeyIsAColonist(t *testing.T) {
 	mutant := &sim.Profile{Gender: sim.GenderWoman, Age: 70, SkinTone: sim.SkinMedium, HairColor: sim.HairRed,
 		Traits: []sim.Trait{sim.TraitMutant}}
 	e := sim.EntityView{Kind: sim.Colonist, State: sim.Idle, Profile: mutant}
@@ -57,15 +57,30 @@ func TestDollKeyIsAColonistAtRest(t *testing.T) {
 		t.Errorf("a plain colonist at rest: key %d %v", k, ok)
 	}
 
+	if k2, ok := DollKey(sim.EntityView{Kind: sim.Colonist, State: sim.Fleeing, Profile: mutant, MaxParts: e.MaxParts}); !ok || k2 != k {
+		t.Errorf("a fleeing mutant: key %d %v, want %d", k2, ok, k)
+	}
+
 	for _, e := range []sim.EntityView{
-		{Kind: sim.Colonist, State: sim.Fleeing, Profile: mutant},
-		{Kind: sim.Colonist, State: sim.Aiding, Profile: plain},
-		{Kind: sim.Colonist, State: sim.Talking, Profile: plain},
 		{Kind: sim.Colonist},
 		{Kind: sim.Alien},
+		{Kind: sim.Cat},
 	} {
 		if _, ok := DollKey(e); ok {
 			t.Errorf("%+v has a doll", e)
+		}
+	}
+}
+
+// A state the emoji map drew in place of the figure becomes the doll's badge;
+// a state that kept the figure has none.
+func TestStateBadges(t *testing.T) {
+	for s, want := range map[sim.State]string{
+		sim.Fleeing: Fleeing, sim.Talking: Talking, sim.Fighting: Fighting, sim.Aiding: Aiding,
+		sim.Hauling: Hauling, sim.PassedOut: Down, sim.Idle: "", sim.Mining: "",
+	} {
+		if got := StateBadge(s); got != want {
+			t.Errorf("%v: badge %q, want %q", s, got, want)
 		}
 	}
 }

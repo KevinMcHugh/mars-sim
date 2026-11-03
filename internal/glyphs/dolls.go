@@ -66,14 +66,26 @@ func profileDoll(p *sim.Profile, maxParts []int) (int, bool) {
 }
 
 // DollKey is the doll e draws as, if it draws as one: any colonist with a
-// profile, at rest, whom ForEntity would otherwise draw as their figure (or
-// 🧟). A colonist drawn by their state (fleeing, talking, aiding…) keeps the
-// state's glyph.
+// profile, whatever they are doing. A state ForEntity would draw in place of
+// the figure (fleeing, talking, aiding…) is drawn as a badge over the doll
+// instead: StateBadge.
 func DollKey(e sim.EntityView) (int, bool) {
-	if e.Kind != sim.Colonist || e.Profile == nil || ForEntity(e) != ForColonist(e.Profile) {
+	if e.Kind != sim.Colonist {
 		return 0, false
 	}
 	return profileDoll(e.Profile, e.MaxParts[:])
+}
+
+// StateBadge is the glyph a colonist in state s wears as a badge over their
+// doll, or "" for a state that shows no glyph: the glyph ForEntity draws a
+// colonist in that state as, when that is not the colonist's own figure.
+func StateBadge(s sim.State) string {
+	p := &sim.Profile{}
+	g := ForEntity(sim.EntityView{Kind: sim.Colonist, State: s, Profile: p})
+	if g == ForColonist(p) {
+		return ""
+	}
+	return g
 }
 
 // RestingDollKey is the doll a colonist draws as at rest, whatever they are
