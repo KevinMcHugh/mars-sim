@@ -208,9 +208,10 @@ cut), so gender still reads at a glance, as it did with the emoji. Seniors
 get glasses and eye bags, and keep their hair.
 
 **Expressions.** Every face has one of six expressions (`EXPRESSIONS`:
-deadpan, suspicious, worried, grumpy, manic, sly): eyes with whites, lids
+deadpan, suspicious, worried, grumpy, manic, dazed): eyes with whites, lids
 and pupils that look somewhere, brows, and a mouth that is never a plain
-smile. Which one is a hash of the key without its parts (`expressionOf`), so
+smile, nor a smirk (a "sly" face, a raised brow over a lopsided grin, read
+as smarmy and was replaced). Which one is a hash of the key without its parts (`expressionOf`), so
 a colonist keeps their face as they mutate. It is flavour, computed on the
 page, and never touches the simulation, so it needs no random stream.
 

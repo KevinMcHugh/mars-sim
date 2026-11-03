@@ -122,6 +122,8 @@ function thirdArm(suit: string, skin: string): string {
 interface Expression {
   /** Pupil offset, x and y, from each eye's centre. */
   look: [number, number];
+  /** The right eye's, when it looks somewhere else. */
+  lookRight?: [number, number];
   /** Top lid: 0 open, up to 1 shut. */
   lid: number;
   /** Brow ends, inner then outer, as y offsets (negative is up); left eye, right eye. */
@@ -130,20 +132,21 @@ interface Expression {
   mouth: string;
 }
 
-// Mouths are paths centred on (64, 60). None of them is a plain smile.
+// Mouths are paths centred on (64, 60). None of them is a plain smile, and
+// none is a smirk: a raised brow over a lopsided grin read as smarmy.
 const EXPRESSIONS: Expression[] = [
   // deadpan: half-lidded, flat
   { look: [0, 0.5], lid: 0.5, brows: [[0, 0], [0, 0]], pupil: 2.1, mouth: 'M58 60.5 L70 60.5' },
-  // suspicious: side-eye, one brow down, a smirk
-  { look: [2.2, 0], lid: 0.35, brows: [[1.5, -1], [-2, -2.5]], pupil: 2.1, mouth: 'M58 61 Q 65 61, 70 58.5' },
+  // suspicious: a narrow side-eye under low brows, lips pursed
+  { look: [2.4, 0.4], lid: 0.55, brows: [[1.5, 1], [1.5, 1]], pupil: 2.1, mouth: 'M61 60.5 Q 64 59.3, 67 60.5' },
   // worried: brows up in the middle, a small o
   { look: [0, -0.6], lid: 0, brows: [[-3, 1], [-3, 1]], pupil: 1.9, mouth: 'M61.5 60.5 a 2.5 2.2 0 1 0 5 0 a 2.5 2.2 0 1 0 -5 0 Z' },
   // grumpy: brows down in the middle, a frown
   { look: [0, 0.6], lid: 0.25, brows: [[2.5, -1.5], [2.5, -1.5]], pupil: 2.1, mouth: 'M58 62 Q 64 57.5, 70 62' },
   // manic: wide eyes, pin pupils, teeth
   { look: [0, 0], lid: 0, brows: [[-2.5, -3], [-2.5, -3]], pupil: 1.3, mouth: 'M57.5 58.5 L70.5 58.5 L69.5 62.5 L58.5 62.5 Z M61 58.5 L61 62.5 M64 58.5 L64 62.5 M67 58.5 L67 62.5' },
-  // sly: looking aside, lopsided
-  { look: [-2.2, 0.3], lid: 0.45, brows: [[0, 0], [-1, -3]], pupil: 2.1, mouth: 'M58 59 Q 61 61.5, 66 60.5 L 70 59.5' },
+  // dazed: each eye off on its own, a wobbly mouth
+  { look: [-1.8, 1.2], lookRight: [2, -1.2], lid: 0, brows: [[-1, -1.5], [0.5, 1]], pupil: 1.8, mouth: 'M59 60.5 q 2.5 -2, 5 0 q 2.5 2, 5 0' },
 ];
 
 /**
@@ -159,7 +162,7 @@ export function expressionOf(body: number): number {
   return (h >>> 0) % EXPRESSIONS.length;
 }
 
-function eye(cx: number, cy: number, e: Expression, skin: string, brow: [number, number], side: -1 | 1): string {
+function eye(cx: number, cy: number, e: Expression, skin: string, brow: [number, number], side: -1 | 1, look: [number, number]): string {
   const lid = e.lid > 0
     ? `<path d="M${cx - 5.5} ${cy} A 5.5 4.6 0 0 1 ${cx + 5.5} ${cy} L ${cx + 5.5} ${cy - 4.6 + 9.2 * e.lid} L ${cx - 5.5} ${cy - 4.6 + 9.2 * e.lid} Z" fill="${skin}"/>` +
       `<path d="M${cx - 5.2} ${cy - 4.6 + 9.2 * e.lid} L${cx + 5.2} ${cy - 4.6 + 9.2 * e.lid}" stroke="${LINE}" stroke-width="1.4" stroke-linecap="round"/>`
@@ -167,7 +170,7 @@ function eye(cx: number, cy: number, e: Expression, skin: string, brow: [number,
   // inner end towards the nose
   const inner = cx - side * 5, outer = cx + side * 5;
   return `<ellipse cx="${cx}" cy="${cy}" rx="5.5" ry="4.6" fill="#fbfaf5" ${stroke}/>` +
-    `<circle cx="${cx + e.look[0]}" cy="${cy + e.look[1]}" r="${e.pupil}" fill="${LINE}"/>` + lid +
+    `<circle cx="${cx + look[0]}" cy="${cy + look[1]}" r="${e.pupil}" fill="${LINE}"/>` + lid +
     `<path d="M${inner} ${cy - 7.5 + brow[0]} L${outer} ${cy - 7.5 + brow[1]}" stroke="${LINE}" stroke-width="2.2" stroke-linecap="round"/>`;
 }
 
@@ -179,8 +182,8 @@ function head(skin: string, shade: string, senior: boolean, e: Expression): stri
     // a wide pear, flat on top, heavy in the jaw; ears tucked flat into it
     `<path d="M46 40 C 46 27, 82 27, 82 40 L 84 50 C 86 61, 76 67, 64 67 C 52 67, 42 61, 44 50 Z" fill="${skin}" ${stroke}/>` +
     `<path d="M45.5 46 q -2.5 2.5, -0.5 6 M82.5 46 q 2.5 2.5, 0.5 6" fill="none" stroke="${shade}" stroke-width="1.6" stroke-linecap="round"/>` +
-    eye(56, 47, e, skin, e.brows[0], -1) +
-    eye(72, 47, e, skin, e.brows[1], 1) +
+    eye(56, 47, e, skin, e.brows[0], -1, e.look) +
+    eye(72, 47, e, skin, e.brows[1], 1, e.lookRight ?? e.look) +
     bags +
     // the nose: bulbous, the thing you remember
     `<path d="M62 50 C 57 53, 57.5 58, 62 57.5 Q 64 58.5, 66 57.5 C 70.5 58, 71 53, 66 50 Z" fill="${shade}" ${stroke}/>` +
