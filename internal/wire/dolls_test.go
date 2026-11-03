@@ -40,11 +40,11 @@ func TestDollGlyphs(t *testing.T) {
 	if got := int(entityGlyph(e, 2)); got != d.Base+k {
 		t.Fatalf("a fleeing mutant got glyph %d, want their doll", got)
 	}
-	if b := d.Badges[sim.Fleeing]; b < 0 || h.Glyphs.Symbols[b] != glyphs.Fleeing {
-		t.Fatalf("fleeing badge %d", b)
+	if d.Badges[sim.Fleeing] != glyphs.Fleeing || d.Badges[sim.Mining] != glyphs.Pick {
+		t.Fatalf("badges %q", d.Badges)
 	}
-	if d.Badges[sim.Idle] != -1 || len(d.Badges) != len(h.Enums.States) {
-		t.Fatalf("badges %v", d.Badges)
+	if d.Badges[sim.Idle] != "" || len(d.Badges) != len(h.Enums.States) {
+		t.Fatalf("badges %q", d.Badges)
 	}
 	if row := rosterRow(e); row.Doll != k {
 		t.Fatalf("roster doll %d, want %d", row.Doll, k)

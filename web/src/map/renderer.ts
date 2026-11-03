@@ -376,6 +376,8 @@ export class MapRenderer {
   private badgeBody: WebGLBuffer;
   private badgeVAO: WebGLVertexArrayObject;
   private badgeCount = 0;
+  /** By state value: the atlas cell of its badge, or -1 for none. */
+  private badgeCells: number[] = [];
   private refuseVAO: WebGLVertexArrayObject;
   private entityPos: WebGLBuffer;
   private entityKind: WebGLBuffer;
@@ -587,7 +589,18 @@ export class MapRenderer {
     const firstSprite = hello.glyphs.symbols.length - sprites.length;
     // Terrain with hand-drawn art in place of its emoji (docs/tile-art.md).
     const art = hello.glyphs.symbols.flatMap((s, index) => (TILE_ART[s] ? [{ index, svg: TILE_ART[s] }] : []));
-    const atlas = buildAtlas(gl, hello.glyphs.symbols,
+    // Badges are emoji, most of them symbols already; any that is not (⛏️)
+    // gets a cell of its own past the symbols (docs/body-sprites.md).
+    const badges = hello.glyphs.dolls?.badges ?? [];
+    const cells = [...hello.glyphs.symbols];
+    this.badgeCells = badges.map((b) => {
+      if (!b) return -1;
+      const at = cells.indexOf(b);
+      if (at >= 0) return at;
+      cells.push(b);
+      return cells.length - 1;
+    });
+    const atlas = buildAtlas(gl, cells,
       [...art, ...sprites.map((svg, i) => ({ index: firstSprite + i, svg }))],
       () => { this.dirty = true; }, DOLL_CELLS);
     this.atlas = atlas;
@@ -678,7 +691,7 @@ export class MapRenderer {
       pos[2 * k] = e.x[i]; pos[2 * k + 1] = e.y[i]; kind[k] = e.kind[i]; glyph[k] = this.atlasGlyph(e.glyph[i], frameNo);
       body[k] = scales[byBody[k]];
       const badge = dolls && e.glyph[i] >= dolls.base && e.glyph[i] < dolls.base + dolls.count
-        ? dolls.badges?.[e.state[i]] ?? -1 : -1;
+        ? this.badgeCells[e.state[i]] ?? -1 : -1;
       if (badge >= 0) {
         badgePos[2 * nb] = e.x[i]; badgePos[2 * nb + 1] = e.y[i]; badgeGlyph[nb] = badge; badgeBody[nb] = body[k];
         nb++;
