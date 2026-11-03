@@ -97,15 +97,18 @@ type HelloGlyphs struct {
 // k below Count. k is mixed-radix, least significant first: a bit per part in
 // Parts, then the hair (an index into Hairs), the skin tone (0 to Tones-1),
 // and the figure (an index into Figures). The page composes the doll's art
-// from those digits and draws the symbol Fallback until it has.
+// from those digits, and until it has, draws a doll with any part grown as
+// the symbol Fallback (the mutant) and any other as glyph Fallbacks[k >>
+// len(Parts)], its look.
 type HelloDolls struct {
-	Base     int      `json:"base"`
-	Count    int      `json:"count"`
-	Figures  []string `json:"figures"`
-	Tones    int      `json:"tones"`
-	Hairs    []string `json:"hairs"`
-	Parts    []string `json:"parts"`
-	Fallback int      `json:"fallback"`
+	Base      int      `json:"base"`
+	Count     int      `json:"count"`
+	Figures   []string `json:"figures"`
+	Tones     int      `json:"tones"`
+	Hairs     []string `json:"hairs"`
+	Parts     []string `json:"parts"`
+	Fallback  int      `json:"fallback"`
+	Fallbacks []int    `json:"fallbacks"`
 }
 
 // dollFigureNames name glyphs.DollFigures for the page's part library.
@@ -116,10 +119,11 @@ var dollFigureNames = map[string]string{
 
 func helloDolls(sprites int) HelloDolls {
 	d := HelloDolls{
-		Base:     dollBase(sprites),
-		Count:    glyphs.NumDolls,
-		Tones:    glyphs.DollTones,
-		Fallback: int(glyphIndex[glyphs.Mutant]),
+		Base:      dollBase(sprites),
+		Count:     glyphs.NumDolls,
+		Tones:     glyphs.DollTones,
+		Fallback:  int(glyphIndex[glyphs.Mutant]),
+		Fallbacks: glyphs.DollFallbacks(),
 	}
 	for _, f := range glyphs.DollFigures {
 		d.Figures = append(d.Figures, dollFigureNames[f])

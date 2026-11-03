@@ -455,11 +455,16 @@ func TestHelloNamesEverythingAFrameIndexes(t *testing.T) {
 	if len(glyphs.All)+len(g.Looks) > 0xFFFF || len(g.Looks) != len(glyphs.Looks) {
 		t.Errorf("%d symbols and %d looks: glyph indexes no longer fit a frame's uint16", len(glyphs.All), len(g.Looks))
 	}
-	// A colonist at rest indexes past the symbols into its look.
+	// A colonist at rest draws as a doll, and until it is painted, as its
+	// look (docs/body-sprites.md).
 	p := &sim.Profile{Gender: sim.GenderWoman, Age: 40, SkinTone: sim.SkinDark, HairColor: sim.HairRed}
-	i := int(entityGlyph(sim.EntityView{Kind: sim.Colonist, Profile: p}, 0)) - len(g.Symbols)
+	k := int(entityGlyph(sim.EntityView{Kind: sim.Colonist, Profile: p}, 0)) - g.Dolls.Base
+	if k < 0 || k >= g.Dolls.Count {
+		t.Fatalf("a colonist at rest draws as glyph %d, not a doll", k+g.Dolls.Base)
+	}
+	i := g.Dolls.Fallbacks[k>>len(g.Dolls.Parts)] - len(g.Symbols)
 	if i < 0 || i >= len(g.Looks) || g.Looks[i][0] != "\U0001F469\U0001F3FF\u200D\U0001F9B0" {
-		t.Errorf("a dark-skinned red-haired woman draws as look %d", i)
+		t.Errorf("a dark-skinned red-haired woman's doll falls back to look %d", i)
 	}
 	if n := len(h.Enums.Compositions); n > tileCompositionMask+1 {
 		t.Errorf("%d rock compositions do not fit the tile flags' %d bits", n, 4)
