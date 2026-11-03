@@ -198,27 +198,36 @@ figures. That shared skeleton is the rule that makes the parts library small.
 A tail drawn once at the hip anchor fits every body, so parts don't
 multiply by figure.
 
-The figure is a small full-length person in a colony jumpsuit, standing on
-the cell's bottom edge, rather than the emoji's head-and-shoulders: a tail and
-a third arm need a body to hang off. The jumpsuit's colour follows the figure
-(blue, purple, green for man, woman, person) so gender still reads at a
-glance, as it did with the emoji. Seniors get glasses and a couple of lines,
-and keep their hair.
+The figure is a squat little weirdo in a colony jumpsuit, standing on the
+cell's bottom edge, rather than the emoji's head-and-shoulders: a tail and a
+third arm need a body to hang off. A big, wide, pear-shaped head sits straight
+on a barrel body, with stubby legs, big boots and a bulbous nose. The
+jumpsuit's colour follows the figure (blue, purple, green for man, woman,
+person) and so does the hair (a tufty crop, a bun with a swept fringe, a bowl
+cut), so gender still reads at a glance, as it did with the emoji. Seniors
+get glasses and eye bags, and keep their hair.
 
-The proportions are a person's: the head is under a third of the figure, on
-a neck, with a jaw, flat ears, brows and a nose. The first draft had a big
-round head with ears sticking out, a stubby body and a dot-eyes-and-smile
-face. It read as a cartoon mascot (Reddit's Snoo, in particular) rather than
-a colonist. Keep new parts and figures to these proportions.
+**Expressions.** Every face has one of six expressions (`EXPRESSIONS`:
+deadpan, suspicious, worried, grumpy, manic, sly): eyes with whites, lids
+and pupils that look somewhere, brows, and a mouth that is never a plain
+smile. Which one is a hash of the key without its parts (`expressionOf`), so
+a colonist keeps their face as they mutate. It is flavour, computed on the
+page, and never touches the simulation, so it needs no random stream.
+
+Two looks were tried first and dropped. A big round head with ears sticking
+out and a dot-eyes-and-smile face read as Reddit's Snoo. A tidy,
+human-proportioned figure fixed that, but had no personality and wore the
+same vacant smile on every colonist. Keep new parts and figures squat, odd
+and expressive, and keep ears flat and heads un-round.
 
 Layers, back to front:
 
-1. tail (from the hip), vestigial twin (a small sleeping head behind the left
-   shoulder)
-2. back hair (long or bobbed figures)
+1. tail (from the hip), vestigial twin (a small sleeping head, nose and
+   all, behind the left shoulder)
+2. back hair and bun (the woman's figure)
 3. body: arms, legs, boots, torso
 4. third arm (waving from the right side)
-5. head and face
+5. head and face: eyes, brows, nose, mouth
 6. front hair (none when bald), then a senior's glasses
 7. extra eye, last, on the forehead over any fringe: it is the part people
    notice first, so nothing may hide it
