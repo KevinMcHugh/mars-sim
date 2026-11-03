@@ -189,6 +189,6 @@ export function composeDoll(key: number, layout: HelloDolls, portrait = false): 
     senior ? glasses() : '',
     has('extra eye') ? extraEye() : '',
   ];
-  const view = portrait ? '24 12 80 80' : '0 0 128 128';
+  const view = portrait ? '40 9 48 48' : '0 0 128 128';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${view}" width="128" height="128">${layers.join('')}</svg>`;
 }
