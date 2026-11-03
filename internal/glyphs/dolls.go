@@ -76,10 +76,26 @@ func DollKey(e sim.EntityView) (int, bool) {
 	return profileDoll(e.Profile, e.MaxParts[:])
 }
 
+// Pick is the mining badge, ⛏️. It is a badge only: the terminal draws a
+// miner as their own figure, and ⛏ is not in All because terminals disagree
+// on its width (it defaults to text presentation; the emoji form needs VS16,
+// which All never carries). See docs/terminal-cell-widths.md.
+const Pick = "\u26CF\uFE0F"
+
+// badgeOnly are badges for states the terminal draws as the colonist's
+// figure: on a doll there is room to say what they are doing.
+var badgeOnly = map[sim.State]string{
+	sim.Mining: Pick,
+}
+
 // StateBadge is the glyph a colonist in state s wears as a badge over their
 // doll, or "" for a state that shows no glyph: the glyph ForEntity draws a
-// colonist in that state as, when that is not the colonist's own figure.
+// colonist in that state as, when that is not the colonist's own figure, or
+// a badge-only glyph (badgeOnly) for a state it draws as the figure.
 func StateBadge(s sim.State) string {
+	if g, ok := badgeOnly[s]; ok {
+		return g
+	}
 	p := &sim.Profile{}
 	g := ForEntity(sim.EntityView{Kind: sim.Colonist, State: s, Profile: p})
 	if g == ForColonist(p) {

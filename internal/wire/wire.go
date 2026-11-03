@@ -109,10 +109,11 @@ type HelloDolls struct {
 	Parts     []string `json:"parts"`
 	Fallback  int      `json:"fallback"`
 	Fallbacks []int    `json:"fallbacks"`
-	// Badges is, by sim.State value, the symbol a doll in that state wears as
-	// a badge (glyphs.StateBadge), or -1 for none. A frame's state byte
-	// indexes it.
-	Badges []int `json:"badges"`
+	// Badges is, by sim.State value, the emoji a doll in that state wears as
+	// a badge (glyphs.StateBadge), or "" for none. A frame's state byte
+	// indexes it. Text, not an index into Symbols, because a badge need not
+	// be one of them (⛏️ is browser-only): the page draws each into its atlas.
+	Badges []string `json:"badges"`
 }
 
 // dollFigureNames name glyphs.DollFigures for the page's part library.
@@ -139,10 +140,7 @@ func helloDolls(sprites int) HelloDolls {
 		d.Parts = append(d.Parts, p.String())
 	}
 	for s := range sim.EnumNames().States {
-		d.Badges = append(d.Badges, -1)
-		if g := glyphs.StateBadge(sim.State(s)); g != "" {
-			d.Badges[s] = int(glyphIndex[g])
-		}
+		d.Badges = append(d.Badges, glyphs.StateBadge(sim.State(s)))
 	}
 	return d
 }

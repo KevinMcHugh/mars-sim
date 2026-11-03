@@ -284,15 +284,25 @@ form: to see the parts, temporarily set a part bit by hand in `DollKey`'s
 
 A doll keeps its body whatever the colonist is doing. A state the emoji map
 drew *in place of* the figure (😱 fleeing, 💬 talking, 🔫 fighting, 📦
-hauling, 😵 down, 🩹 aiding…) is drawn as a badge over the doll's right
+hauling, 😵 down, 🩹 aiding…), and mining (⛏️), is drawn as a badge over the doll's right
 shoulder instead, on a pale disc with a dark rim, so the body, its parts and
 its height stay visible through a fight.
 
 - **Go decides which states badge.** `glyphs.StateBadge(s)` is whatever
   `ForEntity` draws a colonist in state `s` as, when that is not the figure,
   so the terminal's state glyphs and the browser's badges cannot drift.
-  `HelloDolls.Badges` sends it by `State` value (a symbol index, or -1), and
-  the frame's existing state byte indexes it: no new frame field.
+  `HelloDolls.Badges` sends it by `State` value (the emoji, or "" for none),
+  and the frame's existing state byte indexes it: no new frame field.
+- **Badge-only states.** A state the terminal draws as the plain figure can
+  still have a badge, from `badgeOnly` in `dolls.go`: mining wears ⛏️
+  (`glyphs.Pick`). ⛏ is not in `glyphs.All` because terminals disagree on
+  its width (its default presentation is text, and the emoji form needs a
+  VS16, which `All` never carries; see
+  [terminal-cell-widths.md](./terminal-cell-widths.md)). That is why badges
+  travel as text rather than as symbol indexes: the renderer gives each
+  badge that is not already a symbol an atlas cell of its own, past the
+  symbols (`badgeCells`). A new badge-only state is one line in
+  `badgeOnly`.
 - **`DollKey` covers every state.** It no longer checks that the colonist is
   at rest, so the entity topic's `doll` (the Inspect heading) is the doll
   even mid-fight. The firefighter look (👨🏿‍🚒) no longer appears on the map:

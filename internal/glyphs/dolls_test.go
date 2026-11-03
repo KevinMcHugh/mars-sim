@@ -77,7 +77,7 @@ func TestDollKeyIsAColonist(t *testing.T) {
 func TestStateBadges(t *testing.T) {
 	for s, want := range map[sim.State]string{
 		sim.Fleeing: Fleeing, sim.Talking: Talking, sim.Fighting: Fighting, sim.Aiding: Aiding,
-		sim.Hauling: Hauling, sim.PassedOut: Down, sim.Idle: "", sim.Mining: "",
+		sim.Hauling: Hauling, sim.PassedOut: Down, sim.Idle: "", sim.Mining: Pick, sim.Moving: "",
 	} {
 		if got := StateBadge(s); got != want {
 			t.Errorf("%v: badge %q, want %q", s, got, want)
