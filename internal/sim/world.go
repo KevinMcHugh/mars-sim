@@ -425,6 +425,7 @@ func (w *World) addGore(p Point) {
 	r.Gore++
 	w.setRefuse(p, r)
 	w.lay(p).goreTotal++
+	w.splatter(p)
 }
 
 // addCorpse leaves a body of the given kind (ColonistCorpse, AlienCorpse or

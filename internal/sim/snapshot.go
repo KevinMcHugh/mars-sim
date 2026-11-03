@@ -27,7 +27,10 @@ type EntityView struct {
 	// Wounds is each body part's wound: open, dressed, or none (colonists
 	// only; see wounds.go). OnCall is whether the colonist is on the EMT
 	// detail.
-	Wounds    [numBodyParts]Wound
+	Wounds [numBodyParts]Wound
+	// Blood is how bloodied a colonist's clothes are, 0 to 6 (BloodTier
+	// buckets it); 0 for everyone else. See docs/blood.md.
+	Blood     int
 	OnCall    bool
 	Drives    [numDrives]int
 	Profile   *Profile  // colonists only; a deep copy, safe to read
@@ -1044,6 +1047,7 @@ func (w *World) entityView(e *Entity, kinChildren map[kinID][]kinID, full bool) 
 		Focus:     e.focus,
 		Peril:     w.perilOf(e),
 		Wounds:    e.wounds,
+		Blood:     e.blood,
 		OnCall:    e.onCall,
 		Drives:    w.currentDrives(e),
 		Profile:   e.Profile.clone(),

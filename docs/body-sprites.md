@@ -318,6 +318,35 @@ its height stay visible through a fight.
 - **Text is unchanged.** The hover line shows the doll's fallback (the look)
   and the state's name, as before.
 
+### Marks: blood and wounds (built)
+
+A doll shows what has happened to the body: blood on the clothes
+([blood.md](./blood.md)), and each part's wounds.
+
+- **Marks ride beside the key.** `glyphs.DollMarks` packs the blood tier
+  (bits 0-1) and two bits for each part of `glyphs.MarkParts` (the six base
+  parts, then the four mutant ones): 0 whole, 1 an open wound, 2 a dressed
+  one, 3 lost (a part the body had, at zero HP). That is 22 bits, sent as a
+  `uint32 marks` array in the frame's entities section (wire version 8), on
+  the entity topic as `marks`, and named in `HelloDolls.MarkParts`. They are
+  not digits of the key: blood and wounds change every few minutes of play,
+  and 4 × 4¹⁰ more keys would never fit the frame's `uint16` glyph.
+- **The pool caches doll and marks together.** The renderer's cache key is
+  `key × MARKS_SPAN + marks` (`MARKS_SPAN` is 2²², well inside a double's
+  exact integers), so a doll whose marks change paints a new cell. Until it
+  lands, the renderer draws the same doll unmarked if that is already painted
+  (`DollPool.peek`, which never starts a paint), and only then the emoji. A
+  colonist getting bloodier does not flick back to emoji every time.
+- **The art** (`dolls.ts`): blood tiers are splats on the jumpsuit, more and
+  darker with each tier, plus drops on the face when soaked. An open wound is
+  a red zig-zag gash with a drip on its part; a dressed one is a bandage band
+  across it, and a dressed head is a bandage round the brow with a knot. A
+  lost arm is a stump tied off at the end, a lost leg a wooden peg, a lost tail
+  a tied-off stub, a lost extra eye an eyepatch, and a lost twin is simply
+  gone. The colonist faces the viewer, so their right arm and leg are on the
+  viewer's left. The roster's portraits stay unmarked; the Inspect heading
+  shows the marks.
+
 ## Why it is this way
 
 - **Height on the wire, not a scale.** A scale would put a display rule in Go

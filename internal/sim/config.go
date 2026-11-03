@@ -472,6 +472,11 @@ type Config struct {
 	// the creature-sighting radii: a bloodstain doesn't announce itself the way
 	// a moving alien does.
 	GoreSightRadius int `cfg:"gore-sight-radius" doc:"a colonist notices gore on the ground within this many tiles"`
+	// Blood on clothes (docs/blood.md): a messy kill bloodies every colonist
+	// within BloodSplashRadius of it, and a step of blood fades every
+	// BloodFadeHours. Cosmetic: only the browser's paper dolls draw it.
+	BloodSplashRadius int `cfg:"blood-splash-radius" doc:"a messy kill bloodies colonists within this many tiles of it (-1: never)"`
+	BloodFadeHours    int `cfg:"blood-fade-hours" doc:"hours for a step of blood on a colonist's clothes to fade (0: never)"`
 
 	// Sanitation. A colonist with no urgent drive cleans up refuse — gore and
 	// corpses — and hauls it to an incinerator to burn. CleanRadius is how far
@@ -1088,6 +1093,8 @@ func DefaultConfig() Config {
 		FleeReleaseMargin:    3,
 		ColonistStompRadius:  4,
 		GoreSightRadius:      3,
+		BloodSplashRadius:    1,
+		BloodFadeHours:       3,
 
 		CleanRadius:           10,
 		CleanTicks:            6,

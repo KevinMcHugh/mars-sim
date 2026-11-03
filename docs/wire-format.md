@@ -72,7 +72,8 @@ sandbox game, a loaded one included ([sandbox.md](./sandbox.md)). Version 7
 adds the entities' **height** array, which the map scales bodies by
 ([body-sprites.md](./body-sprites.md)). Hello's `glyphs.dolls` (no version
 bump) says how to read a glyph index past the sprites as a paper doll, the
-same document's S2.
+same document's S2. Version 8 adds the entities' **marks** array: a doll's
+blood and wounds.
 
 ### A frame
 
@@ -83,7 +84,7 @@ nothing).
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | magic `MSFR` |
-| 4 | 2 | `Version` (7) |
+| 4 | 2 | `Version` (8) |
 | 6 | 2 | flags: 1 paused, 2 fog of war, 4 **tiles reset**, 8 **refuse frame**, 16 **scum frame**, 32 **salt frame**, 64 **flow frame** |
 | 8 | 8 | tick |
 | 16 | 8 | `TileChanges.Frame` |
@@ -106,7 +107,9 @@ Then the sections, in order:
 
 - **stats**: `int32 × S`, named by `Hello.stats`.
 - **entities**, struct-of-arrays: `uint32 id × N`, `int32 x × N`,
-  `int32 y × N`, `uint16 glyph × N` (padded to 4), `uint16 height × N`
+  `int32 y × N`, `uint32 marks × N` (a paper doll's blood and wounds,
+  `glyphs.DollMarks`; see [body-sprites.md](./body-sprites.md)),
+  `uint16 glyph × N` (padded to 4), `uint16 height × N`
   (padded to 4; centimetres, 0 for a kind with none, which the map scales
   bodies by; see [body-sprites.md](./body-sprites.md)), then `uint8 kind × N`,
   `uint8 state × N`, `uint8 focus × N`, padded to 4. The glyph is picked in Go

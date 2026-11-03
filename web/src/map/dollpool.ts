@@ -77,6 +77,17 @@ export class DollPool {
   }
 
   /**
+   * The cell doll key is painted in, or -1; unlike cell, it never starts a
+   * paint. A doll it finds counts as drawn on frame.
+   */
+  peek(key: number, frame: number): number {
+    const slot = this.slots.get(key);
+    if (!slot || slot.state !== 'ready') return -1;
+    slot.used = frame;
+    return slot.cell;
+  }
+
+  /**
    * Take back the cell of the least recently drawn doll not drawn in the last
    * STALE_FRAMES frames, or -1 if there is none. A doll still being painted is
    * never taken: its paint would land on the cell's next owner.

@@ -168,6 +168,7 @@ func (w *World) colonistTurn(e *Entity) {
 		return
 	}
 	w.healWounds(e)
+	w.fadeBlood(e)
 	w.serveOnCall(e)
 	if w.stayPassedOut(e) {
 		return

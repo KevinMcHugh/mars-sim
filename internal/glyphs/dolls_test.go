@@ -99,3 +99,25 @@ func TestDollFallbacksAreTheLooks(t *testing.T) {
 		t.Errorf("fallback look %v, want %v", look, want)
 	}
 }
+
+// Marks carry the blood tier and each part's state, two bits apiece.
+func TestDollMarks(t *testing.T) {
+	e := sim.EntityView{Kind: sim.Colonist, Blood: 5}
+	e.MaxParts[sim.Head], e.Parts[sim.Head] = 10, 10
+	e.MaxParts[sim.LeftArm], e.Parts[sim.LeftArm] = 6, 2
+	e.Wounds[sim.LeftArm] = sim.WoundOpen
+	e.MaxParts[sim.Torso], e.Parts[sim.Torso] = 20, 15
+	e.Wounds[sim.Torso] = sim.WoundDressed
+	e.MaxParts[sim.RightLeg], e.Parts[sim.RightLeg] = 8, 0 // lost, wound closed
+	m := DollMarks(e)
+	part := func(p int) uint32 { return m >> (2 + 2*p) & 3 }
+	if m&3 != 3 || part(0) != MarkWhole || part(1) != MarkDressed || part(2) != MarkOpen || part(5) != MarkLost {
+		t.Fatalf("marks %b", m)
+	}
+	if DollMarks(sim.EntityView{Kind: sim.Alien, Blood: 6}) != 0 {
+		t.Fatal("an alien has marks")
+	}
+	if 2+2*len(MarkParts) > 32 {
+		t.Fatal("marks no longer fit a uint32")
+	}
+}

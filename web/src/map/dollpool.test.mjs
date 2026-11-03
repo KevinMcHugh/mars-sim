@@ -56,3 +56,13 @@ test('a doll that fails to paint stays on its fallback and frees its cell', asyn
   await settle();
   assert.deepEqual(painted, [[5, 100]]);
 });
+
+test('peek finds a painted doll without starting a paint', async () => {
+  const { p, painted } = pool(2);
+  assert.equal(p.peek(1, 1), -1);
+  await settle();
+  assert.deepEqual(painted, [], 'peek painted nothing');
+  p.cell(1, 1);
+  await settle();
+  assert.equal(p.peek(1, 2), 100);
+});
