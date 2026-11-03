@@ -206,6 +206,12 @@ a third arm need a body to hang off. The jumpsuit's colour follows the figure
 glance, as it did with the emoji. Seniors get glasses and a couple of lines,
 and keep their hair.
 
+The proportions are a person's: the head is under a third of the figure, on
+a neck, with a jaw, flat ears, brows and a nose. The first draft had a big
+round head with ears sticking out, a stubby body and a dot-eyes-and-smile
+face. It read as a cartoon mascot (Reddit's Snoo, in particular) rather than
+a colonist. Keep new parts and figures to these proportions.
+
 Layers, back to front:
 
 1. tail (from the hip), vestigial twin (a small sleeping head behind the left
