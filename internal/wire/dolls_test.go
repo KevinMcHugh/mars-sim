@@ -43,6 +43,9 @@ func TestDollGlyphs(t *testing.T) {
 	if d.Badges[sim.Fleeing] != glyphs.Fleeing || d.Badges[sim.Mining] != glyphs.Pick {
 		t.Fatalf("badges %q", d.Badges)
 	}
+	if len(d.MarkParts) != len(glyphs.MarkParts) || d.MarkParts[0] != "head" {
+		t.Fatalf("mark parts %q", d.MarkParts)
+	}
 	if d.Badges[sim.Idle] != "" || len(d.Badges) != len(h.Enums.States) {
 		t.Fatalf("badges %q", d.Badges)
 	}

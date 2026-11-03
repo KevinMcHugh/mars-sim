@@ -130,3 +130,44 @@ func DollFallbacks() []int {
 	}
 	return out
 }
+
+// MarkParts are the body parts a doll's marks describe, in bit order: two
+// bits each, after the blood tier's two (DollMarks).
+var MarkParts = []sim.BodyPart{
+	sim.Head, sim.Torso, sim.LeftArm, sim.RightArm, sim.LeftLeg, sim.RightLeg,
+	sim.ThirdArm, sim.ExtraEye, sim.Tail, sim.VestigialTwin,
+}
+
+// A part's state in a doll's marks.
+const (
+	MarkWhole   = 0 // unhurt, or healed
+	MarkOpen    = 1 // an open wound
+	MarkDressed = 2 // a dressed wound
+	MarkLost    = 3 // destroyed: a part the body had and has no more
+)
+
+// DollMarks is what has happened to e's body, for its doll to show: the
+// blood tier on its clothes (sim.BloodTier) in bits 0-1, then two bits per
+// part of MarkParts. Zero for anything that is not a colonist, and for a
+// clean, unhurt one. It rides beside the doll's key rather than in it: blood
+// and wounds come and go every few minutes of play, and folding them into the
+// key would multiply it past a frame's uint16.
+func DollMarks(e sim.EntityView) uint32 {
+	if e.Kind != sim.Colonist {
+		return 0
+	}
+	m := uint32(sim.BloodTier(e.Blood))
+	for i, p := range MarkParts {
+		var s uint32
+		switch {
+		case e.MaxParts[p] > 0 && e.Parts[p] <= 0:
+			s = MarkLost
+		case e.Wounds[p] == sim.WoundOpen:
+			s = MarkOpen
+		case e.Wounds[p] == sim.WoundDressed:
+			s = MarkDressed
+		}
+		m |= s << (2 + 2*i)
+	}
+	return m
+}

@@ -87,6 +87,8 @@ export interface Frame {
     id: Uint32Array;
     x: Int32Array;
     y: Int32Array;
+    /** A doll's blood tier (bits 0-1) and each of dolls.markParts' state, two bits apiece. */
+    marks: Uint32Array;
     glyph: Uint16Array;
     /** Height in centimetres; 0 for a kind with none (docs/body-sprites.md). */
     height: Uint16Array;
@@ -151,4 +153,6 @@ export interface HelloDolls {
   fallbacks: number[];
   /** By state value: the emoji a doll in that state wears as a badge, or '' for none. Not always a symbol (⛏️). */
   badges: string[];
+  /** The parts a frame's marks describe, in bit order: two bits each (0 whole, 1 open, 2 dressed, 3 lost) after the blood tier's two. */
+  markParts: string[];
 }

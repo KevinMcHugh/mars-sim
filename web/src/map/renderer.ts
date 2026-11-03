@@ -56,6 +56,10 @@ import { composeDoll, dollFallback } from './dolls';
 // dolls the view holds at once; past that the rest draw their fallback, the
 // colonist's emoji. 128 cells are 8 MB of texture.
 const DOLL_CELLS = 128;
+// A doll's cell is cached by its key and its marks (blood and wounds) together:
+// key * MARKS_SPAN + marks. Marks are 22 bits (glyphs.DollMarks), and the
+// product stays well inside a double's exact integers.
+const MARKS_SPAN = 2 ** 22;
 
 const CHUNK_PAGES = 32;
 const CHUNK_TILES = CHUNK_PAGES * PAGE_SIDE; // 2048: under every WebGL2 max texture size
@@ -606,7 +610,8 @@ export class MapRenderer {
     this.atlas = atlas;
     const layout = hello.glyphs.dolls;
     this.dolls = new DollPool(atlas.reserved, DOLL_CELLS,
-      (key, cell) => paintCell(gl, atlas, cell, composeDoll(key, layout)),
+      // The pool's key is the doll's and its marks together (dollCacheKey).
+      (k, cell) => paintCell(gl, atlas, cell, composeDoll(Math.floor(k / MARKS_SPAN), layout, false, k % MARKS_SPAN)),
       () => { this.dirty = true; });
     gl.useProgram(this.spriteProg);
     const kinds = pad(palette.kindColors(hello.enums.kinds), MAX_KINDS);
@@ -688,7 +693,7 @@ export class MapRenderer {
     let nb = 0;
     for (let k = 0; k < n; k++) {
       const i = order[byBody[k]];
-      pos[2 * k] = e.x[i]; pos[2 * k + 1] = e.y[i]; kind[k] = e.kind[i]; glyph[k] = this.atlasGlyph(e.glyph[i], frameNo);
+      pos[2 * k] = e.x[i]; pos[2 * k + 1] = e.y[i]; kind[k] = e.kind[i]; glyph[k] = this.atlasGlyph(e.glyph[i], e.marks[i], frameNo);
       body[k] = scales[byBody[k]];
       const badge = dolls && e.glyph[i] >= dolls.base && e.glyph[i] < dolls.base + dolls.count
         ? this.badgeCells[e.state[i]] ?? -1 : -1;
@@ -735,11 +740,16 @@ export class MapRenderer {
    * paper doll, which is drawn from its cell in the doll pool, or as its
    * fallback symbol until that cell is painted (docs/body-sprites.md).
    */
-  private atlasGlyph(g: number, frameNo: number): number {
+  private atlasGlyph(g: number, marks: number, frameNo: number): number {
     const d = this.hello?.glyphs.dolls;
     if (!d || g < d.base || g >= d.base + d.count || !this.dolls) return g;
-    const cell = this.dolls.cell(g - d.base, frameNo);
-    return cell >= 0 ? cell : dollFallback(g - d.base, d);
+    const key = g - d.base;
+    const cell = this.dolls.cell(key * MARKS_SPAN + marks, frameNo);
+    if (cell >= 0) return cell;
+    // While new blood or a new wound is painted, the same doll unmarked, if
+    // it is already painted, rather than flicking back to the emoji.
+    const plain = marks ? this.dolls.peek(key * MARKS_SPAN, frameNo) : -1;
+    return plain >= 0 ? plain : dollFallback(key, d);
   }
 
   /**

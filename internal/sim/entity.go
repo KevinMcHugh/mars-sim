@@ -443,8 +443,12 @@ type Entity struct {
 	healPct  int
 	bleedAcc int
 	downBled bool
-	inCot    bool
-	cotAt    Point
+	// blood is how bloodied this colonist's clothes are, 0 to maxBlood;
+	// bloodFade counts ticks toward its next step fading (see blood.go).
+	blood     int
+	bloodFade int
+	inCot     bool
+	cotAt     Point
 	// The EMT detail (see emt.go): onCall while this colonist holds a place,
 	// emtTicks toward its next hour's pay, and the route it is dragging its
 	// casualty along to the cot at dragCot (dragAcc paces it at drag-speed).

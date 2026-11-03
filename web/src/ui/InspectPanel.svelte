@@ -24,7 +24,7 @@
   const c = $derived(entity?.colonist);
   // A packed alien's own form's sprite, as the map draws it, in place of the emoji.
   // A colonist the map draws as a paper doll shows the same doll.
-  const sprite = $derived(entity ? spriteURL(entity.sprite) || dollURL(entity.doll) : '');
+  const sprite = $derived(entity ? spriteURL(entity.sprite) || dollURL(entity.doll, false, entity.marks) : '');
 
 </script>
 

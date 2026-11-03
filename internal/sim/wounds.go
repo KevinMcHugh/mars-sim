@@ -65,6 +65,7 @@ func (e *Entity) wound(part BodyPart) {
 			e.dressed--
 		}
 		e.wounds[part] = WoundOpen
+		e.bloody(1)
 	}
 }
 
@@ -181,6 +182,7 @@ func (w *World) bleed(e *Entity) bool {
 	for e.bleedAcc >= point && e.HP > 0 {
 		e.bleedAcc -= point
 		e.HP--
+		e.bloody(1)
 	}
 	if e.Alive() && !e.passedOut && e.HP*100 < e.MaxHP*w.cfg.BleedCollapsePct {
 		w.collapseFromBloodLoss(e)

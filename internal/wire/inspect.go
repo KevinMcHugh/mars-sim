@@ -94,6 +94,9 @@ type EntityTopic struct {
 	// Doll is the paper doll the map draws the creature as, a key into
 	// Hello.glyphs.dolls, or -1 for none (docs/body-sprites.md).
 	Doll int `json:"doll"`
+	// Marks are the doll's blood and wounds, as a frame carries them
+	// (glyphs.DollMarks).
+	Marks uint32 `json:"marks"`
 	// Colonist is everything a colonist has that other creatures do not.
 	Colonist *ColonistDetail `json:"colonist,omitempty"`
 }
@@ -259,6 +262,7 @@ func entityTopic(s *sim.Snapshot, id sim.EntityID) EntityTopic {
 	}
 	if k, ok := glyphs.DollKey(e); ok {
 		t.Doll = k
+		t.Marks = glyphs.DollMarks(e)
 	}
 	if e.Dead {
 		t.DiedTick, t.DiedAt, t.Cause = e.DiedTick, sim.Clock(e.DiedTick, s.TicksPerDay), e.Cause

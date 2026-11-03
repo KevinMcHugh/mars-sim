@@ -562,6 +562,12 @@ siting-auto: true
 ## a colonist notices gore on the ground within this many tiles
 # gore-sight-radius: 3
 
+## a messy kill bloodies colonists within this many tiles of it (-1: never)
+# blood-splash-radius: 1
+
+## hours for a step of blood on a colonist's clothes to fade (0: never)
+# blood-fade-hours: 3
+
 # ── Sanitation ──────────────────────────────────────────────────────────
 ## how far a colonist looks for refuse to clean up (a Tidy colonist looks twice as far)
 # clean-radius: 10

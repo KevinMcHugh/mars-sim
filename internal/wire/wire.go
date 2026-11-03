@@ -25,7 +25,7 @@ import (
 // Version is the frame layout's version, carried in every frame header and in
 // Hello. Bump it on any change to the layout, and update the decoder
 // (web/wire/decode.js) and the golden files in the same change.
-const Version = 7
+const Version = 8
 
 // Hello is the once-per-game message.
 type Hello struct {
@@ -114,6 +114,9 @@ type HelloDolls struct {
 	// indexes it. Text, not an index into Symbols, because a badge need not
 	// be one of them (⛏️ is browser-only): the page draws each into its atlas.
 	Badges []string `json:"badges"`
+	// MarkParts name the parts of a frame's marks (glyphs.DollMarks), in bit
+	// order: two bits each after the blood tier's two.
+	MarkParts []string `json:"markParts"`
 }
 
 // dollFigureNames name glyphs.DollFigures for the page's part library.
@@ -141,6 +144,9 @@ func helloDolls(sprites int) HelloDolls {
 	}
 	for s := range sim.EnumNames().States {
 		d.Badges = append(d.Badges, glyphs.StateBadge(sim.State(s)))
+	}
+	for _, p := range glyphs.MarkParts {
+		d.MarkParts = append(d.MarkParts, p.String())
 	}
 	return d
 }

@@ -6,7 +6,7 @@
 // The views alias the buffer. Keep the buffer (or copy out) for as long as you
 // read them.
 
-export const VERSION = 7;
+export const VERSION = 8;
 
 const HEADER = 80;
 export const PAGE_SIDE = 64;
@@ -61,15 +61,17 @@ export function decodeFrame(buffer) {
     id: new Uint32Array(buffer, at, n),
     x: new Int32Array(buffer, at + 4 * n, n),
     y: new Int32Array(buffer, at + 8 * n, n),
+    // A doll's blood and wounds (hello.glyphs.dolls.markParts; docs/body-sprites.md).
+    marks: new Uint32Array(buffer, at + 12 * n, n),
     // Index into hello.glyphs.symbols: the emoji the engine picked for it.
-    glyph: new Uint16Array(buffer, at + 12 * n, n),
+    glyph: new Uint16Array(buffer, at + 16 * n, n),
     // Height in centimetres, 0 for a kind with none (docs/body-sprites.md).
-    height: new Uint16Array(buffer, at + 12 * n + align4(2 * n), n),
+    height: new Uint16Array(buffer, at + 16 * n + align4(2 * n), n),
     kind: null,
     state: null,
     focus: null,
   };
-  at += 12 * n + 2 * align4(2 * n);
+  at += 16 * n + 2 * align4(2 * n);
   entities.kind = new Uint8Array(buffer, at, n);
   entities.state = new Uint8Array(buffer, at + n, n);
   entities.focus = new Uint8Array(buffer, at + 2 * n, n);

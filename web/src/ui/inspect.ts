@@ -46,6 +46,8 @@ export interface EntityInfo {
   sprite: number;
   /** The paper doll the map draws it as, a key into hello.glyphs.dolls, or -1 (docs/body-sprites.md). */
   doll: number;
+  /** The doll's blood and wounds (hello.glyphs.dolls.markParts). */
+  marks: number;
   colonist?: Colonist;
 }
 

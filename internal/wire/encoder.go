@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/kevinmchugh/mars-sim/internal/glyphs"
 	"github.com/kevinmchugh/mars-sim/internal/sim"
 )
 
@@ -194,7 +195,7 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	n := len(ents)
 	size := headerLen +
 		4*len(statFields) +
-		n*(4+4+4) + align4(n*2) + align4(n*2) + align4(n*3) +
+		n*(4+4+4+4) + align4(n*2) + align4(n*2) + align4(n*3) +
 		len(pages)*(4+4) + len(pages)*pageTiles*tileBytes +
 		len(refuse)*(4+4) + align4(len(refuse)*2) + align4(len(refuse)) +
 		len(scum)*(4+4) + align4(len(scum)) +
@@ -231,8 +232,9 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 		at += 4
 	}
 
-	// Entities, as struct-of-arrays: ids, xs, ys, glyphs (uint16, an index
-	// into Hello.Glyphs.Symbols, or past its end into Looks), heights (uint16
+	// Entities, as struct-of-arrays: ids, xs, ys, marks (uint32, a doll's
+	// blood and wounds: glyphs.DollMarks), glyphs (uint16, an index into
+	// Hello.Glyphs.Symbols, or past its end into Looks), heights (uint16
 	// centimetres, 0 for a kind with none), then a byte each of kind, state
 	// and focus.
 	for i := range ents {
@@ -245,6 +247,10 @@ func (e *Encoder) Encode(snap *sim.Snapshot) []byte {
 	at += 4 * n
 	for i := range ents {
 		le.PutUint32(b[at+4*i:], uint32(int32(ents[i].Pos.Y)))
+	}
+	at += 4 * n
+	for i := range ents {
+		le.PutUint32(b[at+4*i:], glyphs.DollMarks(ents[i]))
 	}
 	at += 4 * n
 	for i := range ents {

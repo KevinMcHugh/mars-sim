@@ -46,3 +46,18 @@ test('a body keeps one expression as it mutates, and the colony gets every one',
   const mouth = (svg) => svg.match(/<path d="M5[78][^"]*" fill="(?:none|#f4ece4)"/)?.[0];
   assert.equal(mouth(composeDoll(key(1, 2, 3, 0), layout)), mouth(composeDoll(key(1, 2, 3, 15), layout)));
 });
+
+test('marks draw blood and wounds, and a lost limb is gone', () => {
+  const l = { ...layout, markParts: ['head', 'torso', 'left arm', 'right arm', 'left leg', 'right leg', 'third arm', 'extra eye', 'tail', 'vestigial twin'] };
+  const mk = (blood, parts = {}) => l.markParts.reduce((m, n, i) => m | ((parts[n] ?? 0) << (2 + 2 * i)), blood);
+  const plain = composeDoll(key(0, 1, 0, 0), l);
+  assert.equal(composeDoll(key(0, 1, 0, 0), l, false, 0), plain, 'no marks, no change');
+  const BLOOD = '#a3141c', BANDAGE = '#f3efe6', PEG = '#8a5a2b';
+  assert.ok(!plain.includes(BLOOD) && !plain.includes(BANDAGE));
+  assert.ok(composeDoll(key(0, 1, 0, 0), l, false, mk(1)).includes(BLOOD), 'blood shows');
+  assert.ok(composeDoll(key(0, 1, 0, 0), l, false, mk(0, { torso: 2 })).includes(BANDAGE), 'a dressed wound is bandaged');
+  assert.ok(composeDoll(key(0, 1, 0, 0), l, false, mk(0, { 'left leg': 3 })).includes(PEG), 'a lost leg is a peg');
+  // A lost twin is not drawn at all.
+  const twin = composeDoll(key(0, 1, 0, 8), l);
+  assert.ok(composeDoll(key(0, 1, 0, 8), l, false, mk(0, { 'vestigial twin': 3 })).length < twin.length - 300);
+});
